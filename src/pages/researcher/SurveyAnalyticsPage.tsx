@@ -202,8 +202,17 @@ export function SurveyAnalyticsPage() {
                             />
                             <YAxis allowDecimals={false} stroke="#475569" style={{ fontSize: 11 }} />
                             <Tooltip
-                              formatter={(value: number, _name: string, props: any) => [
-                                `${value} response${value === 1 ? "" : "s"} (${props.payload.percentage}%)`,
+                              formatter={(
+                                value: number,
+                                _name: string,
+                                // Recharts treats the datum as optional, so the
+                                // share is appended only when it is actually there.
+                                item: { payload?: { percentage?: number } },
+                              ) => [
+                                `${value} response${value === 1 ? "" : "s"}` +
+                                  (item.payload?.percentage === undefined
+                                    ? ""
+                                    : ` (${item.payload.percentage}%)`),
                                 "Count",
                               ]}
                             />
