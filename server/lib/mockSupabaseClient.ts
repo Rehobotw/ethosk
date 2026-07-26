@@ -1,3 +1,13 @@
+/**
+ * In-memory stand-in for the Supabase client, used in local demo mode.
+ *
+ * `any` is unavoidable here and disabled for the file: this impersonates a
+ * generically-typed fluent query builder whose row shape depends on a table name
+ * chosen at runtime, so there is no static type to thread through. The types that
+ * matter — the stored records — are declared in `mockStore.ts` and used at every
+ * point where a row is written back.
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import crypto from "node:crypto";
 import { mockStore, type UserRecord, type RespondentProfileRecord, type ResearcherProfileRecord, type SurveyRecord, type DocumentRecord, type ResearcherDepositRecord, type RespondentPayoutRecord } from "./mockStore.js";
 
@@ -350,6 +360,19 @@ class QueryBuilder {
           case "documents": {
             const idx = mockStore.documents.findIndex((d) => d.id === row.id);
             if (idx >= 0) mockStore.documents[idx] = updated as DocumentRecord;
+            break;
+          }
+          // Deposits move pending -> completed when the gateway confirms payment.
+          // Without this the update was accepted and dropped, so a telebirr
+          // deposit stayed pending forever and never reached the balance.
+          case "researcher_deposits": {
+            const idx = mockStore.researcherDeposits.findIndex((d) => d.id === row.id);
+            if (idx >= 0) mockStore.researcherDeposits[idx] = updated as ResearcherDepositRecord;
+            break;
+          }
+          case "respondent_payouts": {
+            const idx = mockStore.respondentPayouts.findIndex((p) => p.id === row.id);
+            if (idx >= 0) mockStore.respondentPayouts[idx] = updated as RespondentPayoutRecord;
             break;
           }
         }

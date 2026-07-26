@@ -16,20 +16,21 @@ if (isMock) {
  * Service-role client. Bypasses RLS, so it is only ever used for operations that
  * legitimately span users.
  */
-export const admin: SupabaseClient = (
-  isMock
-    ? (createMockSupabaseClient() as any)
-    : createClient(env.supabaseUrl, env.supabaseServiceRoleKey, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      })
-);
+export const admin: SupabaseClient = isMock
+  ? // The mock implements the subset of the client this app actually calls, not
+    // the full surface, so it is asserted through `unknown` rather than claiming
+    // structural compatibility it does not have.
+    (createMockSupabaseClient() as unknown as SupabaseClient)
+  : createClient(env.supabaseUrl, env.supabaseServiceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
 /**
  * A client scoped to one end user's access token.
  */
 export function userClient(accessToken: string): SupabaseClient {
   if (isMock) {
-    return createMockSupabaseClient() as any;
+    return createMockSupabaseClient() as unknown as SupabaseClient;
   }
   return createClient(env.supabaseUrl, env.supabaseAnonKey, {
     auth: { autoRefreshToken: false, persistSession: false },

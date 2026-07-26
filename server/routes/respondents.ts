@@ -282,7 +282,8 @@ respondentsRouter.get(
   asyncRoute(async (req, res) => {
     const context = auth(req);
 
-    let { data: targets, error } = await admin
+    // Destructured separately because only `targets` is reassigned below.
+    const initial = await admin
       .from("survey_targets")
       .select(
         "survey_id, notified_at, surveys(id, title, description, questions, reward_etb, status)",
@@ -290,7 +291,9 @@ respondentsRouter.get(
       .eq("respondent_id", context.userId)
       .order("notified_at", { ascending: false });
 
-    if (error) throw new ApiError(500, "INBOX_READ_FAILED", error.message);
+    if (initial.error) throw new ApiError(500, "INBOX_READ_FAILED", initial.error.message);
+
+    let targets = initial.data;
 
     if (!targets || targets.length === 0) {
       const { data: activeSurveys } = await admin
@@ -315,7 +318,9 @@ respondentsRouter.get(
           .eq("respondent_id", context.userId)
           .order("notified_at", { ascending: false });
 
-        targets = refetched;
+        // A refetch that came back empty leaves the original list in place rather
+        // than replacing it with nothing.
+        targets = refetched ?? targets;
       }
     }
 
