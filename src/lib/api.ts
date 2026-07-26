@@ -1,0 +1,71 @@
+import type { ApiErrorShape } from "@shared/types";
+
+const TOKEN_KEY = "ethosk.token";
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string | null): void {
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
+}
+
+/** Carries the server's error code so callers can branch on it, not on message text. */
+export class ApiRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+    readonly fields?: string[],
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
+interface RequestOptions {
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  body?: unknown;
+  /** Set for multipart uploads, where the browser must pick the boundary. */
+  formData?: FormData;
+  signal?: AbortSignal;
+}
+
+export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (options.body !== undefined) headers["Content-Type"] = "application/json";
+
+  const response = await fetch(`/api${path}`, {
+    method: options.method ?? (options.body || options.formData ? "POST" : "GET"),
+    headers,
+    body: options.formData ?? (options.body !== undefined ? JSON.stringify(options.body) : undefined),
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    let code = "REQUEST_FAILED";
+    let message = `Request failed with status ${response.status}`;
+    let fields: string[] | undefined;
+
+    try {
+      const payload = (await response.json()) as ApiErrorShape;
+      if (payload.error) {
+        code = payload.error.code;
+        message = payload.error.message;
+        fields = payload.error.fields;
+      }
+    } catch {
+      // A non-JSON error body leaves the status-based defaults in place.
+    }
+
+    if (response.status === 401) setToken(null);
+    throw new ApiRequestError(response.status, code, message, fields);
+  }
+
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}

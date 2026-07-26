@@ -1,0 +1,271 @@
+import { z } from "zod";
+import {
+  DEPOSIT_METHODS,
+  DOC_TYPES,
+  EDUCATION_LEVELS,
+  EMPLOYMENT_STATUSES,
+  GENDERS,
+  PRIMARY_LANGUAGES,
+  QUESTION_TYPES,
+  TARGET_LANGUAGES,
+  USER_ROLES,
+  VERIFICATION_TIERS,
+} from "../types.js";
+
+/**
+ * One schema, two places it runs: these are imported by the React forms for
+ * client-side validation and by the Express routes for request validation, so a
+ * rule can never drift between the two.
+ */
+
+export const ETHIOPIAN_PHONE_REGEX = /^(?:\+251|0)9\d{8}$/;
+
+export const phoneSchema = z
+  .string()
+  .trim()
+  .regex(ETHIOPIAN_PHONE_REGEX, "Enter a valid Ethiopian mobile number (e.g. 0912345678)");
+
+export const passwordSchema = z.string().min(8, "Password must be at least 8 characters");
+
+export const signupSchema = z.object({
+  full_name: z.string().trim().min(2, "Enter your full name").max(120),
+  phone: phoneSchema,
+  password: passwordSchema,
+  role: z.enum(USER_ROLES).default("respondent"),
+});
+export type SignupInput = z.infer<typeof signupSchema>;
+
+export const loginSchema = z.object({
+  phone: phoneSchema,
+  password: z.string().min(1, "Enter your password"),
+  role: z.enum(USER_ROLES).optional(),
+});
+export type LoginInput = z.infer<typeof loginSchema>;
+
+export const respondentProfileSchema = z.object({
+  university: z.string().trim().min(2).max(160).nullable().optional(),
+  department: z.string().trim().min(2).max(160).nullable().optional(),
+  year: z
+    .number({ invalid_type_error: "Year must be a number" })
+    .int("Year must be a whole number")
+    .min(1, "Year must be between 1 and 8")
+    .max(8, "Year must be between 1 and 8")
+    .nullable()
+    .optional(),
+  age: z
+    .number({ invalid_type_error: "Age must be a number" })
+    .int("Age must be a whole number")
+    .min(15, "Age must be between 15 and 100")
+    .max(100, "Age must be between 15 and 100")
+    .nullable()
+    .optional(),
+  employer: z.string().trim().max(160).nullable().optional(),
+  // General-population attributes. Every one is optional: a respondent who is not
+  // a student still has a complete, matchable profile.
+  gender: z.enum(GENDERS).nullable().optional(),
+  region: z.string().trim().max(80).nullable().optional(),
+  city: z.string().trim().max(80).nullable().optional(),
+  employment_status: z.enum(EMPLOYMENT_STATUSES).nullable().optional(),
+  occupation: z.string().trim().max(120).nullable().optional(),
+  education_level: z.enum(EDUCATION_LEVELS).nullable().optional(),
+  primary_language: z.enum(PRIMARY_LANGUAGES).nullable().optional(),
+  attributes: z.record(z.unknown()).default({}),
+});
+export type RespondentProfileInput = z.infer<typeof respondentProfileSchema>;
+
+export const researcherProfileSchema = z.object({
+  bio: z
+    .string()
+    .trim()
+    .max(1000, "Keep your bio under 1000 characters")
+    .nullable()
+    .optional(),
+  institution: z.string().trim().max(160).nullable().optional(),
+});
+export type ResearcherProfileInput = z.infer<typeof researcherProfileSchema>;
+
+export const questionSchema = z.object({
+  id: z.string().min(1),
+  text: z.string().trim().min(3, "A question needs at least a few words").max(500),
+  type: z.enum(QUESTION_TYPES),
+  options: z
+    .array(z.string().trim().min(1, "This answer option is still blank").max(200))
+    .max(12, "A question supports up to 12 answer options")
+    .optional(),
+  required: z.boolean().optional(),
+  consistencyCheck: z.object({ duplicateOf: z.string().min(1) }).optional(),
+});
+
+export const surveySchema = z.object({
+  title: z.string().trim().min(3, "Give the survey a title").max(200),
+  /**
+   * Shown to respondents under the title. Optional, because a short study does
+   * not need one, but generous in length so a researcher can state the purpose,
+   * who the study is for, and what taking part involves.
+   */
+  description: z
+    .string()
+    .trim()
+    .max(2000, "Keep the description under 2000 characters")
+    .nullable()
+    .optional(),
+  questions: z
+    .array(questionSchema)
+    .min(1, "Add at least one question")
+    .max(30, "The MVP builder supports up to 30 questions"),
+  reward_etb: z.number().min(0).max(10_000).nullable().optional(),
+});
+export type SurveyInput = z.infer<typeof surveySchema>;
+
+export const improveQuestionSchema = z.object({
+  question_id: z.string().min(1),
+});
+
+export const translateSchema = z.object({
+  target_languages: z.array(z.enum(TARGET_LANGUAGES)).min(1),
+});
+
+/** Minimum tier a researcher may filter on — Tier 0 is deliberately excluded. */
+export const minVerificationTierSchema = z.enum([
+  "1_id_verified",
+  "2_attribute_verified",
+  "3_institution_attested",
+]);
+
+/**
+ * Audience filters. The academic fields are one group among several — a study can
+ * target by geography, gender, age, work, education, or language and never
+ * mention a university at all.
+ *
+ * An omitted filter means "no constraint", so the default query reaches the whole
+ * verified panel.
+ */
+export const matchFiltersSchema = z.object({
+  // Who they are
+  ageRange: z
+    .tuple([z.number().int().min(15).max(100), z.number().int().min(15).max(100)])
+    .optional(),
+  gender: z.enum(GENDERS).optional(),
+  primaryLanguage: z.enum(PRIMARY_LANGUAGES).optional(),
+
+  // Where they are
+  region: z.string().trim().min(1).max(80).optional(),
+  city: z.string().trim().min(1).max(80).optional(),
+
+  // Work and education
+  employmentStatus: z.enum(EMPLOYMENT_STATUSES).optional(),
+  occupation: z.string().trim().min(1).max(120).optional(),
+  educationLevel: z.enum(EDUCATION_LEVELS).optional(),
+
+  // Academic, for studies that are specifically about students
+  university: z.string().trim().min(1).optional(),
+  department: z.string().trim().min(1).optional(),
+  yearRange: z.tuple([z.number().int().min(1).max(8), z.number().int().min(1).max(8)]).optional(),
+
+  minVerificationTier: minVerificationTierSchema,
+});
+export type MatchFiltersInput = z.infer<typeof matchFiltersSchema>;
+
+export const matchRequestSchema = z.object({ filters: matchFiltersSchema });
+
+export const sendRequestSchema = z.object({
+  filters: matchFiltersSchema,
+  reward_etb: z.number().min(0).max(10_000).optional(),
+});
+
+/**
+ * A researcher topping up their balance.
+ *
+ * `reference` is the transaction id from the payment provider. It is required and
+ * unique per researcher, so confirming the same transfer twice credits once.
+ */
+export const depositSchema = z.object({
+  amount_etb: z
+    .number({ invalid_type_error: "Enter an amount" })
+    .min(50, "The minimum deposit is 50 ETB")
+    .max(1_000_000, "Contact us to deposit more than 1,000,000 ETB"),
+  method: z.enum(DEPOSIT_METHODS),
+  reference: z
+    .string()
+    .trim()
+    .min(4, "Enter the transaction reference from your payment confirmation")
+    .max(64),
+});
+export type DepositInput = z.infer<typeof depositSchema>;
+
+/**
+ * Starting a telebirr checkout.
+ *
+ * No reference here: the order number is generated server-side, since a client
+ * that chose its own could collide with, or overwrite, someone else's deposit.
+ * Limits mirror `depositSchema` so the two funding routes cannot disagree about
+ * what a permissible amount is.
+ */
+export const telebirrCheckoutSchema = depositSchema.pick({ amount_etb: true });
+export type TelebirrCheckoutInput = z.infer<typeof telebirrCheckoutSchema>;
+
+/** Client-reported typing telemetry for one free-text answer. */
+export const textMetricsSchema = z.object({
+  length: z.number().int().min(0).max(20_000),
+  keystrokes: z.number().int().min(0).max(50_000),
+  typingSeconds: z.number().min(0).max(86_400),
+  pastes: z.number().int().min(0).max(1_000),
+});
+
+export const submitResponseSchema = z.object({
+  answers: z.record(z.string()),
+  time_per_question: z.record(z.number().min(0)),
+  total_time_seconds: z.number().int().min(0),
+  /** Keyed by question id; only present for free-text questions. */
+  text_metrics: z.record(textMetricsSchema).default({}),
+});
+export type SubmitResponseInput = z.infer<typeof submitResponseSchema>;
+
+/**
+ * A Fayda Identification Number as typed by the respondent. Spaces and dashes are
+ * stripped before the format check, since the number is usually printed in groups.
+ */
+export const faydaVerifySchema = z.object({
+  fayda_id: z
+    .string()
+    .trim()
+    .transform((value) => value.replace(/[\s-]/g, ""))
+    .refine((value) => /^\d{12}$/.test(value), {
+      message: "A Fayda ID number is 12 digits",
+    }),
+});
+export type FaydaVerifyInput = z.infer<typeof faydaVerifySchema>;
+
+export const documentUploadSchema = z.object({
+  doc_type: z.enum(DOC_TYPES),
+});
+
+export const chatTurnSchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string().min(1).max(2000),
+      }),
+    )
+    .max(60),
+});
+
+/** Schema for the JSON the document-check model is required to return (§7.3). */
+export const documentCheckSchema = z.object({
+  legible: z.boolean(),
+  matches_claimed_type: z.boolean(),
+  name_consistent: z.boolean(),
+  notes: z.string().max(280),
+});
+export type DocumentCheck = z.infer<typeof documentCheckSchema>;
+
+export const ACCEPTED_UPLOAD_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "application/pdf",
+] as const;
+
+export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+
+export const VERIFICATION_TIER_VALUES = VERIFICATION_TIERS;

@@ -1,0 +1,328 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Question, SurveyRecord, TargetLanguage } from "@shared/types";
+import { surveySchema, type MatchFiltersInput } from "@shared/validation/schemas";
+import { AudiencePanel } from "@/components/filter-builder/AudiencePanel";
+import {
+  QuestionEditor,
+  type ImproveResult,
+} from "@/components/survey-builder/QuestionEditor";
+import {
+  Button,
+  Field,
+  Icon,
+  Input,
+  LoadingBlock,
+  Notice,
+  SectionHeading,
+  Textarea,
+} from "@/components/ui";
+import { ApiRequestError, api } from "@/lib/api";
+import { describeFormError } from "@/lib/forms";
+
+const MAX_QUESTIONS = 30;
+
+const DEFAULT_FILTERS: MatchFiltersInput = { minVerificationTier: "2_attribute_verified" };
+
+function blankQuestion(): Question {
+  return {
+    id: `q${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+    text: "",
+    type: "single_choice",
+    options: ["", ""],
+    required: true,
+  };
+}
+
+export function SurveyBuilderPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const [surveyId, setSurveyId] = useState<string | null>(id ?? null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [rewardEtb, setRewardEtb] = useState<number | null>(15);
+  const [questions, setQuestions] = useState<Question[]>([blankQuestion()]);
+  const [translations, setTranslations] = useState<
+    Partial<Record<TargetLanguage, string[]>>
+  >({});
+  const [filters, setFilters] = useState<MatchFiltersInput>(DEFAULT_FILTERS);
+  const [banner, setBanner] = useState<{ tone: "success" | "error" | "warning"; text: string } | null>(
+    null,
+  );
+
+  const { data: existing, isLoading } = useQuery({
+    queryKey: ["survey", id],
+    queryFn: () => api<SurveyRecord>(`/surveys/${id}`),
+    enabled: Boolean(id),
+  });
+
+  useEffect(() => {
+    if (!existing) return;
+    setSurveyId(existing.id);
+    setTitle(existing.title);
+    setDescription(existing.description ?? "");
+    setRewardEtb(existing.reward_etb);
+    setQuestions(existing.questions.length ? existing.questions : [blankQuestion()]);
+    setTranslations(existing.translations ?? {});
+  }, [existing]);
+
+  const isSent = existing?.status !== undefined && existing.status !== "draft";
+
+  const saveDraft = useMutation({
+    mutationFn: async () => {
+      const payload = surveySchema.parse({
+        title,
+        // A blank box means no description, not an empty one.
+        description: description.trim() ? description : null,
+        questions,
+        reward_etb: rewardEtb,
+      });
+      if (surveyId) {
+        return api<SurveyRecord>(`/surveys/${surveyId}`, { method: "PATCH", body: payload });
+      }
+      return api<SurveyRecord>("/surveys", { body: payload });
+    },
+    onSuccess: async (survey) => {
+      setSurveyId(survey.id);
+      // Editing questions clears cached translations server-side; mirror that here.
+      setTranslations(survey.translations ?? {});
+      setBanner({ tone: "success", text: "Draft saved." });
+      await queryClient.invalidateQueries({ queryKey: ["surveys"] });
+      if (!id) navigate(`/researcher/surveys/${survey.id}/edit`, { replace: true });
+    },
+    onError: (error) => setBanner({ tone: "error", text: describeError(error) }),
+  });
+
+  const translate = useMutation({
+    mutationFn: () =>
+      api<{ translations: Partial<Record<TargetLanguage, string[]>> }>(
+        `/surveys/${surveyId}/translate`,
+        { body: { target_languages: ["am", "om"] } },
+      ),
+    onSuccess: (result) => {
+      setTranslations(result.translations);
+      setBanner({ tone: "success", text: "Translated into Amharic and Afan Oromo." });
+    },
+    onError: (error) =>
+      setBanner({
+        tone: "warning",
+        text:
+          error instanceof ApiRequestError && error.code === "TRANSLATION_PROVIDER_UNAVAILABLE"
+            ? "Translation is unavailable right now. The English version is still live and you can still send."
+            : describeError(error),
+      }),
+  });
+
+  const send = useMutation({
+    mutationFn: () =>
+      api<{ targeted_count: number; status: string }>(`/surveys/${surveyId}/send`, {
+        body: { filters, reward_etb: rewardEtb ?? undefined },
+      }),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["surveys"] });
+      navigate(`/researcher/surveys/${surveyId}/dashboard`, {
+        state: { justSent: result.targeted_count },
+      });
+    },
+    onError: (error) => setBanner({ tone: "error", text: describeError(error) }),
+  });
+
+  // The rewrite runs against the stored question, so there has to be a stored
+  // survey to run it against.
+  const improveDisabledReason = surveyId ? undefined : "Save the draft to enable AI rewrites.";
+
+  const improveQuestion = async (questionId: string): Promise<ImproveResult> => {
+    if (!surveyId) throw new Error(improveDisabledReason);
+    return api<ImproveResult>(`/surveys/${surveyId}/improve-question`, {
+      body: { question_id: questionId },
+    });
+  };
+
+  const questionTranslations = useMemo(
+    () =>
+      questions.map((_, index) => ({
+        am: translations.am?.[index],
+        om: translations.om?.[index],
+      })),
+    [questions, translations],
+  );
+
+  if (id && isLoading) return <LoadingBlock label="Loading the survey…" />;
+
+  const updateQuestion = (index: number, next: Question) => {
+    setQuestions((current) => current.map((item, i) => (i === index ? next : item)));
+    // A question edit invalidates its translation; drop the cached set so the
+    // researcher is not shown a translation of superseded text.
+    if (translations.am || translations.om) setTranslations({});
+  };
+
+  const moveQuestion = (index: number, direction: -1 | 1) => {
+    setQuestions((current) => {
+      const target = index + direction;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      const [moved] = next.splice(index, 1);
+      if (moved) next.splice(target, 0, moved);
+      return next;
+    });
+  };
+
+  return (
+    <div>
+      <SectionHeading
+        actions={
+          <>
+            <Button
+              icon="save"
+              loading={saveDraft.isPending}
+              onClick={() => saveDraft.mutate()}
+              variant="outline"
+            >
+              Save Draft
+            </Button>
+            <Button
+              icon="translate"
+              disabled={!surveyId || isSent}
+              loading={translate.isPending}
+              onClick={() => translate.mutate()}
+              variant="outline"
+            >
+              Localize (AM/OR)
+            </Button>
+            <Button
+              disabled={!surveyId || isSent}
+              icon="send"
+              loading={send.isPending}
+              onClick={() => send.mutate()}
+            >
+              Send Survey
+            </Button>
+          </>
+        }
+        subtitle="Design rigorous research instruments with ethical AI assistance."
+        title="Survey Builder"
+      />
+
+      {banner ? (
+        <div className="mb-stack-md">
+          <Notice onDismiss={() => setBanner(null)} tone={banner.tone}>
+            {banner.text}
+          </Notice>
+        </div>
+      ) : null}
+
+      {isSent ? (
+        <div className="mb-stack-md">
+          <Notice tone="info" title="This survey has been sent">
+            A sent survey is locked so respondents cannot be shown questions that changed underneath
+            them. View its results on the dashboard.
+          </Notice>
+        </div>
+      ) : null}
+
+      <div className="grid gap-gutter lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="space-y-stack-md">
+          <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-stack-md">
+            <Field label="Survey title">
+              <Input
+                disabled={isSent}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="e.g., Learning Approaches at Hawassa University"
+                value={title}
+              />
+            </Field>
+
+            <div className="mt-stack-md">
+              <Field
+                hint={`Shown to respondents under the title, before they start. ${description.length}/2000`}
+                label="Description (optional)"
+              >
+                <Textarea
+                  disabled={isSent}
+                  maxLength={2000}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="What the study is about, who it is for, and what taking part involves. A respondent who understands the purpose gives more considered answers."
+                  rows={5}
+                  value={description}
+                />
+              </Field>
+            </div>
+
+            <div className="mt-stack-md max-w-[200px]">
+              <Field label="Reward per response (ETB)">
+                <Input
+                  disabled={isSent}
+                  min={0}
+                  onChange={(event) =>
+                    setRewardEtb(event.target.value === "" ? null : Number(event.target.value))
+                  }
+                  type="number"
+                  value={rewardEtb ?? ""}
+                />
+              </Field>
+            </div>
+          </div>
+
+          <div className="space-y-stack-md">
+            {questions.map((question, index) => (
+              <QuestionEditor
+                canRemove={questions.length > 1 && !isSent}
+                improveDisabledReason={improveDisabledReason}
+                index={index}
+                key={question.id}
+                onChange={(next) => updateQuestion(index, next)}
+                onImprove={improveQuestion}
+                onMove={(direction) => moveQuestion(index, direction)}
+                onRemove={() =>
+                  setQuestions((current) => current.filter((_, i) => i !== index))
+                }
+                question={question}
+                translations={questionTranslations[index]}
+              />
+            ))}
+          </div>
+
+          {!isSent ? (
+            <>
+              <button
+                className="group flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-outline-variant py-stack-lg text-on-surface-variant transition-all hover:border-primary hover:text-primary disabled:opacity-50"
+                disabled={questions.length >= MAX_QUESTIONS}
+                onClick={() => setQuestions((current) => [...current, blankQuestion()])}
+                type="button"
+              >
+                <Icon
+                  className="text-3xl transition-transform group-hover:scale-110"
+                  name="add_circle"
+                />
+                <span className="mt-stack-sm font-title-sm text-body-md">Add New Question</span>
+              </button>
+
+              <p className="text-center font-body-sm text-[12px] text-on-surface-variant">
+                {questions.length} of {MAX_QUESTIONS} questions. A consistency-check question is added
+                automatically for each respondent.
+              </p>
+            </>
+          ) : null}
+        </div>
+
+        <div>
+          <AudiencePanel
+            disabled={isSent}
+            filters={filters}
+            onChange={setFilters}
+            rewardEtb={rewardEtb}
+            surveyId={surveyId}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function describeError(error: unknown): string {
+  if (error instanceof ApiRequestError) return error.message;
+  return describeFormError(error);
+}

@@ -1,0 +1,434 @@
+import { randomUUID } from "node:crypto";
+import { Router } from "express";
+import multer from "multer";
+import {
+  ACCEPTED_UPLOAD_MIME_TYPES,
+  documentUploadSchema,
+  faydaVerifySchema,
+  MAX_UPLOAD_BYTES,
+  respondentProfileSchema,
+} from "@shared/validation/schemas.js";
+import type { VerificationTier } from "@shared/types.js";
+import { TIER_RANK } from "@shared/types.js";
+import { env } from "../env.js";
+import { checkDocument } from "../lib/ai/features.js";
+import { auth, requireAuth } from "../lib/auth.js";
+import { hashNationalId, recordConsentEvent } from "../lib/consent.js";
+import { isFaydaConfigured, verifyFayda } from "../lib/fayda.js";
+import { ApiError, asyncRoute, parseBody } from "../lib/http.js";
+import { rateLimit } from "../lib/rateLimit.js";
+import { admin, userClient } from "../lib/supabase.js";
+
+export const respondentsRouter = Router();
+
+// Held in memory so the size and MIME checks run before anything reaches storage.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_BYTES },
+});
+
+respondentsRouter.post(
+  "/profile",
+  requireAuth("respondent"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const input = parseBody(respondentProfileSchema, req.body);
+
+    const client = userClient(context.accessToken);
+    const { data, error } = await client
+      .from("respondent_profiles")
+      .upsert({ user_id: context.userId, ...input }, { onConflict: "user_id" })
+      .select()
+      .single();
+
+    if (error) throw new ApiError(500, "PROFILE_SAVE_FAILED", error.message);
+    res.json(data);
+  }),
+);
+
+respondentsRouter.get(
+  "/profile",
+  requireAuth("respondent"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const client = userClient(context.accessToken);
+
+    const { data, error } = await client
+      .from("respondent_profiles")
+      .select()
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    if (error) throw new ApiError(500, "PROFILE_READ_FAILED", error.message);
+    res.json(
+      data ?? {
+        user_id: context.userId,
+        university: null,
+        department: null,
+        year: null,
+        age: null,
+        employer: null,
+        attributes: {},
+      },
+    );
+  }),
+);
+
+/**
+ * Fayda ID verification. The respondent submits their FIN, we ask Fayda whether
+ * it is a real active identity, and only a confirmation from Fayda grants Tier 1.
+ *
+ * The FIN itself is never stored — only a peppered hash, which is enough to stop
+ * one identity registering twice while keeping the sensitive number out of our
+ * database entirely.
+ */
+respondentsRouter.post(
+  "/verify-fayda",
+  requireAuth("respondent"),
+  // Tight limit: this endpoint would otherwise let someone probe which FINs exist.
+  rateLimit({ key: "fayda-verify", max: 5, windowMs: 15 * 60_000 }),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const { fayda_id: faydaId } = parseBody(faydaVerifySchema, req.body);
+
+    const idHash = hashNationalId(faydaId);
+
+    // Reject a FIN already bound to another account before spending a Fayda call.
+    const { data: existing, error: lookupError } = await admin
+      .from("users")
+      .select("id")
+      .eq("national_id_hash", idHash)
+      .maybeSingle();
+
+    if (lookupError) throw new ApiError(500, "VERIFICATION_FAILED", lookupError.message);
+
+    if (existing && existing.id !== context.userId) {
+      throw new ApiError(
+        409,
+        "ID_ALREADY_USED",
+        "This Fayda ID is already linked to another Ethosk account.",
+      );
+    }
+
+    const outcome = await verifyFayda(faydaId);
+
+    if (outcome.status === "unavailable") {
+      await recordConsentEvent(context.userId, "fayda_verification", {
+        result: "unavailable",
+        detail: outcome.detail,
+      });
+      throw new ApiError(
+        503,
+        "FAYDA_UNAVAILABLE",
+        "Fayda could not be reached right now. Please try again shortly.",
+      );
+    }
+
+    if (outcome.status === "not_found") {
+      await recordConsentEvent(context.userId, "fayda_verification", { result: "not_found" });
+      throw new ApiError(
+        404,
+        "FAYDA_ID_NOT_FOUND",
+        "Fayda did not recognise that ID number. Check the digits and try again.",
+      );
+    }
+
+    if (outcome.status === "inactive") {
+      await recordConsentEvent(context.userId, "fayda_verification", { result: "inactive" });
+      throw new ApiError(
+        403,
+        "FAYDA_ID_INACTIVE",
+        "That Fayda ID is not currently active. Please contact Fayda support.",
+      );
+    }
+
+    const nextTier: VerificationTier =
+      TIER_RANK[context.verificationTier] >= TIER_RANK["1_id_verified"]
+        ? context.verificationTier
+        : "1_id_verified";
+
+    const { error } = await admin
+      .from("users")
+      .update({
+        verification_tier: nextTier,
+        national_id_hash: idHash,
+        fayda_verified_at: outcome.verifiedAt,
+      })
+      .eq("id", context.userId);
+
+    if (error) throw new ApiError(500, "VERIFICATION_FAILED", error.message);
+
+    await recordConsentEvent(context.userId, "fayda_verification", {
+      result: "verified",
+      live: isFaydaConfigured(),
+    });
+
+    res.json({
+      verification_tier: nextTier,
+      verified_at: outcome.verifiedAt,
+      /** False when the demo fallback answered instead of the live Fayda service. */
+      live: isFaydaConfigured(),
+    });
+  }),
+);
+
+respondentsRouter.post(
+  "/documents",
+  requireAuth("respondent"),
+  rateLimit({ key: "doc-upload", max: 10, windowMs: 60_000 }),
+  upload.single("file"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const { doc_type: docType } = parseBody(documentUploadSchema, req.body);
+    const file = req.file;
+
+    if (!file) throw new ApiError(400, "FILE_REQUIRED", "Attach a document to upload.");
+
+    // The server-side check is the one that actually matters for security; the
+    // client checks the same rules only to give faster feedback (§17.2).
+    if (!ACCEPTED_UPLOAD_MIME_TYPES.includes(file.mimetype as (typeof ACCEPTED_UPLOAD_MIME_TYPES)[number])) {
+      throw new ApiError(
+        400,
+        "UNSUPPORTED_FILE_TYPE",
+        "Upload a JPEG, PNG, or PDF file.",
+      );
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw new ApiError(413, "FILE_TOO_LARGE", "Files must be 8MB or smaller.");
+    }
+
+    const storagePath = `${context.userId}/${randomUUID()}-${sanitizeFileName(file.originalname)}`;
+
+    const { error: uploadError } = await admin.storage
+      .from(env.documentsBucket)
+      .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
+
+    if (uploadError) throw new ApiError(500, "UPLOAD_FAILED", uploadError.message);
+
+    const { data: document, error: insertError } = await admin
+      .from("documents")
+      .insert({
+        user_id: context.userId,
+        doc_type: docType,
+        storage_path: storagePath,
+        status: "processing",
+      })
+      .select()
+      .single();
+
+    if (insertError) throw new ApiError(500, "UPLOAD_FAILED", insertError.message);
+
+    await recordConsentEvent(context.userId, "document_upload", {
+      document_id: document.id,
+      doc_type: docType,
+    });
+
+    res.status(202).json({ document_id: document.id, status: "processing" });
+
+    // Scoring continues after the response so the client can poll; failures here
+    // land the document in needs_review rather than blocking the upload.
+    void reviewDocument({
+      documentId: document.id,
+      userId: context.userId,
+      docType,
+      profileName: context.fullName,
+      buffer: file.buffer,
+      mimeType: file.mimetype,
+    });
+  }),
+);
+
+respondentsRouter.get(
+  "/documents",
+  requireAuth("respondent"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const client = userClient(context.accessToken);
+
+    const { data, error } = await client
+      .from("documents")
+      .select("id, doc_type, status, ai_notes, created_at")
+      .eq("user_id", context.userId)
+      .order("created_at", { ascending: false });
+
+    if (error) throw new ApiError(500, "DOCUMENTS_READ_FAILED", error.message);
+    res.json({ documents: data ?? [] });
+  }),
+);
+
+respondentsRouter.get(
+  "/documents/:id",
+  requireAuth("respondent"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const client = userClient(context.accessToken);
+
+    const { data, error } = await client
+      .from("documents")
+      .select("id, status, ai_notes")
+      .eq("id", req.params.id)
+      .maybeSingle();
+
+    if (error) throw new ApiError(500, "DOCUMENT_READ_FAILED", error.message);
+    if (!data) throw new ApiError(404, "DOCUMENT_NOT_FOUND", "That document does not exist.");
+
+    res.json({ status: data.status, notes: data.ai_notes });
+  }),
+);
+
+respondentsRouter.get(
+  "/inbox",
+  requireAuth("respondent"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+
+    const { data: targets, error } = await admin
+      .from("survey_targets")
+      .select(
+        "survey_id, notified_at, surveys(id, title, description, questions, reward_etb, status)",
+      )
+      .eq("respondent_id", context.userId)
+      .order("notified_at", { ascending: false });
+
+    if (error) throw new ApiError(500, "INBOX_READ_FAILED", error.message);
+
+    const { data: answered } = await admin
+      .from("survey_responses")
+      .select("survey_id")
+      .eq("respondent_id", context.userId);
+
+    const answeredIds = new Set((answered ?? []).map((row) => row.survey_id));
+
+    type TargetRow = {
+      survey_id: string;
+      surveys: {
+        id: string;
+        title: string;
+        description: string | null;
+        questions: unknown[];
+        reward_etb: number | null;
+        status: string;
+      } | null;
+    };
+
+    // Supabase types an embedded relation as an array; this join returns at most
+    // one survey per target row, so it is narrowed here rather than at each use.
+    const surveys = ((targets ?? []) as unknown as TargetRow[])
+      .filter((row) => row.surveys && row.surveys.status === "active")
+      .filter((row) => !answeredIds.has(row.survey_id))
+      .map((row) => {
+        const questionCount = Array.isArray(row.surveys?.questions)
+          ? row.surveys.questions.length
+          : 0;
+        return {
+          id: row.surveys!.id,
+          title: row.surveys!.title,
+          description: row.surveys!.description,
+          // +1 accounts for the consistency check inserted at fill time.
+          estimated_minutes: Math.max(1, Math.round(((questionCount + 1) * 20) / 60)),
+          reward_etb: row.surveys!.reward_etb ?? 0,
+        };
+      });
+
+    res.json({ surveys });
+  }),
+);
+
+/** Runs the AI check and applies the tier transition it justifies. */
+async function reviewDocument(input: {
+  documentId: string;
+  userId: string;
+  docType: string;
+  profileName: string;
+  buffer: Buffer;
+  mimeType: string;
+}): Promise<void> {
+  try {
+    // The vision model takes images; a PDF cannot be checked automatically and
+    // goes straight to a human.
+    if (input.mimeType === "application/pdf") {
+      await finalizeDocument(input.documentId, "needs_review", "PDF uploads are reviewed manually.");
+      return;
+    }
+
+    const outcome = await checkDocument({
+      imageBase64: input.buffer.toString("base64"),
+      imageMediaType: input.mimeType === "image/png" ? "image/png" : "image/jpeg",
+      docType: input.docType,
+      profileName: input.profileName,
+    });
+
+    if (!outcome.check) {
+      await finalizeDocument(input.documentId, "needs_review", outcome.reason);
+      return;
+    }
+
+    const { legible, matches_claimed_type: matchesType, name_consistent: nameConsistent } =
+      outcome.check;
+
+    if (!legible) {
+      await finalizeDocument(
+        input.documentId,
+        "needs_review",
+        outcome.check.notes || "The image was not legible enough to check.",
+      );
+      return;
+    }
+
+    if (!matchesType || !nameConsistent) {
+      await finalizeDocument(
+        input.documentId,
+        "failed",
+        outcome.check.notes ||
+          (!matchesType
+            ? "The document does not appear to match the claimed type."
+            : "The name on the document does not match the profile name."),
+      );
+      return;
+    }
+
+    await finalizeDocument(input.documentId, "passed", outcome.check.notes);
+    await promoteToAttributeVerified(input.userId);
+  } catch (error) {
+    console.error("[documents] review failed:", error);
+    await finalizeDocument(
+      input.documentId,
+      "needs_review",
+      "Automated check could not complete; queued for manual review.",
+    );
+  }
+}
+
+async function finalizeDocument(
+  documentId: string,
+  status: "passed" | "failed" | "needs_review",
+  notes: string,
+): Promise<void> {
+  const { error } = await admin
+    .from("documents")
+    .update({ status, ai_notes: notes })
+    .eq("id", documentId);
+  if (error) console.error("[documents] status update failed:", error.message);
+}
+
+/** Tier 2 is only reachable from Tier 1 or above, and never downgrades a tier. */
+async function promoteToAttributeVerified(userId: string): Promise<void> {
+  const { data: user } = await admin
+    .from("users")
+    .select("verification_tier")
+    .eq("id", userId)
+    .single();
+
+  if (!user) return;
+  const current = user.verification_tier as VerificationTier;
+  if (TIER_RANK[current] >= TIER_RANK["2_attribute_verified"]) return;
+
+  await admin
+    .from("users")
+    .update({ verification_tier: "2_attribute_verified" })
+    .eq("id", userId);
+}
+
+function sanitizeFileName(name: string): string {
+  return name.replace(/[^A-Za-z0-9._-]/g, "_").slice(-80);
+}

@@ -1,0 +1,361 @@
+<!DOCTYPE html><html class="light" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>TrustLayer Ethiopia - Secure Research Built on Trust</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@600;700&amp;family=Inter:wght@400;600;700&amp;family=JetBrains+Mono:wght@600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "outline": "#71787d",
+                      "surface-container-lowest": "#ffffff",
+                      "on-secondary-fixed-variant": "#574500",
+                      "error": "#ba1a1a",
+                      "on-surface-variant": "#40484c",
+                      "primary-fixed": "#bfe8ff",
+                      "tertiary-container": "#663924",
+                      "surface": "#f8f9ff",
+                      "primary-fixed-dim": "#96ceeb",
+                      "on-primary-container": "#83bad6",
+                      "status-failed": "#ef4444",
+                      "surface-dim": "#cbdbf5",
+                      "surface-container-low": "#eff4ff",
+                      "background": "#f8f9ff",
+                      "status-passed": "#10b981",
+                      "on-tertiary-container": "#e3a489",
+                      "on-secondary-fixed": "#241a00",
+                      "tertiary": "#4b2310",
+                      "surface-container-highest": "#d3e4fe",
+                      "secondary-fixed": "#ffe088",
+                      "surface-container-high": "#dce9ff",
+                      "inverse-surface": "#213145",
+                      "outline-variant": "#c0c7cd",
+                      "primary-container": "#004b63",
+                      "tertiary-fixed-dim": "#fab79b",
+                      "on-tertiary-fixed": "#341102",
+                      "inverse-on-surface": "#eaf1ff",
+                      "surface-container": "#e5eeff",
+                      "secondary": "#735c00",
+                      "surface-tint": "#2a657e",
+                      "on-secondary": "#ffffff",
+                      "surface-subtle": "#f8fafc",
+                      "surface-bright": "#f8f9ff",
+                      "on-primary": "#ffffff",
+                      "on-error": "#ffffff",
+                      "inverse-primary": "#96ceeb",
+                      "tertiary-fixed": "#ffdbcd",
+                      "flag-fraud": "#991b1b",
+                      "secondary-container": "#fed65b",
+                      "on-tertiary-fixed-variant": "#693b26",
+                      "flag-clean": "#065f46",
+                      "error-container": "#ffdad6",
+                      "on-background": "#0b1c30",
+                      "on-tertiary": "#ffffff",
+                      "on-primary-fixed-variant": "#044d65",
+                      "on-surface": "#0b1c30",
+                      "secondary-fixed-dim": "#e9c349",
+                      "surface-variant": "#d3e4fe",
+                      "status-review": "#f59e0b",
+                      "on-error-container": "#93000a",
+                      "on-secondary-container": "#745c00",
+                      "on-primary-fixed": "#001f2b",
+                      "primary": "#003345"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "stack-sm": "8px",
+                      "stack-lg": "32px",
+                      "margin-mobile": "16px",
+                      "gutter": "24px",
+                      "container-max": "1280px",
+                      "base": "4px",
+                      "stack-md": "16px"
+              },
+              "fontFamily": {
+                      "title-sm": [
+                              "Inter"
+                      ],
+                      "body-sm": [
+                              "Inter"
+                      ],
+                      "label-caps": [
+                              "JetBrains Mono"
+                      ],
+                      "headline-md": [
+                              "Hanken Grotesk"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "status-badge": [
+                              "Inter"
+                      ],
+                      "display-lg-mobile": [
+                              "Hanken Grotesk"
+                      ],
+                      "display-lg": [
+                              "Hanken Grotesk"
+                      ]
+              },
+              "fontSize": {
+                      "title-sm": [
+                              "18px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-sm": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-caps": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "26px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "status-badge": [
+                              "12px",
+                              {
+                                      "lineHeight": "12px",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "display-lg-mobile": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "display-lg": [
+                              "40px",
+                              {
+                                      "lineHeight": "48px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ]
+              }
+            },
+          },
+        }
+      </script>
+<style>
+          .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+          }
+      </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased pt-16">
+<!-- TopNavBar -->
+<header class="bg-surface border-b border-outline-variant fixed top-0 w-full z-50 flex justify-between items-center px-margin-mobile md:px-gutter max-w-container-max mx-auto h-16">
+<div class="flex items-center gap-2">
+
+<span class="font-headline-md text-headline-md font-bold text-primary">Ethosk</span>
+</div>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-on-surface-variant font-body-md text-body-md hover:text-primary transition-colors" href="#">Platform</a>
+<a class="text-on-surface-variant font-body-md text-body-md hover:text-primary transition-colors" href="#">Features</a>
+<a class="text-on-surface-variant font-body-md text-body-md hover:text-primary transition-colors" href="#">Fayda ID</a>
+<a class="text-on-surface-variant font-body-md text-body-md hover:text-primary transition-colors" href="#">For Researchers</a>
+<a class="text-on-surface-variant font-body-md text-body-md hover:text-primary transition-colors" href="#">For Respondents</a>
+</nav>
+<div class="flex items-center gap-4">
+<button class="bg-primary text-on-primary px-4 py-2 rounded font-title-sm text-sm hover:bg-primary-container transition-colors duration-200">Sign Up</button>
+</div>
+</header>
+<main>
+<!-- Hero Section -->
+<section class="bg-primary text-on-primary py-16 md:py-24 px-margin-mobile md:px-gutter relative overflow-hidden">
+<div class="max-w-container-max mx-auto grid md:grid-cols-2 gap-stack-lg items-center relative z-10">
+<div class="space-y-stack-md">
+<h1 class="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg text-on-primary">Research Built on Trust</h1>
+<p class="font-body-md text-body-md text-primary-fixed-dim max-w-lg">
+                        Secure data collection and respondent verification with Fayda ID integration in Ethiopia. Ethical, transparent, and defensible insights.
+                    </p>
+<div class="flex flex-wrap gap-stack-sm pt-4">
+<button class="bg-surface-container-lowest text-primary px-6 py-3 rounded font-title-sm text-title-sm hover:bg-surface-container-low transition-colors duration-200 shadow-sm">For Researchers</button>
+<button class="border border-primary-fixed-dim text-primary-fixed-dim px-6 py-3 rounded font-title-sm text-title-sm hover:bg-primary-container hover:text-on-primary-container transition-colors duration-200">For Respondents</button>
+</div>
+</div>
+<div class="relative w-full aspect-square md:aspect-video rounded-xl bg-primary-container overflow-hidden border border-on-primary-fixed-variant shadow-lg flex items-center justify-center"><img src="https://lh3.googleusercontent.com/aida/AP1WRLtIBJerYmH0Yx_fZEugS6XLKG4cadwXe4VqaWhjlnFMfjCB6UR1538k7yN0T88fjdKvJ3atEuWO15GA0oa7bsBxxPH-Ag5Nk6XCns5DBCiOmrORXyzJUjemzfYStQGypHQgLpLS-ygMYDi5oducGzNmvyyYFiXJcd0-Ka1yCyrF-orBpI2Tc8YjYpr0caAJ8eWGvwWCT1G3-djlS3BSRGcZ3-xUw88s88JvGDqNbNr6clrBmTxcEkHvngs" alt="Ethosk Platform Screenshot" class="w-full h-full object-cover"></div>
+</div>
+<!-- Abstract background shape -->
+<div class="absolute top-0 right-0 -mr-32 -mt-32 w-[600px] h-[600px] bg-primary-container rounded-full blur-3xl opacity-30 z-0 pointer-events-none"><img src="https://lh3.googleusercontent.com/aida/AP1WRLtIBJerYmH0Yx_fZEugS6XLKG4cadwXe4VqaWhjlnFMfjCB6UR1538k7yN0T88fjdKvJ3atEuWO15GA0oa7bsBxxPH-Ag5Nk6XCns5DBCiOmrORXyzJUjemzfYStQGypHQgLpLS-ygMYDi5oducGzNmvyyYFiXJcd0-Ka1yCyrF-orBpI2Tc8YjYpr0caAJ8eWGvwWCT1G3-djlS3BSRGcZ3-xUw88s88JvGDqNbNr6clrBmTxcEkHvngs" alt="Ethosk Platform Screenshot" class="w-full h-full object-cover"></div>
+</section>
+<!-- Key Value Propositions -->
+<section class="py-16 md:py-24 px-margin-mobile md:px-gutter bg-surface-subtle">
+<div class="max-w-container-max mx-auto text-center mb-12">
+<h2 class="font-headline-md text-headline-md text-on-surface mb-4">Key Value Propositions</h2>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-2xl mx-auto">Infrastructure designed for academic rigor and community accessibility.</p>
+</div>
+<div class="max-w-container-max mx-auto grid md:grid-cols-3 gap-stack-md">
+<!-- Value Prop 1 -->
+<div class="bg-surface-container-lowest p-stack-lg rounded border border-outline-variant hover:shadow-md transition-shadow duration-300">
+<div class="w-12 h-12 bg-surface-container rounded flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-2xl" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+</div>
+<h3 class="font-title-sm text-title-sm text-on-surface mb-2">Verified Respondents</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Authentic, verified participants via secure Fayda ID integration, eliminating duplicate accounts.</p>
+</div>
+<!-- Value Prop 2 -->
+<div class="bg-surface-container-lowest p-stack-lg rounded border border-outline-variant hover:shadow-md transition-shadow duration-300">
+<div class="w-12 h-12 bg-surface-container rounded flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-2xl" style="font-variation-settings: 'FILL' 1;">model_training</span>
+</div>
+<h3 class="font-title-sm text-title-sm text-on-surface mb-2">AI-Powered Insights</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Automated analysis and cleaning for faster, actionable results with transparent fraud signal indicators.</p>
+</div>
+<!-- Value Prop 3 -->
+<div class="bg-surface-container-lowest p-stack-lg rounded border border-outline-variant hover:shadow-md transition-shadow duration-300">
+<div class="w-12 h-12 bg-surface-container rounded flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-2xl" style="font-variation-settings: 'FILL' 1;">database</span>
+</div>
+<h3 class="font-title-sm text-title-sm text-on-surface mb-2">Ethical Data Storage</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Secure, compliant storage protecting privacy and integrity, fully aligned with Proclamation 1321/2024.</p>
+</div>
+</div>
+</section>
+<!-- Trust & Integrity: Fayda ID -->
+<section class="py-16 md:py-24 px-margin-mobile md:px-gutter bg-surface-container-low border-y border-outline-variant">
+<div class="max-w-container-max mx-auto text-center mb-12">
+<h2 class="font-headline-md text-headline-md text-on-surface mb-4">Fayda ID Integration: Eliminating Fraud &amp; Ensuring Integrity</h2>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-3xl mx-auto">Seamless integration ensures only real, verified individuals contribute to your research, maintaining the highest standard of data quality.</p>
+</div>
+<div class="max-w-4xl mx-auto bg-surface-container-lowest border border-outline-variant rounded-xl p-8 shadow-sm flex flex-col md:flex-row items-center justify-between gap-8">
+<!-- Simplified Diagram -->
+<div class="flex flex-col items-center text-center">
+<div class="w-16 h-16 bg-surface-variant rounded-full flex items-center justify-center mb-4 border border-outline-variant">
+<span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings: 'FILL' 1;">person</span>
+</div>
+<span class="font-title-sm text-title-sm text-on-surface">Respondent</span>
+<span class="font-label-caps text-label-caps text-status-failed mt-2 flex items-center gap-1"><span class="material-symbols-outlined text-base">block</span> Duplicate Accounts</span>
+</div>
+<div class="flex-1 flex items-center justify-center relative hidden md:flex">
+<div class="h-[2px] w-full bg-outline-variant relative">
+<div class="absolute inset-0 bg-primary w-1/2 animate-pulse"></div>
+</div>
+<div class="bg-surface-container-lowest border border-primary text-primary px-3 py-1 rounded-full text-xs font-bold absolute whitespace-nowrap shadow-sm">Secure Verification</div>
+</div>
+<div class="flex-1 flex items-center justify-center relative md:hidden h-16 w-[2px]">
+<div class="w-[2px] h-full bg-outline-variant relative"></div>
+<div class="bg-surface-container-lowest border border-primary text-primary px-3 py-1 rounded-full text-xs font-bold absolute whitespace-nowrap shadow-sm">Secure Verification</div>
+</div>
+<div class="flex flex-col items-center text-center">
+<div class="w-16 h-16 bg-status-passed/10 rounded-full flex items-center justify-center mb-4 border border-status-passed">
+<span class="material-symbols-outlined text-status-passed text-3xl" style="font-variation-settings: 'FILL' 1;">task_alt</span>
+</div>
+<span class="font-title-sm text-title-sm text-on-surface">Validated Data Pool</span>
+<span class="font-label-caps text-label-caps text-status-passed mt-2 flex items-center gap-1"><span class="material-symbols-outlined text-base">check_circle</span> Clean Responses</span>
+</div>
+</div>
+</section>
+<!-- Dual Persona Section -->
+<section class="py-16 md:py-24 px-margin-mobile md:px-gutter bg-surface">
+<div class="max-w-container-max mx-auto grid md:grid-cols-2 gap-stack-lg">
+<!-- Researchers Card -->
+<div class="bg-surface-container-lowest rounded-xl border border-primary overflow-hidden flex flex-col h-full shadow-sm">
+<div class="bg-primary text-on-primary p-6">
+<h3 class="font-headline-md text-headline-md flex items-center gap-2">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">science</span> Researchers
+                         </h3>
+</div>
+<div class="p-6 flex-1 flex flex-col justify-between">
+<div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">Access high-quality, verified data. Utilize automated cleaning tools for efficiency and target specific demographics instantly.</p>
+<ul class="space-y-3 mb-8">
+<li class="flex items-start gap-2 text-on-surface font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-primary text-sm mt-1">check</span> Defensible demographics
+                                 </li>
+<li class="flex items-start gap-2 text-on-surface font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-primary text-sm mt-1">check</span> Transparent AI fraud signals
+                                 </li>
+<li class="flex items-start gap-2 text-on-surface font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-primary text-sm mt-1">check</span> Seamless export integration
+                                 </li>
+</ul>
+</div>
+<a class="inline-flex items-center gap-1 font-title-sm text-title-sm text-primary hover:underline" href="#">Learn More <span class="material-symbols-outlined text-sm">arrow_forward</span></a>
+</div>
+</div>
+<!-- Respondents Card -->
+<div class="bg-surface-container-lowest rounded-xl border border-status-passed overflow-hidden flex flex-col h-full shadow-sm">
+<div class="bg-status-passed text-on-primary p-6">
+<h3 class="font-headline-md text-headline-md flex items-center gap-2">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">groups</span> Respondents
+                         </h3>
+</div>
+<div class="p-6 flex-1 flex flex-col justify-between">
+<div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">Earn rewards for participation. Your privacy is our priority with secure handling and minimal data extraction.</p>
+<ul class="space-y-3 mb-8">
+<li class="flex items-start gap-2 text-on-surface font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-status-passed text-sm mt-1">check</span> Fair ETB compensation
+                                 </li>
+<li class="flex items-start gap-2 text-on-surface font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-status-passed text-sm mt-1">check</span> Transparent data usage
+                                 </li>
+<li class="flex items-start gap-2 text-on-surface font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-status-passed text-sm mt-1">check</span> Easy verification process
+                                 </li>
+</ul>
+</div>
+<a class="inline-flex items-center gap-1 font-title-sm text-title-sm text-status-passed hover:underline" href="#">Learn More <span class="material-symbols-outlined text-sm">arrow_forward</span></a>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container w-full py-stack-lg px-margin-mobile md:px-gutter flex flex-col md:flex-row justify-between items-center gap-stack-md border-t border-outline-variant">
+<div class="flex flex-col items-center md:items-start gap-2">
+<span class="font-title-sm text-title-sm font-bold text-primary">TrustLayer Ethiopia</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-center md:text-left">© 2024 TrustLayer Ethiopia. Compliant with Proclamation 1321/2024.</p>
+</div>
+<div class="flex flex-wrap justify-center gap-4">
+<a class="text-on-surface-variant font-body-sm text-body-sm hover:underline decoration-primary transition-all duration-300" href="#">Legal Compliance</a>
+<a class="text-on-surface-variant font-body-sm text-body-sm hover:underline decoration-primary transition-all duration-300" href="#">Support</a>
+<span class="text-outline-variant">|</span>
+<a class="text-on-surface font-semibold font-body-sm text-body-sm hover:underline decoration-primary transition-all duration-300" href="#">English</a>
+<a class="text-on-surface-variant font-body-sm text-body-sm hover:underline decoration-primary transition-all duration-300" href="#">Amharic</a>
+<a class="text-on-surface-variant font-body-sm text-body-sm hover:underline decoration-primary transition-all duration-300" href="#">Afan Oromo</a>
+</div>
+</footer>
+
+
+
+
+</body></html>
