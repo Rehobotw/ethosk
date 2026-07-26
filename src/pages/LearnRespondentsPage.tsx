@@ -37,7 +37,7 @@ export function LearnRespondentsPage() {
     <>
       <PageHero
         actions={
-          <Link to="/signup">
+          <Link to="/signup?role=respondent">
             <Button
               className="bg-surface-container-lowest px-5 py-3 text-primary hover:bg-primary-fixed"
               icon="how_to_reg"

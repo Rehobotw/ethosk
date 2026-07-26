@@ -282,7 +282,7 @@ respondentsRouter.get(
   asyncRoute(async (req, res) => {
     const context = auth(req);
 
-    const { data: targets, error } = await admin
+    let { data: targets, error } = await admin
       .from("survey_targets")
       .select(
         "survey_id, notified_at, surveys(id, title, description, questions, reward_etb, status)",
@@ -291,6 +291,33 @@ respondentsRouter.get(
       .order("notified_at", { ascending: false });
 
     if (error) throw new ApiError(500, "INBOX_READ_FAILED", error.message);
+
+    if (!targets || targets.length === 0) {
+      const { data: activeSurveys } = await admin
+        .from("surveys")
+        .select("id")
+        .eq("status", "active");
+
+      if (activeSurveys && activeSurveys.length > 0) {
+        await admin.from("survey_targets").upsert(
+          activeSurveys.map((s) => ({
+            survey_id: s.id,
+            respondent_id: context.userId,
+          })),
+          { onConflict: "survey_id,respondent_id", ignoreDuplicates: true },
+        );
+
+        const { data: refetched } = await admin
+          .from("survey_targets")
+          .select(
+            "survey_id, notified_at, surveys(id, title, description, questions, reward_etb, status)",
+          )
+          .eq("respondent_id", context.userId)
+          .order("notified_at", { ascending: false });
+
+        targets = refetched;
+      }
+    }
 
     const { data: answered } = await admin
       .from("survey_responses")

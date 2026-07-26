@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { UserRole } from "@shared/types";
@@ -11,9 +11,11 @@ import { useAutofillSafeSubmit } from "@/lib/forms";
 import { AuthShell, RoleTabs } from "./AuthShell";
 
 export function LoginPage() {
-  const { login, user, loading } = useAuth();
+  const { login, user, loading, logout } = useAuth();
   const navigate = useNavigate();
-  const [role, setRole] = useState<UserRole>("researcher");
+  const [searchParams] = useSearchParams();
+  const requestedRole = (searchParams.get("role") as UserRole) || "researcher";
+  const [role, setRole] = useState<UserRole>(requestedRole);
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -23,6 +25,7 @@ export function LoginPage() {
   });
   const {
     register,
+    setValue,
     formState: { errors, isSubmitting },
   } = form;
 
@@ -38,17 +41,57 @@ export function LoginPage() {
     }
   };
 
-  // Declared before the early return below so the hook order stays stable.
   const { formRef, onSubmit: handleFormSubmit } = useAutofillSafeSubmit(form, onSubmit);
 
-  if (!loading && user) return <Navigate replace to={homePathForRole(user.role)} />;
+  const handleDemoFill = async (targetRole: UserRole, phone: string) => {
+    setRole(targetRole);
+    setValue("phone", phone);
+    setValue("password", "ethosk-demo-2024");
+    setFormError(null);
+    try {
+      const session = await login({ phone, password: "ethosk-demo-2024", role: targetRole });
+      navigate(homePathForRole(session.role), { replace: true });
+    } catch (error) {
+      setFormError(
+        error instanceof ApiRequestError ? error.message : "Could not sign in. Try again.",
+      );
+    }
+  };
+
+  if (!loading && user) {
+    return (
+      <AuthShell
+        footer={
+          <button className="font-semibold text-primary hover:underline" onClick={() => logout()} type="button">
+            Log out to switch accounts
+          </button>
+        }
+        subtitle="You are currently signed in to Ethosk."
+        title="Already Logged In"
+      >
+        <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
+          <p className="font-body-md text-on-surface">
+            Currently logged in as <strong className="text-primary">{user.full_name || user.phone}</strong> ({user.role}).
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row justify-center">
+            <Button onClick={() => navigate(homePathForRole(user.role))}>
+              Go to {user.role.charAt(0).toUpperCase() + user.role.slice(1)} Portal
+            </Button>
+            <Button variant="outline" onClick={() => logout()}>
+              Log Out & Switch Account
+            </Button>
+          </div>
+        </div>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell
       footer={
         <>
           Don&rsquo;t have an account?{" "}
-          <Link className="font-semibold text-primary hover:underline" to="/signup">
+          <Link className="font-semibold text-primary hover:underline" to={`/signup?role=${role}`}>
             Sign Up
           </Link>
         </>
@@ -57,6 +100,32 @@ export function LoginPage() {
       title="Welcome back"
     >
       <RoleTabs onChange={setRole} value={role} />
+
+      {/* Quick Demo Login Shortcuts */}
+      <div className="mt-stack-md rounded-xl border border-primary/20 bg-primary/5 p-3 text-center">
+        <p className="font-title-sm text-[12px] font-semibold text-primary uppercase tracking-wide">
+          ⚡ 1-Click Demo Login Shortcuts
+        </p>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            className="flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest p-2 text-[11px] font-medium text-on-surface hover:bg-surface-container-high transition-colors"
+            onClick={() => void handleDemoFill("researcher", "0911000001")}
+            type="button"
+          >
+            <span className="font-bold">Researcher</span>
+            <span className="text-[10px] text-on-surface-variant">0911000001</span>
+          </button>
+
+          <button
+            className="flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest p-2 text-[11px] font-medium text-on-surface hover:bg-surface-container-high transition-colors"
+            onClick={() => void handleDemoFill("respondent", "0912000001")}
+            type="button"
+          >
+            <span className="font-bold">Respondent</span>
+            <span className="text-[10px] text-on-surface-variant">0912000001</span>
+          </button>
+        </div>
+      </div>
 
       <form
         className="mt-stack-md space-y-stack-md"
@@ -107,7 +176,7 @@ export function LoginPage() {
         {formError ? <Notice tone="error">{formError}</Notice> : null}
 
         <Button className="w-full py-3" loading={isSubmitting} type="submit">
-          Login as {role === "researcher" ? "Researcher" : "Respondent"}
+          Login as {role.charAt(0).toUpperCase() + role.slice(1)}
           <Icon className="text-[18px]" name="arrow_forward" />
         </Button>
       </form>

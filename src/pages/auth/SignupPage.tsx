@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { UserRole } from "@shared/types";
@@ -11,14 +11,16 @@ import { useAutofillSafeSubmit } from "@/lib/forms";
 import { AuthShell, RoleTabs } from "./AuthShell";
 
 export function SignupPage() {
-  const { signup, user, loading } = useAuth();
+  const { signup, user, loading, logout } = useAuth();
   const navigate = useNavigate();
-  const [role, setRole] = useState<UserRole>("respondent");
+  const [searchParams] = useSearchParams();
+  const requestedRole = (searchParams.get("role") as UserRole) || "respondent";
+  const [role, setRole] = useState<UserRole>(requestedRole);
   const [formError, setFormError] = useState<string | null>(null);
 
   const form = useForm<SignupInput>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { full_name: "", phone: "", password: "", role: "respondent" },
+    defaultValues: { full_name: "", phone: "", password: "", role: requestedRole },
   });
   const {
     register,
@@ -40,10 +42,35 @@ export function SignupPage() {
     }
   };
 
-  // Declared before the early return below so the hook order stays stable.
   const { formRef, onSubmit: handleFormSubmit } = useAutofillSafeSubmit(form, onSubmit);
 
-  if (!loading && user) return <Navigate replace to={homePathForRole(user.role)} />;
+  if (!loading && user) {
+    return (
+      <AuthShell
+        footer={
+          <button className="font-semibold text-primary hover:underline" onClick={() => logout()} type="button">
+            Log out to switch accounts
+          </button>
+        }
+        subtitle="You are currently signed in to Ethosk."
+        title="Already Logged In"
+      >
+        <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
+          <p className="font-body-md text-on-surface">
+            Currently logged in as <strong className="text-primary">{user.full_name || user.phone}</strong> ({user.role}).
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row justify-center">
+            <Button onClick={() => navigate(homePathForRole(user.role))}>
+              Go to {user.role.charAt(0).toUpperCase() + user.role.slice(1)} Portal
+            </Button>
+            <Button variant="outline" onClick={() => logout()}>
+              Log Out to Register as {requestedRole.charAt(0).toUpperCase() + requestedRole.slice(1)}
+            </Button>
+          </div>
+        </div>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell
@@ -91,7 +118,7 @@ export function SignupPage() {
         {formError ? <Notice tone="error">{formError}</Notice> : null}
 
         <Button className="w-full py-3" loading={isSubmitting} type="submit">
-          Create {role === "researcher" ? "researcher" : "respondent"} account
+          Create {role.charAt(0).toUpperCase() + role.slice(1)} Account
           <Icon className="text-[18px]" name="arrow_forward" />
         </Button>
 

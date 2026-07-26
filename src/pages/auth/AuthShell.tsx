@@ -82,7 +82,7 @@ export function RoleTabs({
           <button
             aria-selected={active}
             className={clsx(
-              "flex flex-1 items-center justify-center gap-stack-sm rounded-full px-4 py-2.5 font-title-sm text-body-md transition-colors",
+              "flex flex-1 items-center justify-center gap-stack-sm rounded-full px-3 py-2 font-title-sm text-body-sm transition-colors",
               active
                 ? "bg-primary font-semibold text-on-primary"
                 : "text-on-surface-variant hover:text-primary",
@@ -92,7 +92,7 @@ export function RoleTabs({
             role="tab"
             type="button"
           >
-            <Icon className="text-[18px]" filled={active} name={option.icon} />
+            <Icon className="text-[16px]" filled={active} name={option.icon} />
             {option.label}
           </button>
         );
