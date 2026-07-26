@@ -30,18 +30,18 @@ export function SurveyListPage() {
   });
 
   return (
-    <div>
+    <div className="space-y-stack-md">
       <SectionHeading
         actions={
           <Link to="/researcher/surveys/new">
             <Button icon="add">Create New Survey</Button>
           </Link>
         }
-        subtitle="Every survey you have created, with its current status."
+        subtitle="Every survey you have created, with its current status and analytics."
         title="My Surveys"
       />
 
-      {isLoading ? <LoadingBlock /> : null}
+      {isLoading ? <LoadingBlock label="Loading your surveys…" /> : null}
       {error ? <Notice tone="error">Could not load your surveys.</Notice> : null}
 
       {data && data.surveys.length === 0 ? (
@@ -50,55 +50,66 @@ export function SurveyListPage() {
         </EmptyState>
       ) : null}
 
-      <div className="space-y-stack-sm">
-        {data?.surveys.map((survey) => (
-          <Card className="p-stack-md" key={survey.id}>
-            <div className="flex flex-wrap items-center justify-between gap-stack-md">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-stack-sm">
-                  <span
-                    className={`rounded-full px-3 py-1 font-status-badge text-status-badge capitalize ${
-                      STATUS_STYLES[survey.status]
-                    }`}
-                  >
-                    {survey.status}
-                  </span>
-                  <span className="font-body-sm text-[12px] text-on-surface-variant">
-                    {new Date(survey.created_at).toLocaleDateString()}
-                  </span>
+      <div className="space-y-stack-md">
+        {data?.surveys.map((survey) => {
+          const isDraft = survey.status === "draft";
+          return (
+            <Card className="p-stack-md" key={survey.id}>
+              <div className="flex flex-wrap items-center justify-between gap-stack-md">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-stack-sm">
+                    <span
+                      className={`rounded-full px-3 py-1 font-status-badge text-status-badge capitalize ${
+                        STATUS_STYLES[survey.status]
+                      }`}
+                    >
+                      {survey.status}
+                    </span>
+                    <span className="font-body-sm text-[12px] text-on-surface-variant">
+                      {new Date(survey.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <h3 className="mt-stack-sm truncate font-title-sm text-title-sm text-on-surface">
+                    {survey.title}
+                  </h3>
+                  <p className="mt-base font-body-sm text-body-sm text-on-surface-variant">
+                    {survey.questions.length} question{survey.questions.length === 1 ? "" : "s"} ·{" "}
+                    {survey.response_count} response{survey.response_count === 1 ? "" : "s"}
+                    {survey.reward_etb ? ` · ${survey.reward_etb} ETB each` : ""}
+                  </p>
                 </div>
-                <h3 className="mt-stack-sm truncate font-title-sm text-title-sm text-on-surface">
-                  {survey.title}
-                </h3>
-                <p className="mt-base font-body-sm text-body-sm text-on-surface-variant">
-                  {survey.questions.length} question{survey.questions.length === 1 ? "" : "s"} ·{" "}
-                  {survey.response_count} response{survey.response_count === 1 ? "" : "s"}
-                  {survey.reward_etb ? ` · ${survey.reward_etb} ETB each` : ""}
-                </p>
-              </div>
 
-              <div className="flex gap-stack-sm">
-                {survey.status === "draft" ? (
-                  <Link to={`/researcher/surveys/${survey.id}/edit`}>
-                    <Button icon="edit" variant="outline">
-                      Edit
-                    </Button>
-                  </Link>
-                ) : (
-                  <Link to={`/researcher/surveys/${survey.id}/dashboard`}>
-                    <Button icon="insights">Dashboard</Button>
-                  </Link>
-                )}
+                <div className="flex flex-wrap gap-stack-sm">
+                  {isDraft ? (
+                    <Link to={`/researcher/surveys/${survey.id}/edit`}>
+                      <Button icon="edit" variant="outline">
+                        Continue Editing
+                      </Button>
+                    </Link>
+                  ) : (
+                    <>
+                      <Link to={`/researcher/surveys/${survey.id}/dashboard`}>
+                        <Button icon="insights">
+                          View Data & Graphs
+                        </Button>
+                      </Link>
+                      <Link to={`/researcher/surveys/${survey.id}/edit`}>
+                        <Button icon="visibility" variant="outline">
+                          View Questions
+                        </Button>
+                      </Link>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
 
       <p className="mt-stack-lg flex items-center gap-stack-sm font-body-sm text-[12px] text-on-surface-variant">
         <Icon className="text-[16px]" name="lock" />
-        A sent survey is locked from editing so respondents are never shown questions that changed
-        after they answered.
+        Active surveys are locked from editing questions to preserve response integrity, but you can view questions or analyze response graphs anytime.
       </p>
     </div>
   );
