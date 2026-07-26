@@ -43,7 +43,7 @@ function Hero() {
           </p>
 
           <div className="mt-stack-lg flex flex-wrap items-center gap-stack-sm">
-            <Link to="/signup">
+            <Link to="/signup?role=researcher">
               <Button
                 className="bg-surface-container-lowest px-5 py-3 text-primary shadow-lifted hover:bg-primary-fixed"
                 icon="arrow_forward"
