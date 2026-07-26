@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth";
+import { ThemeToggle } from "@/lib/theme";
 import { Icon, TierBadge } from "../ui";
 import { isNavActive, PRIMARY_NAV, SECONDARY_NAV } from "./researcherNav";
 
@@ -38,6 +39,7 @@ export function ResearcherLayout() {
                 type="search"
               />
             </div>
+            <ThemeToggle />
             <Icon className="text-on-surface-variant" name="notifications" />
             <button
               aria-label="Log out"

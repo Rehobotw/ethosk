@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import clsx from "clsx";
 import { Button, Icon } from "../ui";
 import { useAuth, homePathForRole } from "@/lib/auth";
+import { ThemeToggle } from "@/lib/theme";
 import { Footer } from "./Footer";
 
 const NAV_LINKS = [
@@ -72,6 +73,7 @@ export function MarketingLayout() {
           </nav>
 
           <div className="flex items-center gap-stack-sm">
+            <ThemeToggle />
             {user ? (
               <Link to={homePathForRole(user.role)}>
                 <Button

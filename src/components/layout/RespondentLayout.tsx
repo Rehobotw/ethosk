@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth";
+import { ThemeToggle } from "@/lib/theme";
 import { Icon, TierBadge } from "../ui";
 
 /** The four that earn a thumb-sized target in the mobile tab bar. */
@@ -49,6 +50,7 @@ export function RespondentLayout() {
           </Link>
 
           <div className="flex shrink-0 items-center gap-stack-md">
+            <ThemeToggle />
             <Icon className="text-on-surface-variant" name="notifications" />
             <Link
               aria-label="Profile"

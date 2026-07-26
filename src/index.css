@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-background font-body-md text-body-md text-on-background antialiased;
+    @apply bg-background font-body-md text-body-md text-on-background antialiased transition-colors duration-300;
   }
 
   /* Material Symbols are used throughout the Stitch designs for iconography. */
@@ -27,37 +27,87 @@
   }
 }
 
+/* Vibrant Dark Mode Custom Styles */
+html.dark {
+  color-scheme: dark;
+  background-color: #090e1a;
+  color: #f1f5f9;
+}
+
+html.dark body {
+  background-color: #090e1a;
+  color: #f1f5f9;
+}
+
+html.dark .bg-background {
+  background-color: #090e1a !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .bg-surface {
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .bg-surface-container-lowest {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .bg-surface-container-low,
+html.dark .bg-surface-container,
+html.dark .bg-surface-container-high,
+html.dark .bg-surface-container-highest {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .bg-surface-subtle {
+  background-color: #162238 !important;
+}
+
+html.dark .border-outline-variant {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+html.dark .text-on-surface {
+  color: #f8fafc !important;
+}
+
+html.dark .text-on-surface-variant {
+  color: #94a3b8 !important;
+}
+
+html.dark .text-primary {
+  color: #38bdf8 !important;
+}
+
+html.dark .bg-primary {
+  background-color: #0284c7 !important;
+}
+
 @layer utilities {
-  /* The soft teal halo used on respondent survey cards in the design. */
   .trust-glow {
     box-shadow: 0 1px 2px rgb(0 51 69 / 0.06), 0 8px 24px -12px rgb(0 51 69 / 0.18);
   }
 
-  /* Faint dot grid behind light marketing sections, to stop large areas of flat
-     colour reading as empty. */
   .dot-grid {
     background-image: radial-gradient(rgb(11 28 48 / 0.07) 1px, transparent 0);
     background-size: 22px 22px;
     background-position: -11px -11px;
   }
 
-  /* Two off-centre glows layered over the hero's base colour, which gives it
-     depth without needing an image asset. */
   .hero-glow {
     background-image:
       radial-gradient(60% 80% at 85% 10%, rgb(150 206 235 / 0.22), transparent 60%),
       radial-gradient(50% 60% at 5% 90%, rgb(0 75 99 / 0.55), transparent 70%);
   }
 
-  /* Fades the dot grid out toward the bottom so it never collides with the next
-     section's edge. */
   .fade-bottom {
     mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
   }
 }
 
-/* Entrance animations are decorative, so they are dropped entirely for anyone who
-   has asked for less motion. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
