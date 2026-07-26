@@ -105,17 +105,20 @@ export interface DocumentRecord {
   id: string;
   user_id: string;
   doc_type: string;
-  storage_path: string;
   status: string;
   ai_notes?: string | null;
   created_at: string;
 }
 
-class MockStore {
+const DEMO_PASSWORD = "ethosk-demo-2024";
+
+class MockDatabaseStore {
+  private initialized = false;
+
   users = new Map<string, UserRecord>();
-  authUsers = new Map<string, AuthUserRecord>(); // email -> AuthUserRecord
-  authUsersById = new Map<string, AuthUserRecord>(); // id -> AuthUserRecord
-  sessions = new Map<string, string>(); // token -> userId
+  authUsers = new Map<string, AuthUserRecord>();
+  authUsersById = new Map<string, AuthUserRecord>();
+  sessions = new Map<string, string>();
   respondentProfiles = new Map<string, RespondentProfileRecord>();
   researcherProfiles = new Map<string, ResearcherProfileRecord>();
   surveys = new Map<string, SurveyRecord>();
@@ -124,40 +127,30 @@ class MockStore {
   researcherDeposits: ResearcherDepositRecord[] = [];
   respondentPayouts: RespondentPayoutRecord[] = [];
   documents: DocumentRecord[] = [];
-  consentEvents: Array<{ id: string; user_id: string; event_type: string; details?: unknown; created_at: string }> = [];
-  translationCache = new Map<string, { cache_key: string; target_language: string; translated_text: string; created_at: string }>();
-
-  private initialized = false;
+  consentEvents: any[] = [];
+  translationCache = new Map<string, any>();
 
   init() {
     if (this.initialized) return;
     this.initialized = true;
-    this.seedDemoData();
-  }
 
-  private seedDemoData() {
-    const DEMO_PASSWORD = "ethosk-demo-2024";
-
-    // 1. Researcher: Meron Tesfaye
+    // 1. Researcher: Abebe Bekele
     const researcherId = "11111111-1111-4111-a111-111111111111";
-    const researcherPhone = "0911000001";
-    const researcherEmail = "0911000001@phone.ethosk.local";
-    
     this.addUser({
       id: researcherId,
-      phone: researcherPhone,
-      email: researcherEmail,
+      phone: "0911000001",
+      email: "0911000001@phone.ethosk.local",
       password: DEMO_PASSWORD,
-      fullName: "Meron Tesfaye",
+      fullName: "Abebe Bekele",
       role: "researcher",
-      tier: "3_institution_attested",
+      tier: "2_attribute_verified",
     });
     this.researcherProfiles.set(researcherId, {
       user_id: researcherId,
-      bio: "Graduate researcher in education policy at Hawassa University.",
-      institution: "Hawassa University",
+      bio: "Senior Healthcare & Public Policy Analyst",
+      institution: "Addis Ababa University",
       past_studies: [],
-      rating: 4.8,
+      rating: 4.9,
       verified: true,
     });
     this.researcherDeposits.push({
@@ -165,19 +158,19 @@ class MockStore {
       researcher_id: researcherId,
       amount_etb: 50000,
       method: "telebirr",
-      reference: "DEMO-SEED-DEPOSIT-1",
+      reference: "DEMO-DEPOSIT-001",
       status: "completed",
       created_at: new Date().toISOString(),
     });
 
-    // 2. Admin: Ethosk Operator
+    // 2. Admin User
     const adminId = "22222222-2222-4222-a222-222222222222";
     this.addUser({
       id: adminId,
       phone: "0911000002",
       email: "0911000002@phone.ethosk.local",
       password: DEMO_PASSWORD,
-      fullName: "Ethosk Operator",
+      fullName: "Ethosk Admin",
       role: "admin",
       tier: "3_institution_attested",
     });
@@ -274,38 +267,38 @@ class MockStore {
       panelIds.push(pId);
     }
 
-    // 6. Draft Survey
+    // 6. Draft Survey: Learning Approaches at Hawassa University
     const draftId = "55555555-5555-4555-a555-555555555555";
     this.surveys.set(draftId, {
       id: draftId,
       researcher_id: researcherId,
       title: "Learning Approaches at Hawassa University",
-      description: "This study looks at how undergraduates prepare for exams and which resources they struggle to reach.",
+      description: "This study looks at how undergraduates prepare for exams and which learning resources they find most effective.",
       questions: [
         {
           id: "q1",
-          text: "Which approach do you rely on most when preparing for an exam?",
+          text: "Which study method do you rely on most when preparing for examinations?",
           type: "single_choice",
-          options: ["Reading course notes", "Group study", "Past exam papers", "Recorded lectures"],
+          options: ["Reading course notes", "Group study with peers", "Past exam papers", "Online video tutorials"],
           required: true,
         },
         {
           id: "q2",
-          text: "How would you compare your experience of online learning to in-person learning?",
+          text: "How would you compare your experience of online learning to in-person lectures?",
           type: "single_choice",
           options: ["Online is better", "About the same", "In-person is better", "Not sure"],
           required: true,
         },
         {
           id: "q3",
-          text: "On average, how many hours per week do you study outside class?",
+          text: "On average, how many hours per week do you dedicate to self-study outside class?",
           type: "single_choice",
-          options: ["Under 5", "5 to 10", "11 to 20", "More than 20"],
+          options: ["Under 5 hours", "5 to 10 hours", "11 to 20 hours", "More than 20 hours"],
           required: true,
         },
         {
           id: "q4",
-          text: "What single change would most improve your learning experience?",
+          text: "What single academic resource or change would most improve your learning experience?",
           type: "text",
           required: true,
         },
@@ -316,26 +309,38 @@ class MockStore {
       created_at: new Date().toISOString(),
     });
 
-    // 7. Active Survey with Responses
+    // 7. Active Survey with Responses: Access to Specialized Healthcare in Mekelle
     const activeId = "66666666-6666-4666-a666-666666666666";
     this.surveys.set(activeId, {
       id: activeId,
       researcher_id: researcherId,
       title: "Access to Specialized Healthcare in Mekelle",
-      description: "Mapping travel distance and barriers to specialized healthcare.",
+      description: "Mapping travel distance, financial cost, and systemic barriers to specialized medical care in Mekelle and surrounding districts.",
       questions: [
         {
           id: "q1",
-          text: "Which approach do you rely on most when preparing for an exam?",
+          text: "What is the primary barrier to accessing specialized healthcare in your area?",
           type: "single_choice",
-          options: ["Reading course notes", "Group study", "Past exam papers", "Recorded lectures"],
+          options: [
+            "Travel distance to referral hospital",
+            "High cost of private consultation",
+            "Long waiting times for specialist appointments",
+            "Lack of specialized diagnostic equipment",
+          ],
           required: true,
         },
         {
           id: "q2",
-          text: "How would you compare your experience of online learning to in-person learning?",
+          text: "How far do you typically travel to see a medical specialist?",
           type: "single_choice",
-          options: ["Online is better", "About the same", "In-person is better", "Not sure"],
+          options: ["Under 10 km", "10 - 50 km", "50 - 150 km", "Over 150 km"],
+          required: true,
+        },
+        {
+          id: "q3",
+          text: "Have you or your family used digital health or telemedicine consultations?",
+          type: "single_choice",
+          options: ["Yes, multiple times", "Yes, once", "No, but interested", "No, prefer in-person only"],
           required: true,
         },
       ],
@@ -343,12 +348,12 @@ class MockStore {
       target_filters: { minVerificationTier: "2_attribute_verified" },
       status: "active",
       reward_etb: 30,
-      escrow_etb: 660,
+      escrow_etb: 1800,
       created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
       sent_at: new Date(Date.now() - 3 * 86400000).toISOString(),
     });
 
-    // Target panel respondents and seed responses
+    // Target panel respondents and seed 38 realistic responses
     const targets = panelIds.slice(0, 60);
     for (const rId of targets) {
       this.surveyTargets.push({
@@ -358,11 +363,32 @@ class MockStore {
       });
     }
 
+    const q1Options = [
+      "Travel distance to referral hospital",
+      "High cost of private consultation",
+      "Long waiting times for specialist appointments",
+      "Lack of specialized diagnostic equipment",
+    ];
+
+    const q2Options = [
+      "50 - 150 km",
+      "10 - 50 km",
+      "Over 150 km",
+      "Under 10 km",
+    ];
+
+    const q3Options = [
+      "No, but interested",
+      "Yes, once",
+      "No, prefer in-person only",
+      "Yes, multiple times",
+    ];
+
     for (let idx = 0; idx < 38; idx++) {
       const rId = targets[idx]!;
-      const badFaith = idx % 17 === 0;
+      const badFaith = idx === 5 || idx === 18 || idx === 31;
       const respId = crypto.randomUUID();
-      const totalTime = badFaith ? 18 : 95 + (idx % 40);
+      const totalTime = badFaith ? 14 : 75 + (idx * 3) % 45;
       const flag = badFaith ? "flagged" : "clean";
 
       this.surveyResponses.push({
@@ -370,13 +396,26 @@ class MockStore {
         survey_id: activeId,
         respondent_id: rId,
         answers: {
-          q1: badFaith ? "Reading course notes" : "Group study",
-          q2: badFaith ? "Online is better" : "In-person is better",
+          q1: q1Options[idx % q1Options.length]!,
+          q2: q2Options[idx % q2Options.length]!,
+          q3: q3Options[idx % q3Options.length]!,
         },
-        time_per_question: { q1: Math.round(totalTime / 2), q2: Math.round(totalTime / 2) },
+        time_per_question: {
+          q1: Math.round(totalTime / 3),
+          q2: Math.round(totalTime / 3),
+          q3: Math.round(totalTime / 3),
+        },
         total_time_seconds: totalTime,
         fraud_flag: flag,
-        fraud_signals: badFaith ? { speedRun: true } : undefined,
+        fraud_signals: badFaith
+          ? {
+              tripped: ["speed_run", "straight_line"],
+              total_time_seconds: 14,
+              expected_min_seconds: 45,
+              straight_line_ratio: 1.0,
+              max_typing_chars_per_second: null,
+            }
+          : undefined,
         completed_at: new Date(Date.now() - (38 - idx) * 3600000).toISOString(),
       });
 
@@ -414,18 +453,20 @@ class MockStore {
       created_at: now,
       updated_at: now,
     };
-    const authUser: AuthUserRecord = {
+    this.users.set(input.id, user);
+    this.authUsers.set(input.email, {
       id: input.id,
       email: input.email,
       password: input.password,
-      user_metadata: { role: input.role, full_name: input.fullName, phone: input.phone },
-    };
-
-    this.users.set(input.id, user);
-    this.authUsers.set(input.email, authUser);
-    this.authUsersById.set(input.id, authUser);
+      user_metadata: { role: input.role, full_name: input.fullName },
+    });
+    this.authUsersById.set(input.id, {
+      id: input.id,
+      email: input.email,
+      password: input.password,
+      user_metadata: { role: input.role, full_name: input.fullName },
+    });
   }
 }
 
-export const mockStore = new MockStore();
-mockStore.init();
+export const mockStore = new MockDatabaseStore();
