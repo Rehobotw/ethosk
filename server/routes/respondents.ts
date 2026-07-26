@@ -361,6 +361,39 @@ respondentsRouter.get(
   }),
 );
 
+respondentsRouter.get(
+  "/history",
+  requireAuth("respondent"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+
+    const { data: responses, error } = await admin
+      .from("survey_responses")
+      .select("id, survey_id, completed_at, surveys(title, reward_etb)")
+      .eq("respondent_id", context.userId)
+      .order("completed_at", { ascending: false });
+
+    if (error) throw new ApiError(500, "HISTORY_READ_FAILED", error.message);
+
+    type ResponseRow = {
+      id: string;
+      survey_id: string;
+      completed_at: string;
+      surveys: { title: string; reward_etb: number | null } | null;
+    };
+
+    const history = ((responses ?? []) as unknown as ResponseRow[]).map((row) => ({
+      id: row.id,
+      survey_id: row.survey_id,
+      title: row.surveys?.title ?? "Survey Response",
+      reward_etb: row.surveys?.reward_etb ?? 0,
+      completed_at: row.completed_at,
+    }));
+
+    res.json({ history });
+  }),
+);
+
 /** Runs the AI check and applies the tier transition it justifies. */
 async function reviewDocument(input: {
   documentId: string;

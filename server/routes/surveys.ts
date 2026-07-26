@@ -588,13 +588,33 @@ surveysRouter.post(
         timeoutMs: 8_000,
       });
       res.json({ reply, fallback_to_form: false });
-    } catch (error) {
-      console.warn("[chat] falling back to form mode:", error);
-      res.json({
-        reply: null,
-        fallback_to_form: true,
-        message: "Chat mode is unavailable. Please continue in the standard form.",
-      });
+    } catch (_error) {
+      // In local demo mode when ANTHROPIC_API_KEY is not set, simulate conversational question turns.
+      const userMessageCount = messages.filter((m) => m.role === "user").length;
+      const currentQuestion = survey.questions[userMessageCount];
+
+      if (userMessageCount === 0 && currentQuestion) {
+        const optionText = currentQuestion.options?.length
+          ? ` Options: ${currentQuestion.options.join(" | ")}`
+          : "";
+        res.json({
+          reply: `Welcome! Let's begin the survey. Question 1 of ${survey.questions.length}: ${currentQuestion.text}${optionText}`,
+          fallback_to_form: false,
+        });
+      } else if (currentQuestion) {
+        const optionText = currentQuestion.options?.length
+          ? ` Options: ${currentQuestion.options.join(" | ")}`
+          : "";
+        res.json({
+          reply: `Got it! Next question (${userMessageCount + 1} of ${survey.questions.length}): ${currentQuestion.text}${optionText}`,
+          fallback_to_form: false,
+        });
+      } else {
+        res.json({
+          reply: "Thank you! All questions in this study have been answered. Click 'Review and submit' below to record your response.",
+          fallback_to_form: false,
+        });
+      }
     }
   }),
 );

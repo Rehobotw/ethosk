@@ -10,14 +10,6 @@ interface VerifyResult {
   live: boolean;
 }
 
-/**
- * Fayda ID entry. The respondent types their 12-digit FIN and the server checks
- * it against Fayda.
- *
- * The digits are held in component state only for as long as the form is open —
- * they are sent once and never persisted client-side, since the server stores only
- * a hash of the number.
- */
 export function FaydaVerifyForm({ onVerified }: { onVerified: () => Promise<void> | void }) {
   const [fin, setFin] = useState("");
 
@@ -33,6 +25,10 @@ export function FaydaVerifyForm({ onVerified }: { onVerified: () => Promise<void
     },
   });
 
+  const handleFillDemo = () => {
+    setFin("3000 0000 0001");
+  };
+
   return (
     <form
       className="mt-stack-md space-y-stack-sm"
@@ -42,6 +38,15 @@ export function FaydaVerifyForm({ onVerified }: { onVerified: () => Promise<void
       }}
     >
       <Field
+        action={
+          <button
+            className="font-label-caps text-[11px] font-semibold uppercase text-primary hover:underline"
+            onClick={handleFillDemo}
+            type="button"
+          >
+            ⚡ Auto-Fill Demo ID
+          </button>
+        }
         error={fin.length > 0 && !complete ? "A Fayda ID number is 12 digits" : undefined}
         hint="Find this on your Fayda card or in the Fayda app. We check it with Fayda and never store the number itself."
         label="Fayda ID number (FIN)"
@@ -49,20 +54,21 @@ export function FaydaVerifyForm({ onVerified }: { onVerified: () => Promise<void
         <Input
           autoComplete="off"
           inputMode="numeric"
-          // Grouped as the number is printed on the card, so it is easier to
-          // check against the physical ID while typing.
           onChange={(event) => {
             const next = event.target.value.replace(/\D/g, "").slice(0, 12);
             setFin(next.replace(/(\d{4})(?=\d)/g, "$1 ").trim());
           }}
-          placeholder="0000 0000 0000"
+          placeholder="3000 0000 0001"
           value={fin}
         />
       </Field>
 
-      <div className="flex items-center gap-stack-sm">
+      <div className="flex flex-wrap items-center gap-stack-sm">
         <Button disabled={!complete} icon="fingerprint" loading={verify.isPending} type="submit">
           Verify with Fayda
+        </Button>
+        <Button onClick={handleFillDemo} type="button" variant="outline">
+          Use Demo FIN
         </Button>
         <span className="inline-flex items-center gap-1 font-body-sm text-body-sm text-on-surface-variant">
           <Icon className="text-[16px]" name="lock" />

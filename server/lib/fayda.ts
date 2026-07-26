@@ -153,7 +153,7 @@ function verifyWithoutCredentials(fin: string): FaydaOutcome {
   if (!env.allowFaydaStub) {
     return { status: "unavailable", detail: "Fayda verification is not configured" };
   }
-  if (DEMO_FINS.has(fin)) {
+  if (isValidFinFormat(fin)) {
     return { status: "verified", verifiedAt: new Date().toISOString() };
   }
   return { status: "not_found" };
