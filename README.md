@@ -87,8 +87,10 @@ Sign in with a seeded account — see `docs/demo_script.md` for the list.
 | `npm run typecheck` | `tsc` across client, server, and shared |
 | `npm test` | Unit tests for the decision logic |
 | `npm run lint` | ESLint |
+| `npm run migrate` | Apply `supabase/migrations` in order, recording what ran |
 | `npm run seed` | Load the demo panel and surveys |
 | `npm run check:service-role` | Fails if the service-role key is reachable from client code |
+| `npm run check:schema` | Reports which migrations the live database is missing |
 
 ## Layout
 
@@ -143,8 +145,46 @@ pass as coming from the demo directory. Set the flag to `false` anywhere real us
 can reach the app: with it off, an unconfigured integration refuses verification
 rather than handing out verified tiers.
 
+## Payments
+
+Money moves in three recorded steps, and every balance is derived from those rows
+rather than stored — so a balance can never disagree with the deposits and payouts
+that explain it (`researcher_wallet_view`, `respondent_wallet_view`).
+
+1. A researcher deposits, either through telebirr checkout or by entering the
+   reference of a transfer they made out of band.
+2. Sending a survey reserves its whole reward budget in `surveys.escrow_etb`. An
+   underfunded account cannot send.
+3. Each response that passes the quality check credits the respondent from that
+   reservation, one payout per response.
+
+**telebirr.** Set `TELEBIRR_BASE_URL`, `TELEBIRR_APP_ID`, `TELEBIRR_APP_KEY`,
+`TELEBIRR_SHORT_CODE`, `TELEBIRR_PUBLIC_KEY` (theirs), and `TELEBIRR_PRIVATE_KEY`
+(yours) from the Ethio Telecom merchant pack. `TELEBIRR_NOTIFY_BASE_URL` must be
+reachable from the internet, so local development needs a tunnel — a callback that
+cannot arrive leaves deposits stuck pending.
+
+Only telebirr's server-to-server callback credits a balance. The browser returning
+from checkout proves nothing, so it merely polls the ledger. A deposit is recorded
+`pending` before checkout opens, and the wallet views count only `completed` rows,
+so an abandoned payment never touches a balance. Two rules make a replayed callback
+harmless: the credited amount is always the one recorded when the order was
+created, never the one in the callback, and the order number is unique.
+
+telebirr has shipped several API generations with different endpoint paths and
+field casing. All of that is confined to `buildOrderFields` and `CHECKOUT_PATH` in
+`server/lib/payments/telebirr.ts`, to be checked against the pack issued with your
+credentials; the signing and settlement logic around it does not vary.
+
+Without credentials, `ALLOW_TELEBIRR_DEMO=true` simulates checkout locally and
+settles through the same server path, so the funding journey is demoable. Set it to
+`false` anywhere real money is involved: it credits a balance with no payment
+behind it.
+
 ## What is not built
 
-Deferred exactly as the blueprint's own Post-hack labels anticipate: Telebirr and
-CBE payouts, longitudinal re-contact, the researcher marketplace and hiring flow,
-dataset licensing with consent-lineage certificates, and the USSD/voice channel.
+Respondent withdrawals — earnings accrue and are visible, but the payout rail out
+to a respondent's own telebirr or CBE account is not connected, so the withdraw
+button is disabled. Also deferred, as the blueprint's Post-hack labels anticipate:
+longitudinal re-contact, the researcher marketplace and hiring flow, dataset
+licensing with consent-lineage certificates, and the USSD/voice channel.
