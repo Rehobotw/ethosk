@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { useAuth } from "@/lib/auth";
 import { ThemeToggle } from "@/lib/theme";
 import { Icon, TierBadge } from "../ui";
+import { ProfileDropdown } from "./ProfileDropdown";
 
 /** The four that earn a thumb-sized target in the mobile tab bar. */
 const PRIMARY_TABS = [
@@ -52,13 +53,7 @@ export function RespondentLayout() {
           <div className="flex shrink-0 items-center gap-stack-md">
             <ThemeToggle />
             <Icon className="text-on-surface-variant" name="notifications" />
-            <Link
-              aria-label="Profile"
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-primary font-status-badge text-status-badge text-on-primary"
-              to="/profile"
-            >
-              {(user?.full_name?.[0] ?? "?").toUpperCase()}
-            </Link>
+            <ProfileDropdown />
           </div>
         </div>
       </header>

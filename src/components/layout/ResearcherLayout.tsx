@@ -4,10 +4,11 @@ import clsx from "clsx";
 import { useAuth } from "@/lib/auth";
 import { ThemeToggle } from "@/lib/theme";
 import { Icon, TierBadge } from "../ui";
+import { ProfileDropdown } from "./ProfileDropdown";
 import { isNavActive, PRIMARY_NAV, SECONDARY_NAV } from "./researcherNav";
 
 export function ResearcherLayout() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { pathname } = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -41,16 +42,7 @@ export function ResearcherLayout() {
             </div>
             <ThemeToggle />
             <Icon className="text-on-surface-variant" name="notifications" />
-            <button
-              aria-label="Log out"
-              className="flex items-center gap-stack-sm"
-              onClick={logout}
-              type="button"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary font-status-badge text-status-badge text-on-primary">
-                {initials(user?.full_name)}
-              </span>
-            </button>
+            <ProfileDropdown />
           </div>
         </div>
       </header>
@@ -140,11 +132,4 @@ function SidebarLink({
   );
 }
 
-function initials(name: string | undefined): string {
-  if (!name) return "?";
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
+
