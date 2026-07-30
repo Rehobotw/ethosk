@@ -32,6 +32,12 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
+async function readJsonBody<T>(response: Response): Promise<T | undefined> {
+  const text = await response.text();
+  if (!text.trim()) return undefined;
+  return JSON.parse(text) as T;
+}
+
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {};
@@ -52,8 +58,8 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     let fields: string[] | undefined;
 
     try {
-      const payload = (await response.json()) as ApiErrorShape;
-      if (payload.error) {
+      const payload = await readJsonBody<ApiErrorShape>(response);
+      if (payload?.error) {
         code = payload.error.code;
         message = payload.error.message;
         fields = payload.error.fields;
@@ -67,5 +73,6 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   }
 
   if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
+  const payload = await readJsonBody<T>(response);
+  return payload as T;
 }

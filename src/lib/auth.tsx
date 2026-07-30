@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from "react";
 import type { UserRole, VerificationTier } from "@shared/types";
 import type { LoginInput, SignupInput } from "@shared/validation/schemas";
-import { api, getToken, setToken } from "./api";
+import { ApiRequestError, api, getToken, setToken } from "./api";
 
 export interface SessionUser {
   user_id: string;
@@ -22,6 +22,22 @@ interface AuthState {
 }
 
 const AuthContext = createContext<AuthState | null>(null);
+
+interface SignupResponse {
+  success?: boolean;
+  message?: string;
+  user?: {
+    id: string;
+    email: string;
+    role: UserRole;
+    verification_tier: VerificationTier;
+    access_token: string | null;
+  };
+  user_id?: string;
+  role?: UserRole;
+  verification_tier?: VerificationTier;
+  access_token?: string | null;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -65,18 +81,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signup = useCallback(async (input: SignupInput) => {
-    const result = await api<{
-      user_id: string;
-      role: UserRole;
-      verification_tier: VerificationTier;
-      access_token: string | null;
-    }>("/auth/signup", { body: input });
+    const result = await api<SignupResponse>("/auth/signup", { body: input });
 
-    if (result.access_token) setToken(result.access_token);
+    const userId = result.user?.id ?? result.user_id;
+    const role = result.user?.role ?? result.role ?? input.role;
+    const verificationTier = result.user?.verification_tier ?? result.verification_tier ?? "0_registered";
+    const accessToken = result.user?.access_token ?? result.access_token ?? null;
+
+    if (!userId) {
+      throw new ApiRequestError(
+        502,
+        "EMPTY_RESPONSE",
+        "The server created the account but returned no user details. Please try logging in if the account already exists.",
+      );
+    }
+
+    if (accessToken) setToken(accessToken);
     const session: SessionUser = {
-      user_id: result.user_id,
-      role: result.role,
-      verification_tier: result.verification_tier,
+      user_id: userId,
+      role,
+      verification_tier: verificationTier,
       full_name: input.full_name,
       phone: input.phone,
     };

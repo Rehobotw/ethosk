@@ -84,11 +84,22 @@ authRouter.post(
 
     const session = await signInWithPassword(phoneToEmail(input.phone), input.password);
 
+    const accessToken = session.data.session?.access_token ?? null;
+
     res.status(201).json({
+      success: true,
+      message: "Account created successfully.",
+      user: {
+        id: created.user.id,
+        email: phoneToEmail(input.phone),
+        role: input.role,
+        verification_tier: "0_registered",
+        access_token: accessToken,
+      },
       user_id: created.user.id,
       role: input.role,
       verification_tier: "0_registered",
-      access_token: session.data.session?.access_token ?? null,
+      access_token: accessToken,
     });
   }),
 );
