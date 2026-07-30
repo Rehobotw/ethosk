@@ -15,6 +15,7 @@ import "../server/loadEnv.js";
 import { createClient } from "@supabase/supabase-js";
 import type { Question } from "../shared/types.js";
 import { scoreResponse } from "../shared/fraud/score.js";
+import { serverSupabaseClientOptions } from "../server/lib/supabaseClientOptions.js";
 
 const url = process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -26,9 +27,7 @@ if (!url || !serviceRoleKey) {
   process.exit(1);
 }
 
-const db = createClient(url, serviceRoleKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+const db = createClient(url, serviceRoleKey, serverSupabaseClientOptions());
 
 const DEMO_PASSWORD = "ethosk-demo-2024";
 
