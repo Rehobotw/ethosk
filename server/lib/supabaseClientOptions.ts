@@ -10,7 +10,7 @@ const auth = { autoRefreshToken: false, persistSession: false } as const;
  * Node.js only exposes a global WebSocket from v22 onward, so older runtimes
  * need the `ws` transport.
  */
-export function serverSupabaseClientOptions(): SupabaseClientOptions {
+export function serverSupabaseClientOptions(): SupabaseClientOptions<'public'> {
   const hasNativeWebSocket = typeof globalThis.WebSocket !== "undefined";
 
   // #region agent log
