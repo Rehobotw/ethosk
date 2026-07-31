@@ -1,6 +1,6 @@
-import type { TranslationKeys } from "./en";
+import type { TranslationSchema } from "./en";
 
-export const am: TranslationKeys = {
+export const am: TranslationSchema = {
   nav: {
     how_it_works: "እንዴት እንደሚሰራ",
     platform: "ፕላትፎርም",
