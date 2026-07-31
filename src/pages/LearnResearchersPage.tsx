@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { TIER_LABEL, VERIFICATION_TIERS, type VerificationTier } from "@shared/types";
 import { PageHero, PageSection } from "@/components/marketing/PageHero";
 import { Button, Icon, Notice } from "@/components/ui";
+import { useLanguage } from "@/lib/language";
 
 const TIER_DETAIL: Record<VerificationTier, string> = {
   "0_registered": "Phone number confirmed. Not included in any verified match by default.",
@@ -36,6 +37,8 @@ const SIGNALS = [
 ];
 
 export function LearnResearchersPage() {
+  const { t } = useLanguage();
+
   return (
     <>
       <PageHero
@@ -46,7 +49,7 @@ export function LearnResearchersPage() {
                 className="bg-surface-container-lowest px-5 py-3 text-primary hover:bg-primary-fixed"
                 icon="arrow_forward"
               >
-                Create a researcher account
+                {t("closing_cta.btn_signup")}
               </Button>
             </Link>
             <Link to="/learn/respondents">
@@ -54,19 +57,15 @@ export function LearnResearchersPage() {
                 className="border border-primary-fixed-dim/40 px-5 py-3 text-primary-fixed-dim hover:border-primary-fixed-dim hover:bg-primary-fixed/10 hover:text-primary-fixed"
                 variant="ghost"
               >
-                See the respondent side
+                {t("audiences.respondent_cta")}
               </Button>
             </Link>
           </>
         }
-        eyebrow="For researchers"
-        title="Know who answered, and whether they read the question"
+        eyebrow={t("nav.for_researchers")}
+        title={t("audiences.researcher_title")}
       >
-        <p>
-          Kobo, ODK, and Google Forms format your questions. None of them can tell you
-          who actually answered. Ethosk is built to answer that, and to show you the
-          evidence behind every response.
-        </p>
+        <p>{t("audiences.researcher_body")}</p>
       </PageHero>
 
       <PageSection
