@@ -158,12 +158,12 @@ const STEPS = [
   {
     icon: "send",
     title: "Send to matched respondents",
-    body: "Only respondents who actually meet your filters are invited. Write in English and localise to Amharic or Afan Oromo in a click.",
+    body: "Only respondents who actually meet your filters are invited. Write in English and localize to Amharic or Afan Oromo in a click.",
   },
   {
     icon: "insights",
     title: "Read results you can defend",
-    body: "Every response arrives with quality checks already applied, so you can see which ones to trust before you start analysing.",
+    body: "Every response arrives with quality checks already applied, so you can see which ones to trust before you start analyzing.",
   },
 ];
 
