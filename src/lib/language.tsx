@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { en } from "./translations/en";
 import { am } from "./translations/am";
 
@@ -29,52 +29,56 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = language;
   }, [language]);
 
-  const setLanguage = (lang: Language) => {
+  const setLanguage = useCallback((lang: Language) => {
     setLanguageState(lang);
-  };
+  }, []);
 
-  const toggleLanguage = () => {
+  const toggleLanguage = useCallback(() => {
     setLanguageState((prev) => (prev === "en" ? "am" : "en"));
-  };
+  }, []);
 
   /**
    * Safe nested key lookup (e.g. t('nav.how_it_works'))
    * Falls back to English if missing in target language, or key string itself.
    */
-  const t = (path: string): string => {
-    const keys = path.split(".");
-    
-    // Try primary language
-    let current: any = translations[language];
-    for (const k of keys) {
-      if (current && typeof current === "object" && k in current) {
-        current = current[k];
-      } else {
-        current = undefined;
-        break;
+  const t = useCallback(
+    (path: string): string => {
+      const keys = path.split(".");
+
+      // Try primary language
+      let current: any = translations[language];
+      for (const k of keys) {
+        if (current && typeof current === "object" && k in current) {
+          current = current[k];
+        } else {
+          current = undefined;
+          break;
+        }
       }
-    }
-    if (typeof current === "string") return current;
+      if (typeof current === "string") return current;
 
-    // Fallback to English
-    let fallback: any = translations.en;
-    for (const k of keys) {
-      if (fallback && typeof fallback === "object" && k in fallback) {
-        fallback = fallback[k];
-      } else {
-        fallback = undefined;
-        break;
+      // Fallback to English
+      let fallback: any = translations.en;
+      for (const k of keys) {
+        if (fallback && typeof fallback === "object" && k in fallback) {
+          fallback = fallback[k];
+        } else {
+          fallback = undefined;
+          break;
+        }
       }
-    }
 
-    return typeof fallback === "string" ? fallback : path;
-  };
-
-  return (
-    <LanguageContext.Provider value={{ language, setLanguage, toggleLanguage, t }}>
-      {children}
-    </LanguageContext.Provider>
+      return typeof fallback === "string" ? fallback : path;
+    },
+    [language],
   );
+
+  const value = useMemo(
+    () => ({ language, setLanguage, toggleLanguage, t }),
+    [language, setLanguage, toggleLanguage, t],
+  );
+
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
 
 export function useLanguage() {
