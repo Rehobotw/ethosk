@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { useAuth } from "@/lib/auth";
 import { ThemeToggle } from "@/lib/theme";
 import { Icon, TierBadge } from "../ui";
+import { LanguageToggle } from "../ui/LanguageToggle";
 import { ProfileDropdown } from "./ProfileDropdown";
 
 /** The four that earn a thumb-sized target in the mobile tab bar. */
@@ -51,6 +52,7 @@ export function RespondentLayout() {
           </Link>
 
           <div className="flex shrink-0 items-center gap-stack-md">
+            <LanguageToggle />
             <ThemeToggle />
             <Icon className="text-on-surface-variant" name="notifications" />
             <ProfileDropdown />

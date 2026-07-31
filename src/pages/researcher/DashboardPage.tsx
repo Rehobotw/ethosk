@@ -25,6 +25,7 @@ import {
   StatBlock,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useLanguage } from "@/lib/language";
 
 interface SurveyWithStats extends SurveyRecord {
   response_count: number;
@@ -42,6 +43,7 @@ interface AnalyticsPayload {
 }
 
 export function DashboardPage() {
+  const { t } = useLanguage();
   const { data: surveysData, isLoading: surveysLoading, error: surveysError } = useQuery({
     queryKey: ["surveys"],
     queryFn: () => api<{ surveys: SurveyWithStats[] }>("/surveys"),
@@ -90,22 +92,22 @@ export function DashboardPage() {
           <div className="flex gap-stack-sm">
             <Link to="/researcher/wallet">
               <Button icon="account_balance_wallet" variant="outline">
-                {wallet ? `${wallet.available_etb.toLocaleString()} ETB` : "Wallet"}
+                {wallet ? `${wallet.available_etb.toLocaleString()} ETB` : t("nav.wallet")}
               </Button>
             </Link>
             <Link to="/researcher/surveys/new">
-              <Button icon="add">Create Survey</Button>
+              <Button icon="add">{t("researcher.create_new")}</Button>
             </Link>
           </div>
         }
         subtitle="Real-time analytics, response quality verification, and active studies."
-        title="Researcher Overview & Analytics"
+        title={t("researcher.dashboard_title")}
       />
 
       {/* Top Metric Cards */}
       <div className="grid gap-stack-md sm:grid-cols-2 lg:grid-cols-4">
         <StatBlock
-          label="Total Responses"
+          label={t("researcher.completed_responses")}
           value={totalResponses > 0 ? totalResponses.toLocaleString() : "0"}
         />
         <StatBlock
@@ -113,7 +115,7 @@ export function DashboardPage() {
           value={totalTargeted > 0 ? totalTargeted.toLocaleString() : "0"}
         />
         <StatBlock
-          label="Available Balance"
+          label={t("researcher.wallet_balance")}
           value={wallet ? `${wallet.available_etb.toLocaleString()} ETB` : "—"}
         />
         <StatBlock

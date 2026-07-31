@@ -3,6 +3,9 @@ import { Link } from "react-router-dom";
 import clsx from "clsx";
 import type { UserRole } from "@shared/types";
 import { Icon } from "@/components/ui";
+import { LanguageToggle } from "@/components/ui/LanguageToggle";
+import { ThemeToggle } from "@/lib/theme";
+import { useLanguage } from "@/lib/language";
 
 export function AuthShell({
   title,
@@ -17,6 +20,10 @@ export function AuthShell({
 }) {
   return (
     <div className="flex min-h-screen flex-col bg-surface-subtle">
+      <div className="absolute top-4 right-4 flex items-center gap-2">
+        <LanguageToggle />
+        <ThemeToggle />
+      </div>
       <div className="flex flex-1 items-center justify-center px-margin-mobile py-stack-lg">
         <div className="w-full max-w-md">
           <div className="text-center">
@@ -66,9 +73,10 @@ export function RoleTabs({
   value: UserRole;
   onChange: (role: UserRole) => void;
 }) {
+  const { t } = useLanguage();
   const options: { role: UserRole; label: string; icon: string }[] = [
-    { role: "researcher", label: "Researcher", icon: "science" },
-    { role: "respondent", label: "Respondent", icon: "groups" },
+    { role: "researcher", label: t("auth.role_researcher"), icon: "science" },
+    { role: "respondent", label: t("auth.role_respondent"), icon: "groups" },
   ];
 
   return (

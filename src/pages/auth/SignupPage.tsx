@@ -8,11 +8,13 @@ import { Button, Field, Icon, Input, Notice } from "@/components/ui";
 import { ApiRequestError } from "@/lib/api";
 import { homePathForRole, useAuth } from "@/lib/auth";
 import { useAutofillSafeSubmit } from "@/lib/forms";
+import { useLanguage } from "@/lib/language";
 import { AuthShell, RoleTabs } from "./AuthShell";
 
 export function SignupPage() {
   const { signup, user, loading, logout } = useAuth();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const requestedRole = (searchParams.get("role") as UserRole) || "respondent";
   const [role, setRole] = useState<UserRole>(requestedRole);
@@ -78,12 +80,12 @@ export function SignupPage() {
         <>
           Already registered?{" "}
           <Link className="font-semibold text-primary hover:underline" to="/login">
-            Log in
+            {t("nav.login")}
           </Link>
         </>
       }
-      subtitle="Join the verified research panel for Ethiopia."
-      title="Create your account"
+      subtitle={t("auth.signup_subtitle")}
+      title={t("auth.signup_title")}
     >
       <RoleTabs onChange={setRole} value={role} />
 
@@ -93,11 +95,11 @@ export function SignupPage() {
         ref={formRef}
       >
         <div className="space-y-stack-md rounded-xl border border-outline-variant bg-surface-container-lowest p-stack-md">
-          <Field error={errors.full_name?.message} label="Full name">
+          <Field error={errors.full_name?.message} label={t("auth.full_name")}>
             <Input autoComplete="name" placeholder="Abebe Bekele" {...register("full_name")} />
           </Field>
 
-          <Field error={errors.phone?.message} label="Phone number">
+          <Field error={errors.phone?.message} label={t("auth.phone")}>
             <Input
               autoComplete="tel"
               inputMode="tel"
@@ -109,7 +111,7 @@ export function SignupPage() {
           <Field
             error={errors.password?.message}
             hint="At least 8 characters."
-            label="Password"
+            label={t("auth.password")}
           >
             <Input autoComplete="new-password" type="password" {...register("password")} />
           </Field>
@@ -118,7 +120,7 @@ export function SignupPage() {
         {formError ? <Notice tone="error">{formError}</Notice> : null}
 
         <Button className="w-full py-3" loading={isSubmitting} type="submit">
-          Create {role.charAt(0).toUpperCase() + role.slice(1)} Account
+          {t("nav.signup")} ({role === "researcher" ? t("auth.role_researcher") : t("auth.role_respondent")})
           <Icon className="text-[18px]" name="arrow_forward" />
         </Button>
 

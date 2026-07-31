@@ -8,11 +8,13 @@ import { Button, Field, Icon, Input, Notice } from "@/components/ui";
 import { ApiRequestError } from "@/lib/api";
 import { homePathForRole, useAuth } from "@/lib/auth";
 import { useAutofillSafeSubmit } from "@/lib/forms";
+import { useLanguage } from "@/lib/language";
 import { AuthShell, RoleTabs } from "./AuthShell";
 
 export function LoginPage() {
   const { login, user, loading, logout } = useAuth();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const requestedRole = (searchParams.get("role") as UserRole) || "researcher";
   const [role, setRole] = useState<UserRole>(requestedRole);
@@ -92,19 +94,19 @@ export function LoginPage() {
         <>
           Don&rsquo;t have an account?{" "}
           <Link className="font-semibold text-primary hover:underline" to={`/signup?role=${role}`}>
-            Sign Up
+            {t("nav.signup")}
           </Link>
         </>
       }
-      subtitle="Secure access to the Ethiopian Trust Infrastructure for Truth."
-      title="Welcome back"
+      subtitle={t("auth.login_subtitle")}
+      title={t("auth.login_title")}
     >
       <RoleTabs onChange={setRole} value={role} />
 
       {/* Quick Demo Login Shortcuts */}
       <div className="mt-stack-md rounded-xl border border-primary/20 bg-primary/5 p-3 text-center">
         <p className="font-title-sm text-[12px] font-semibold text-primary uppercase tracking-wide">
-          ⚡ 1-Click Demo Login Shortcuts
+          ⚡ {t("auth.demo_login_title")}
         </p>
         <div className="mt-2 grid grid-cols-2 gap-2">
           <button
@@ -112,7 +114,7 @@ export function LoginPage() {
             onClick={() => void handleDemoFill("researcher", "0911000001")}
             type="button"
           >
-            <span className="font-bold">Researcher</span>
+            <span className="font-bold">{t("auth.demo_researcher")}</span>
             <span className="text-[10px] text-on-surface-variant">0911000001</span>
           </button>
 
@@ -121,7 +123,7 @@ export function LoginPage() {
             onClick={() => void handleDemoFill("respondent", "0912000001")}
             type="button"
           >
-            <span className="font-bold">Respondent</span>
+            <span className="font-bold">{t("auth.demo_respondent")}</span>
             <span className="text-[10px] text-on-surface-variant">0912000001</span>
           </button>
         </div>
@@ -133,7 +135,7 @@ export function LoginPage() {
         ref={formRef}
       >
         <div className="space-y-stack-md rounded-xl border border-outline-variant bg-surface-container-lowest p-stack-md">
-          <Field error={errors.phone?.message} label="Phone number">
+          <Field error={errors.phone?.message} label={t("auth.phone")}>
             <Input
               autoComplete="tel"
               inputMode="tel"
@@ -152,7 +154,7 @@ export function LoginPage() {
               </button>
             }
             error={errors.password?.message}
-            label="Password"
+            label={t("auth.password")}
           >
             <div className="relative">
               <Input
@@ -176,7 +178,7 @@ export function LoginPage() {
         {formError ? <Notice tone="error">{formError}</Notice> : null}
 
         <Button className="w-full py-3" loading={isSubmitting} type="submit">
-          Login as {role.charAt(0).toUpperCase() + role.slice(1)}
+          {t("nav.login")} ({role === "researcher" ? t("auth.role_researcher") : t("auth.role_respondent")})
           <Icon className="text-[18px]" name="arrow_forward" />
         </Button>
       </form>

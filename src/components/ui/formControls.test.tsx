@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signupSchema, type SignupInput } from "@shared/validation/schemas";
 import { useAutofillSafeSubmit } from "@/lib/forms";
-import { Field, Input } from "./index";
+import { Button, Field, Input } from "./index";
 
 /** Mirrors the signup form's wiring, which is what every other form here copies. */
 function TestForm({ onValid }: { onValid: (values: SignupInput) => void }) {
@@ -88,5 +88,11 @@ describe("form controls with react-hook-form", () => {
     const ref = { current: null as HTMLInputElement | null };
     render(<Input aria-label="Solo" ref={ref} />);
     expect(ref.current).toBeInstanceOf(HTMLInputElement);
+  });
+
+  it("disables button and shows spinner when loading is true", () => {
+    render(<Button loading>Processing</Button>);
+    const button = screen.getByRole("button", { name: "Processing" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
   });
 });
