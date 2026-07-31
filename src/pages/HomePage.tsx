@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { TIER_LABEL, VERIFICATION_TIERS, type VerificationTier } from "@shared/types";
 import { Button, Icon } from "@/components/ui";
+import { useLanguage } from "@/lib/language";
 
 export function HomePage() {
   return (
@@ -20,6 +21,8 @@ export function HomePage() {
 // ---------------------------------------------------------------------------
 
 function Hero() {
+  const { t } = useLanguage();
+
   return (
     <section className="relative overflow-hidden bg-primary text-on-primary">
       <div aria-hidden="true" className="hero-glow absolute inset-0" />
@@ -28,18 +31,15 @@ function Hero() {
         <div className="animate-fade-up">
           <span className="inline-flex items-center gap-2 rounded-full border border-primary-fixed-dim/30 bg-primary-fixed/10 px-3 py-1 font-label-caps text-label-caps uppercase text-primary-fixed-dim">
             <Icon className="text-[14px]" filled name="verified_user" />
-            Fayda-verified panel
+            {t("hero.badge_fayda")}
           </span>
 
           <h1 className="mt-stack-md font-display-lg-mobile text-display-lg-mobile text-on-primary md:font-display-xl md:text-display-xl">
-            Find verified respondents
-            <br className="hidden sm:block" /> in minutes, not months.
+            {t("hero.title_main")}
           </h1>
 
           <p className="mt-stack-md max-w-xl font-body-md text-body-md text-primary-fixed-dim">
-            Ethosk is a research panel for Ethiopia. Filter by university, department,
-            year, and verification tier, watch the matched count update as you go, and
-            get responses with quality checks already applied.
+            {t("hero.subtitle")}
           </p>
 
           <div className="mt-stack-lg flex flex-wrap items-center gap-stack-sm">
@@ -48,7 +48,7 @@ function Hero() {
                 className="bg-surface-container-lowest px-5 py-3 text-primary shadow-lifted hover:bg-primary-fixed"
                 icon="arrow_forward"
               >
-                Start a study
+                {t("hero.cta_start")}
               </Button>
             </Link>
             <Link to="/learn/respondents">
@@ -56,16 +56,16 @@ function Hero() {
                 className="border border-primary-fixed-dim/40 px-5 py-3 text-primary-fixed-dim hover:border-primary-fixed-dim hover:bg-primary-fixed/10 hover:text-primary-fixed"
                 variant="ghost"
               >
-                Join as a respondent
+                {t("hero.cta_join")}
               </Button>
             </Link>
           </div>
 
           <ul className="mt-stack-lg flex flex-wrap gap-x-6 gap-y-stack-sm border-t border-primary-fixed-dim/20 pt-stack-md">
             {[
-              { icon: "fingerprint", label: "One person, one account" },
-              { icon: "translate", label: "Amharic & Afan Oromo" },
-              { icon: "shield", label: "Consent logged per response" },
+              { icon: "fingerprint", label: t("hero.feature_one") },
+              { icon: "translate", label: t("hero.feature_two") },
+              { icon: "shield", label: t("hero.feature_three") },
             ].map((item) => (
               <li
                 className="flex items-center gap-2 font-body-sm text-body-sm text-primary-fixed-dim"
