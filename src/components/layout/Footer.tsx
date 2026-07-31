@@ -1,35 +1,41 @@
 import { Link } from "react-router-dom";
 import clsx from "clsx";
 import { Icon } from "../ui";
+import { useLanguage, type Language } from "@/lib/language";
 
-const LANGUAGES = ["English", "አማርኛ", "Afaan Oromoo"];
-
-const COLUMNS: { heading: string; links: { label: string; to: string }[] }[] = [
-  {
-    heading: "Platform",
-    links: [
-      { label: "How it works", to: "/#how" },
-      { label: "Quality checks", to: "/#product" },
-      { label: "Verification tiers", to: "/#verification" },
-    ],
-  },
-  {
-    heading: "Who it is for",
-    links: [
-      { label: "For researchers", to: "/learn/researchers" },
-      { label: "For respondents", to: "/learn/respondents" },
-    ],
-  },
-  {
-    heading: "Account",
-    links: [
-      { label: "Log in", to: "/login" },
-      { label: "Create an account", to: "/signup" },
-    ],
-  },
+const LANGUAGES: { code: Language; label: string }[] = [
+  { code: "en", label: "English" },
+  { code: "am", label: "አማርኛ" },
 ];
 
 export function Footer({ className }: { className?: string }) {
+  const { language, setLanguage, t } = useLanguage();
+
+  const columns = [
+    {
+      heading: t("nav.platform"),
+      links: [
+        { label: t("nav.how_it_works"), to: "/#how" },
+        { label: t("nav.platform"), to: "/#product" },
+        { label: t("nav.verification"), to: "/#verification" },
+      ],
+    },
+    {
+      heading: t("nav.for_researchers"),
+      links: [
+        { label: t("nav.for_researchers"), to: "/learn/researchers" },
+        { label: t("nav.for_respondents"), to: "/learn/respondents" },
+      ],
+    },
+    {
+      heading: t("common.actions"),
+      links: [
+        { label: t("nav.login"), to: "/login" },
+        { label: t("nav.signup"), to: "/signup" },
+      ],
+    },
+  ];
+
   return (
     <footer className={clsx("border-t border-outline-variant bg-surface-subtle", className)}>
       <div className="mx-auto w-full max-w-container-max px-margin-mobile py-stack-lg md:px-gutter">
@@ -39,29 +45,29 @@ export function Footer({ className }: { className?: string }) {
               Ethosk
             </Link>
             <p className="mt-stack-sm max-w-xs font-body-sm text-body-sm text-on-surface-variant">
-              A verified research panel for Ethiopia, built so a sample can be defended
-              rather than assumed.
+              {t("footer.tagline")}
             </p>
 
             <div className="mt-stack-md flex flex-wrap gap-base">
-              {LANGUAGES.map((language, index) => (
+              {LANGUAGES.map((lang) => (
                 <button
                   className={clsx(
                     "rounded-full px-3 py-1 font-label-caps text-label-caps transition-colors",
-                    index === 0
-                      ? "bg-surface-container-high text-on-surface"
+                    language === lang.code
+                      ? "bg-surface-container-high text-on-surface font-bold"
                       : "text-on-surface-variant hover:bg-surface-container",
                   )}
-                  key={language}
+                  key={lang.code}
+                  onClick={() => setLanguage(lang.code)}
                   type="button"
                 >
-                  {language}
+                  {lang.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {COLUMNS.map((column) => (
+          {columns.map((column) => (
             <nav key={column.heading}>
               <h2 className="font-label-caps text-label-caps uppercase text-on-surface">
                 {column.heading}

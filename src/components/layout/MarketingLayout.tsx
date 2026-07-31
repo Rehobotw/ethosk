@@ -2,23 +2,26 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import clsx from "clsx";
 import { Button, Icon } from "../ui";
+import { LanguageToggle } from "../ui/LanguageToggle";
 import { useAuth, homePathForRole } from "@/lib/auth";
+import { useLanguage } from "@/lib/language";
 import { ThemeToggle } from "@/lib/theme";
 import { Footer } from "./Footer";
-
-const NAV_LINKS = [
-  { label: "How it works", to: "/#how" },
-  { label: "Platform", to: "/#product" },
-  { label: "Verification", to: "/#verification" },
-  { label: "For researchers", to: "/learn/researchers" },
-  { label: "For respondents", to: "/learn/respondents" },
-];
 
 export function MarketingLayout() {
   const { user } = useAuth();
   const { pathname } = useLocation();
+  const { t } = useLanguage();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  const navLinks = [
+    { label: t("nav.how_it_works"), to: "/#how" },
+    { label: t("nav.platform"), to: "/#product" },
+    { label: t("nav.verification"), to: "/#verification" },
+    { label: t("nav.for_researchers"), to: "/learn/researchers" },
+    { label: t("nav.for_respondents"), to: "/learn/respondents" },
+  ];
 
   // Route changes leave the drawer open otherwise, since the layout persists.
   useEffect(() => setMenuOpen(false), [pathname]);
@@ -56,7 +59,7 @@ export function MarketingLayout() {
           </Link>
 
           <nav className="hidden items-center gap-1 lg:flex">
-            {NAV_LINKS.map((link) => (
+            {navLinks.map((link) => (
               <NavLink
                 className={clsx(
                   "rounded-full px-3 py-2 font-body-sm text-body-sm transition-colors",
@@ -64,7 +67,7 @@ export function MarketingLayout() {
                     ? "text-primary-fixed-dim hover:bg-primary-fixed/10 hover:text-primary-fixed"
                     : "text-on-surface-variant hover:bg-surface-container hover:text-primary",
                 )}
-                key={link.label}
+                key={link.to}
                 to={link.to}
               >
                 {link.label}
@@ -73,6 +76,7 @@ export function MarketingLayout() {
           </nav>
 
           <div className="flex items-center gap-stack-sm">
+            <LanguageToggle />
             <ThemeToggle />
             {user ? (
               <Link to={homePathForRole(user.role)}>
@@ -81,7 +85,7 @@ export function MarketingLayout() {
                     onDarkHeader && "bg-surface-container-lowest text-primary hover:bg-primary-fixed",
                   )}
                 >
-                  Go to dashboard
+                  {t("nav.dashboard")}
                 </Button>
               </Link>
             ) : (
@@ -94,7 +98,7 @@ export function MarketingLayout() {
                     )}
                     variant="ghost"
                   >
-                    Log in
+                    {t("nav.login")}
                   </Button>
                 </Link>
                 <Link to="/signup">
@@ -103,7 +107,7 @@ export function MarketingLayout() {
                       onDarkHeader && "bg-surface-container-lowest text-primary hover:bg-primary-fixed",
                     )}
                   >
-                    Sign up
+                    {t("nav.signup")}
                   </Button>
                 </Link>
               </>
@@ -128,10 +132,10 @@ export function MarketingLayout() {
 
         {menuOpen ? (
           <nav className="border-t border-outline-variant bg-surface px-margin-mobile py-stack-sm lg:hidden">
-            {NAV_LINKS.map((link) => (
+            {navLinks.map((link) => (
               <Link
                 className="block rounded-xl px-3 py-3 font-body-md text-body-md text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary"
-                key={link.label}
+                key={link.to}
                 to={link.to}
               >
                 {link.label}

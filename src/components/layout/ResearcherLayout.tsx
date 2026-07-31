@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useAuth } from "@/lib/auth";
 import { ThemeToggle } from "@/lib/theme";
 import { Icon, TierBadge } from "../ui";
+import { LanguageToggle } from "../ui/LanguageToggle";
 import { ProfileDropdown } from "./ProfileDropdown";
 import { isNavActive, PRIMARY_NAV, SECONDARY_NAV } from "./researcherNav";
 
@@ -40,6 +41,7 @@ export function ResearcherLayout() {
                 type="search"
               />
             </div>
+            <LanguageToggle />
             <ThemeToggle />
             <Icon className="text-on-surface-variant" name="notifications" />
             <ProfileDropdown />
