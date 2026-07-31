@@ -149,37 +149,39 @@ function AudiencePreview() {
 // How it works
 // ---------------------------------------------------------------------------
 
-const STEPS = [
-  {
-    icon: "tune",
-    title: "Describe your sample",
-    body: "Set the demographics your study needs. The matched count updates live, and warns you before you send into a sample too small to support a finding.",
-  },
-  {
-    icon: "send",
-    title: "Send to matched respondents",
-    body: "Only respondents who actually meet your filters are invited. Write in English and localize to Amharic or Afan Oromo in a click.",
-  },
-  {
-    icon: "insights",
-    title: "Read results you can defend",
-    body: "Every response arrives with quality checks already applied, so you can see which ones to trust before you start analyzing.",
-  },
-];
-
 function HowItWorks() {
+  const { t } = useLanguage();
+
+  const steps = [
+    {
+      icon: "tune",
+      title: t("how_it_works.step1_title"),
+      body: t("how_it_works.step1_body"),
+    },
+    {
+      icon: "send",
+      title: t("how_it_works.step2_title"),
+      body: t("how_it_works.step2_body"),
+    },
+    {
+      icon: "insights",
+      title: t("how_it_works.step3_title"),
+      body: t("how_it_works.step3_body"),
+    },
+  ];
+
   return (
     <section className="relative bg-surface px-margin-mobile py-20 md:px-gutter md:py-24" id="how">
       <div aria-hidden="true" className="dot-grid fade-bottom absolute inset-0 opacity-60" />
 
       <div className="relative mx-auto max-w-container-max">
         <SectionIntro
-          eyebrow="How it works"
-          title="Three steps from question to defensible data"
+          eyebrow={t("how_it_works.eyebrow")}
+          title={t("how_it_works.title")}
         />
 
         <ol className="mt-stack-lg grid gap-stack-md md:grid-cols-3">
-          {STEPS.map((step, index) => (
+          {steps.map((step, index) => (
             <li
               className="group relative rounded-3xl border border-outline-variant bg-surface-container-lowest p-stack-lg shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-card"
               key={step.title}
@@ -209,6 +211,8 @@ function HowItWorks() {
 // ---------------------------------------------------------------------------
 
 function Capabilities() {
+  const { t } = useLanguage();
+
   return (
     <section
       className="border-y border-outline-variant bg-surface-container-low px-margin-mobile py-20 md:px-gutter md:py-24"
@@ -216,35 +220,32 @@ function Capabilities() {
     >
       <div className="mx-auto max-w-container-max">
         <SectionIntro
-          eyebrow="Built in"
-          title="The checks that make a response worth analysing"
-          subtitle="Sampling and quality control are part of the platform, not something you bolt on afterwards."
+          eyebrow={t("capabilities.eyebrow")}
+          title={t("capabilities.title")}
+          subtitle={t("capabilities.subtitle")}
         />
 
         <div className="mt-stack-lg grid gap-stack-md lg:grid-cols-3">
           <article className="flex flex-col justify-between rounded-3xl border border-outline-variant bg-surface-container-lowest p-stack-lg shadow-soft lg:col-span-2">
             <div>
               <h3 className="font-headline-md text-headline-md text-on-surface">
-                Response quality, scored deterministically
+                {t("capabilities.card1_title")}
               </h3>
               <p className="mt-stack-sm max-w-xl font-body-md text-body-md text-on-surface-variant">
-                Timing, repeated answers, typing behaviour on long text, and a
-                consistency check that quietly re-asks one of your questions in
-                different words. A response is flagged or it is not, and you see the
-                numbers behind the decision.
+                {t("capabilities.card1_body")}
               </p>
             </div>
 
             <ul className="mt-stack-lg grid gap-stack-sm sm:grid-cols-2">
               {[
-                { icon: "timer", label: "Time per question" },
-                { icon: "linear_scale", label: "Straight-line detection" },
-                { icon: "keyboard", label: "Typing and paste checks" },
-                { icon: "psychology_alt", label: "Reworded consistency check" },
+                { icon: "timer", label: t("capabilities.signal_time") },
+                { icon: "linear_scale", label: t("capabilities.signal_straightline") },
+                { icon: "keyboard", label: t("capabilities.signal_typing") },
+                { icon: "psychology_alt", label: t("capabilities.signal_consistency") },
               ].map((signal) => (
                 <li
                   className="flex items-center gap-stack-sm rounded-2xl bg-surface-container-low px-3 py-2 font-body-sm text-body-sm text-on-surface"
-                  key={signal.label}
+                  key={signal.icon}
                 >
                   <Icon className="text-[18px] text-primary" name={signal.icon} />
                   {signal.label}
@@ -255,14 +256,14 @@ function Capabilities() {
 
           <div className="grid gap-stack-md">
             <CapabilityCard
-              body="Identity is confirmed against Fayda, Ethiopia's national digital ID, so the same person cannot hold two accounts. We store a hash, never the number."
+              body={t("capabilities.fayda_body")}
               icon="fingerprint"
-              title="Verified once, not repeatedly"
+              title={t("capabilities.fayda_title")}
             />
             <CapabilityCard
-              body="Consent is recorded per event, respondents see what was logged, and access to personal data is enforced at the row level."
+              body={t("capabilities.data_rights_body")}
               icon="policy"
-              title="Data rights built in"
+              title={t("capabilities.data_rights_title")}
             />
           </div>
         </div>
