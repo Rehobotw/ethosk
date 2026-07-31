@@ -3,6 +3,9 @@ import "./loadEnv.js";
 function required(name: string): string {
   const value = process.env[name];
   if (!value) {
+    if (process.env.NODE_ENV === "test" || process.env.VITEST === "true") {
+      return name.includes("URL") ? "http://localhost:54321" : "test-mock-key";
+    }
     throw new Error(
       `Missing required environment variable ${name}. Copy .env.example to .env.local and fill it in.`,
     );
