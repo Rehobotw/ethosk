@@ -296,14 +296,32 @@ function CapabilityCard({
 // Verification ladder
 // ---------------------------------------------------------------------------
 
-const TIER_DETAIL: Record<VerificationTier, string> = {
-  "0_registered": "Phone number confirmed. Excluded from verified matches by default.",
-  "1_id_verified": "Fayda ID confirmed, so one person holds one account.",
-  "2_attribute_verified": "A document backs up the claimed institution or employer.",
-  "3_institution_attested": "A registrar or employer confirmed the affiliation directly.",
-};
+// ---------------------------------------------------------------------------
+// Verification ladder
+// ---------------------------------------------------------------------------
 
 function VerificationLadder() {
+  const { t } = useLanguage();
+
+  const tierDetails: Record<VerificationTier, { title: string; desc: string }> = {
+    "0_registered": {
+      title: t("verification.tier0_title"),
+      desc: t("verification.tier0_desc"),
+    },
+    "1_id_verified": {
+      title: t("verification.tier1_title"),
+      desc: t("verification.tier1_desc"),
+    },
+    "2_attribute_verified": {
+      title: t("verification.tier2_title"),
+      desc: t("verification.tier2_desc"),
+    },
+    "3_institution_attested": {
+      title: t("verification.tier3_title"),
+      desc: t("verification.tier3_desc"),
+    },
+  };
+
   return (
     <section
       className="bg-surface px-margin-mobile py-20 md:px-gutter md:py-24"
@@ -313,17 +331,15 @@ function VerificationLadder() {
         <div>
           <SectionIntro
             align="left"
-            eyebrow="Verification"
-            title="You choose how much proof your study needs"
+            eyebrow={t("verification.eyebrow")}
+            title={t("verification.title")}
           />
           <p className="mt-stack-md max-w-lg font-body-md text-body-md text-on-surface-variant">
-            Each tier is a stronger claim about a respondent than the one below it, and
-            you set the minimum when you build your audience. Raising it narrows the
-            pool, which the matched count shows you immediately.
+            {t("verification.subtitle")}
           </p>
           <Link className="mt-stack-md inline-block" to="/learn/researchers">
             <Button icon="arrow_forward" variant="outline">
-              How verification works
+              {t("verification.cta_how")}
             </Button>
           </Link>
         </div>
@@ -339,10 +355,10 @@ function VerificationLadder() {
               </span>
               <div>
                 <p className="font-title-sm text-title-sm text-on-surface">
-                  {TIER_LABEL[tier]}
+                  {tierDetails[tier].title}
                 </p>
                 <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
-                  {TIER_DETAIL[tier]}
+                  {tierDetails[tier].desc}
                 </p>
               </div>
             </li>
@@ -358,38 +374,40 @@ function VerificationLadder() {
 // ---------------------------------------------------------------------------
 
 function Audiences() {
+  const { t } = useLanguage();
+
   return (
     <section
       className="border-t border-outline-variant bg-surface-container-low px-margin-mobile py-20 md:px-gutter md:py-24"
       id="platform"
     >
       <div className="mx-auto max-w-container-max">
-        <SectionIntro eyebrow="Two sides" title="Whichever side you are on" />
+        <SectionIntro eyebrow={t("audiences.eyebrow")} title={t("audiences.title")} />
 
         <div className="mt-stack-lg grid gap-stack-md md:grid-cols-2">
           <AudienceCard
             bullets={[
-              "Filterable demographics you can defend in review",
-              "Quality signals on every response",
-              "Amharic and Afan Oromo out of the box",
+              t("audiences.researcher_b1"),
+              t("audiences.researcher_b2"),
+              t("audiences.researcher_b3"),
             ]}
-            body="Reach a sample that matches your study, and see the count before you commit to anything."
+            body={t("audiences.researcher_body")}
             cta="/learn/researchers"
-            ctaLabel="For researchers"
+            ctaLabel={t("audiences.researcher_cta")}
             icon="science"
-            title="Researchers"
+            title={t("audiences.researcher_title")}
           />
           <AudienceCard
             bullets={[
-              "Paid in ETB for honest effort",
-              "Verify your identity once",
-              "See exactly what was shared and when",
+              t("audiences.respondent_b1"),
+              t("audiences.respondent_b2"),
+              t("audiences.respondent_b3"),
             ]}
-            body="Answer studies that actually apply to you, and keep control of what a researcher gets to see."
+            body={t("audiences.respondent_body")}
             cta="/learn/respondents"
-            ctaLabel="For respondents"
+            ctaLabel={t("audiences.respondent_cta")}
             icon="groups"
-            title="Respondents"
+            title={t("audiences.respondent_title")}
           />
         </div>
       </div>
