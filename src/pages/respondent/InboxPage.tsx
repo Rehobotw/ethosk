@@ -4,6 +4,7 @@ import { TIER_RANK, type RespondentWallet } from "@shared/types";
 import { Button, Card, EmptyState, Icon, LoadingBlock, Notice, TierBadge } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useLanguage } from "@/lib/language";
 
 interface InboxSurvey {
   id: string;
@@ -15,6 +16,7 @@ interface InboxSurvey {
 
 export function InboxPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["inbox"],
@@ -50,7 +52,7 @@ export function InboxPage() {
           </div>
           <div className="sm:text-right">
             <p className="mb-base font-label-caps text-label-caps uppercase text-on-surface-variant">
-              Balance
+              {t("respondent.inbox_title")}
             </p>
             <Link className="font-title-sm text-title-sm text-primary hover:underline" to="/wallet">
               {typeof balance === "number" ? `${balance.toFixed(2)} ETB` : "—"}
