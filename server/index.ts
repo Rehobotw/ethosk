@@ -15,7 +15,22 @@ import { walletRouter } from "./routes/wallet.js";
 
 const app = express();
 
-app.use(cors({ origin: env.siteUrl, credentials: true }));
+app.use(cors({
+  // Accept requests from the configured frontend URL *and* any Render preview
+  // subdomain so feature-branch deploys work without extra config.
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // same-origin / server-to-server
+    if (
+      origin === env.siteUrl ||
+      /^https:\/\/[\w-]+-ethosk\.onrender\.com$/.test(origin) ||
+      /\.onrender\.com$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 app.use(attachAuth());

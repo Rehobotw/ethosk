@@ -2,6 +2,15 @@ import type { ApiErrorShape } from "@shared/types";
 
 const TOKEN_KEY = "ethosk.token";
 
+/**
+ * In production the frontend and backend are separate Render services, so the
+ * browser cannot rely on a dev-server proxy.  Set VITE_API_URL to the full
+ * backend origin (e.g. https://ethosk-backend.onrender.com) and it will be
+ * baked in at build time.  During local development the Vite proxy handles
+ * /api → localhost:4000, so the variable can be left unset.
+ */
+const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/$/, "") ?? "";
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -45,7 +54,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   if (token) headers.Authorization = `Bearer ${token}`;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
 
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(`${API_BASE}/api${path}`, {
     method: options.method ?? (options.body || options.formData ? "POST" : "GET"),
     headers,
     body: options.formData ?? (options.body !== undefined ? JSON.stringify(options.body) : undefined),
