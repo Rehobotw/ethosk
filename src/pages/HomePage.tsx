@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { TIER_LABEL, VERIFICATION_TIERS, type VerificationTier } from "@shared/types";
+import { VERIFICATION_TIERS, type VerificationTier } from "@shared/types";
 import { Button, Icon } from "@/components/ui";
 import { useLanguage } from "@/lib/language";
 
@@ -94,20 +94,24 @@ function Hero() {
  * current size of the panel.
  */
 function AudiencePreview() {
+  const { t } = useLanguage();
+
   const filters = [
-    { label: "University", value: "Hawassa University" },
-    { label: "Department", value: "Sociology" },
-    { label: "Academic year", value: "Year 3" },
-    { label: "Minimum tier", value: "Tier 2 · Attribute verified" },
+    { label: t("audience_preview.university"), value: "Hawassa University" },
+    { label: t("audience_preview.department"), value: "Sociology" },
+    { label: t("audience_preview.academic_year"), value: "Year 3" },
+    { label: t("audience_preview.minimum_tier"), value: "Tier 2 · Attribute verified" },
   ];
 
   return (
     <div className="w-full max-w-md rounded-4xl border border-primary-fixed-dim/25 bg-primary-container/70 p-2 shadow-lifted backdrop-blur-sm">
       <div className="rounded-3xl bg-surface-container-lowest p-stack-md">
         <div className="flex items-center justify-between">
-          <span className="font-title-sm text-title-sm text-on-surface">Audience</span>
+          <span className="font-title-sm text-title-sm text-on-surface">
+            {t("audience_preview.title")}
+          </span>
           <span className="rounded-full bg-surface-container-high px-2 py-1 font-label-caps text-[10px] uppercase text-on-surface-variant">
-            Preview
+            {t("audience_preview.preview_badge")}
           </span>
         </div>
 
@@ -130,14 +134,16 @@ function AudiencePreview() {
         <div className="mt-stack-md rounded-2xl bg-primary p-stack-md text-on-primary">
           <div className="flex items-baseline gap-2">
             <span className="font-display-lg text-display-lg leading-none">342</span>
-            <span className="font-body-sm text-body-sm text-primary-fixed-dim">matched</span>
+            <span className="font-body-sm text-body-sm text-primary-fixed-dim">
+              {t("audience_preview.matched_label")}
+            </span>
           </div>
           <p className="mt-2 flex items-center gap-2 font-body-sm text-[13px] text-primary-fixed-dim">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-status-passed opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-status-passed" />
             </span>
-            Updates as you change a filter
+            {t("audience_preview.updates_hint")}
           </p>
         </div>
       </div>
@@ -472,6 +478,8 @@ function AudienceCard({
 // ---------------------------------------------------------------------------
 
 function ClosingCta() {
+  const { t } = useLanguage();
+
   return (
     <section className="px-margin-mobile py-20 md:px-gutter md:py-24">
       <div className="relative mx-auto max-w-container-max overflow-hidden rounded-4xl bg-primary px-stack-lg py-16 text-center text-on-primary shadow-lifted">
@@ -479,11 +487,10 @@ function ClosingCta() {
 
         <div className="relative mx-auto max-w-2xl">
           <h2 className="font-display-lg-mobile text-display-lg-mobile text-on-primary md:font-display-lg md:text-display-lg">
-            Start with a sample you can trust
+            {t("closing_cta.title")}
           </h2>
           <p className="mt-stack-md font-body-md text-body-md text-primary-fixed-dim">
-            Create an account and build your first audience. You will see the matched
-            count before you spend anything.
+            {t("closing_cta.subtitle")}
           </p>
           <div className="mt-stack-lg flex flex-wrap justify-center gap-stack-sm">
             <Link to="/signup">
@@ -491,7 +498,7 @@ function ClosingCta() {
                 className="bg-surface-container-lowest px-5 py-3 text-primary hover:bg-primary-fixed"
                 icon="arrow_forward"
               >
-                Create an account
+                {t("closing_cta.btn_signup")}
               </Button>
             </Link>
             <Link to="/login">
@@ -499,7 +506,7 @@ function ClosingCta() {
                 className="border border-primary-fixed-dim/40 px-5 py-3 text-primary-fixed-dim hover:border-primary-fixed-dim hover:bg-primary-fixed/10 hover:text-primary-fixed"
                 variant="ghost"
               >
-                Log in
+                {t("closing_cta.btn_login")}
               </Button>
             </Link>
           </div>
