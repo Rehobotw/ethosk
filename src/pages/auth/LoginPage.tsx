@@ -123,7 +123,7 @@ export function LoginPage() {
             onClick={() => void handleDemoFill("respondent", "0912000001")}
             type="button"
           >
-            <span className="font-bold">{t("auth.demo_respondent")}</span>
+            <span className="font-bold">{t("auth.demo_respondent")} (Hiwot)</span>
             <span className="text-[10px] text-on-surface-variant">0912000001</span>
           </button>
         </div>
