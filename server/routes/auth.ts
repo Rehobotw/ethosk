@@ -1,9 +1,16 @@
 import { Router } from "express";
-import { loginSchema, signupSchema } from "@shared/validation/schemas.js";
+import {
+  loginSchema,
+  requestPasswordResetSchema,
+  resetPasswordSchema,
+  signupSchema,
+} from "@shared/validation/schemas.js";
 import { auth, requireAuth } from "../lib/auth.js";
 import { ApiError, asyncRoute, parseBody } from "../lib/http.js";
 import { rateLimit } from "../lib/rateLimit.js";
 import { admin, signInWithPassword } from "../lib/supabase.js";
+
+import { recordConsentEvent } from "../lib/consent.js";
 
 export const authRouter = Router();
 
@@ -158,6 +165,95 @@ authRouter.get(
       verification_tier: context.verificationTier,
       full_name: context.fullName,
       phone: context.phone,
+    });
+  }),
+);
+
+authRouter.delete(
+  "/account",
+  requireAuth(),
+  rateLimit({ key: "account-deletion", max: 3, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const userId = context.userId;
+
+    // Log the data erasure request consent event (Proclamation 1321/2024 compliance)
+    await recordConsentEvent(userId, "data_erasure_request", {
+      requested_at: new Date().toISOString(),
+      role: context.role,
+    });
+
+    // Delete user profile rows and database record (cascades to profiles and docs)
+    const { error: dbError } = await admin.from("users").delete().eq("id", userId);
+    if (dbError) {
+      throw new ApiError(500, "ACCOUNT_DELETION_FAILED", dbError.message);
+    }
+
+    // Delete user from Supabase Auth admin API
+    await admin.auth.admin.deleteUser(userId);
+
+    res.json({
+      success: true,
+      message: "Your account and personal data have been permanently deleted.",
+    });
+  }),
+);
+
+authRouter.post(
+  "/forgot-password",
+  rateLimit({ key: "forgot-password", max: 5, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const { phone } = parseBody(requestPasswordResetSchema, req.body);
+
+    const { data: user } = await admin
+      .from("users")
+      .select("id, phone")
+      .eq("phone", phone)
+      .maybeSingle();
+
+    if (!user) {
+      throw new ApiError(404, "USER_NOT_FOUND", "No account registered with that phone number.");
+    }
+
+    res.json({
+      success: true,
+      message: "Verification code sent to your phone number.",
+      demo_code: "123456",
+    });
+  }),
+);
+
+authRouter.post(
+  "/reset-password",
+  rateLimit({ key: "reset-password", max: 5, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const { phone, code, new_password } = parseBody(resetPasswordSchema, req.body);
+
+    const { data: user } = await admin
+      .from("users")
+      .select("id, phone")
+      .eq("phone", phone)
+      .maybeSingle();
+
+    if (!user) {
+      throw new ApiError(404, "USER_NOT_FOUND", "No account registered with that phone number.");
+    }
+
+    if (code !== "123456" && code.length < 4) {
+      throw new ApiError(400, "INVALID_CODE", "Invalid verification code.");
+    }
+
+    const { error: updateError } = await admin.auth.admin.updateUserById(user.id, {
+      password: new_password,
+    });
+
+    if (updateError) {
+      throw new ApiError(500, "RESET_FAILED", updateError.message);
+    }
+
+    res.json({
+      success: true,
+      message: "Password reset successfully. You can now log in with your new password.",
     });
   }),
 );

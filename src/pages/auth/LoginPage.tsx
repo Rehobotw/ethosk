@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { UserRole } from "@shared/types";
 import { loginSchema, type LoginInput } from "@shared/validation/schemas";
 import { Button, Field, Icon, Input, Notice } from "@/components/ui";
-import { ApiRequestError } from "@/lib/api";
+import { api, ApiRequestError } from "@/lib/api";
 import { homePathForRole, useAuth } from "@/lib/auth";
 import { useAutofillSafeSubmit } from "@/lib/forms";
 import { useLanguage } from "@/lib/language";
@@ -20,6 +20,63 @@ export function LoginPage() {
   const [role, setRole] = useState<UserRole>(requestedRole);
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
+  const [forgotPhone, setForgotPhone] = useState("");
+  const [forgotCode, setForgotCode] = useState("123456");
+  const [forgotNewPassword, setForgotNewPassword] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotNotice, setForgotNotice] = useState<string | null>(null);
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [successNotice, setSuccessNotice] = useState<string | null>(null);
+
+  const handleOpenForgot = () => {
+    const currentPhone = form.getValues("phone");
+    setForgotPhone(currentPhone || "0912000001");
+    setForgotStep(1);
+    setForgotCode("123456");
+    setForgotNewPassword("");
+    setForgotNotice(null);
+    setForgotError(null);
+    setShowForgotModal(true);
+  };
+
+  const handleRequestCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError(null);
+    setForgotLoading(true);
+    try {
+      const res = await api<{ success: boolean; message: string; demo_code?: string }>("/auth/forgot-password", {
+        body: { phone: forgotPhone },
+      });
+      setForgotNotice(`${res.message} (Demo code: ${res.demo_code || "123456"})`);
+      setForgotStep(2);
+    } catch (err) {
+      setForgotError(err instanceof ApiRequestError ? err.message : "Could not send verification code.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError(null);
+    setForgotLoading(true);
+    try {
+      const res = await api<{ success: boolean; message: string }>("/auth/reset-password", {
+        body: { phone: forgotPhone, code: forgotCode, new_password: forgotNewPassword },
+      });
+      setValue("phone", forgotPhone);
+      setValue("password", forgotNewPassword);
+      setShowForgotModal(false);
+      setSuccessNotice(res.message);
+    } catch (err) {
+      setForgotError(err instanceof ApiRequestError ? err.message : "Could not reset password.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
@@ -123,7 +180,7 @@ export function LoginPage() {
             onClick={() => void handleDemoFill("respondent", "0912000001")}
             type="button"
           >
-            <span className="font-bold">{t("auth.demo_respondent")}</span>
+            <span className="font-bold">{t("auth.demo_respondent")} (Hiwot)</span>
             <span className="text-[10px] text-on-surface-variant">0912000001</span>
           </button>
         </div>
@@ -148,6 +205,7 @@ export function LoginPage() {
             action={
               <button
                 className="font-label-caps text-label-caps uppercase text-primary hover:underline"
+                onClick={handleOpenForgot}
                 type="button"
               >
                 Forgot?
@@ -176,12 +234,98 @@ export function LoginPage() {
         </div>
 
         {formError ? <Notice tone="error">{formError}</Notice> : null}
+        {successNotice ? <Notice tone="success">{successNotice}</Notice> : null}
 
         <Button className="w-full py-3" loading={isSubmitting} type="submit">
           {t("nav.login")} ({role === "researcher" ? t("auth.role_researcher") : t("auth.role_respondent")})
           <Icon className="text-[18px]" name="arrow_forward" />
         </Button>
       </form>
+
+      {/* Forgot Password Modal */}
+      {showForgotModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-stack-md rounded-2xl border border-outline-variant bg-surface p-stack-lg shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-headline-sm text-headline-sm text-on-surface">Reset Password</h3>
+              <button
+                className="rounded-full p-1 text-on-surface-variant hover:bg-surface-container-high"
+                onClick={() => setShowForgotModal(false)}
+                type="button"
+              >
+                <Icon name="close" />
+              </button>
+            </div>
+
+            {forgotStep === 1 ? (
+              <form className="space-y-stack-md" onSubmit={handleRequestCode}>
+                <p className="font-body-sm text-body-sm text-on-surface-variant">
+                  Enter your registered Ethiopian mobile number to receive a SMS verification code.
+                </p>
+
+                <Field label="Phone number">
+                  <Input
+                    autoComplete="tel"
+                    inputMode="tel"
+                    onChange={(e) => setForgotPhone(e.target.value)}
+                    placeholder="0912345678"
+                    value={forgotPhone}
+                  />
+                </Field>
+
+                {forgotError ? <Notice tone="error">{forgotError}</Notice> : null}
+
+                <div className="flex justify-end gap-stack-sm pt-base">
+                  <Button onClick={() => setShowForgotModal(false)} variant="ghost" type="button">
+                    Cancel
+                  </Button>
+                  <Button loading={forgotLoading} type="submit">
+                    Send Code
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <form className="space-y-stack-md" onSubmit={handleResetPassword}>
+                <p className="font-body-sm text-body-sm text-on-surface-variant">
+                  Enter the verification code and set your new password.
+                </p>
+
+                {forgotNotice ? <Notice tone="info">{forgotNotice}</Notice> : null}
+
+                <Field label="Verification code">
+                  <Input
+                    inputMode="numeric"
+                    onChange={(e) => setForgotCode(e.target.value)}
+                    placeholder="123456"
+                    value={forgotCode}
+                  />
+                </Field>
+
+                <Field label="New password">
+                  <Input
+                    autoComplete="new-password"
+                    onChange={(e) => setForgotNewPassword(e.target.value)}
+                    placeholder="At least 8 characters"
+                    type="password"
+                    value={forgotNewPassword}
+                  />
+                </Field>
+
+                {forgotError ? <Notice tone="error">{forgotError}</Notice> : null}
+
+                <div className="flex justify-end gap-stack-sm pt-base">
+                  <Button onClick={() => setForgotStep(1)} variant="ghost" type="button">
+                    Back
+                  </Button>
+                  <Button loading={forgotLoading} type="submit">
+                    Reset Password
+                  </Button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      ) : null}
     </AuthShell>
   );
 }

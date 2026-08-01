@@ -283,7 +283,7 @@ async function main() {
   // --- Named demo respondents ----------------------------------------------
   const cleanId = await ensureUser({
     phone: "0912000001",
-    fullName: "Selam Girma",
+    fullName: "Hiwot Tadesse",
     role: "respondent",
     tier: "2_attribute_verified",
   });

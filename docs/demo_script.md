@@ -11,7 +11,7 @@ Created by `npm run seed`. Password for all of them: `ethosk-demo-2024`.
 |---|---|---|
 | Researcher | `0911000001` | Meron Tesfaye. Owns a ready draft survey plus one active survey with 38 responses. |
 | Admin | `0911000002` | Sees the document review queue. |
-| Respondent (careful) | `0912000001` | Selam Girma. Hawassa · Sociology · Year 3 · Tier 2. |
+| Respondent (careful) | `0912000001` | Hiwot Tadesse. Hawassa · Sociology · Year 3 · Tier 2. |
 | Respondent (bad-faith) | `0912000002` | Dawit Alemu. Hawassa · Sociology · Year 4 · Tier 2. |
 
 Plus ~170 panel respondents, weighted so that Hawassa · Sociology · Year 3–4 ·

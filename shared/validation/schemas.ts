@@ -42,6 +42,18 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+export const requestPasswordResetSchema = z.object({
+  phone: phoneSchema,
+});
+export type RequestPasswordResetInput = z.infer<typeof requestPasswordResetSchema>;
+
+export const resetPasswordSchema = z.object({
+  phone: phoneSchema,
+  code: z.string().min(4, "Enter the verification code"),
+  new_password: passwordSchema,
+});
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
 export const respondentProfileSchema = z.object({
   university: z.string().trim().min(2).max(160).nullable().optional(),
   department: z.string().trim().min(2).max(160).nullable().optional(),

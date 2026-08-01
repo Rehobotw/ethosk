@@ -455,10 +455,26 @@ export function createMockSupabaseClient() {
           });
           return { data: { user: { id, email: params.email } }, error: null };
         },
+        async updateUserById(id: string, attributes: { password?: string }) {
+          mockStore.init();
+          const authUser = mockStore.authUsersById.get(id);
+          if (authUser && attributes.password) {
+            authUser.password = attributes.password;
+            const byEmail = mockStore.authUsers.get(authUser.email);
+            if (byEmail) byEmail.password = attributes.password;
+          }
+          return { data: { user: authUser ? { id: authUser.id, email: authUser.email } : null }, error: null };
+        },
         async deleteUser(id: string) {
           mockStore.init();
+          const authUser = mockStore.authUsersById.get(id);
+          if (authUser) {
+            mockStore.authUsers.delete(authUser.email);
+          }
           mockStore.authUsersById.delete(id);
           mockStore.users.delete(id);
+          mockStore.respondentProfiles.delete(id);
+          mockStore.researcherProfiles.delete(id);
           return { error: null };
         },
       },
@@ -472,8 +488,13 @@ export function createMockSupabaseClient() {
       },
       async signInWithPassword(params: { email: string; password?: string }) {
         mockStore.init();
+        if (params.email === "0912000001@phone.ethosk.local") {
+          mockStore.ensureDemoRespondent();
+        } else if (params.email === "0911000001@phone.ethosk.local") {
+          mockStore.ensureDemoResearcher();
+        }
         const authUser = mockStore.authUsers.get(params.email);
-        if (!authUser) {
+        if (!authUser || (params.password && authUser.password !== params.password)) {
           return { data: { user: null, session: null }, error: { message: "Invalid credentials" } };
         }
         const token = `token-${crypto.randomUUID()}`;
