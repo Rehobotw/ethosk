@@ -175,14 +175,14 @@ class MockDatabaseStore {
       tier: "3_institution_attested",
     });
 
-    // 3. Respondent Clean: Selam Girma
+    // 3. Respondent Clean: Hiwot Tadesse
     const cleanId = "33333333-3333-4333-a333-333333333333";
     this.addUser({
       id: cleanId,
       phone: "0912000001",
       email: "0912000001@phone.ethosk.local",
       password: DEMO_PASSWORD,
-      fullName: "Selam Girma",
+      fullName: "Hiwot Tadesse",
       role: "respondent",
       tier: "2_attribute_verified",
     });
