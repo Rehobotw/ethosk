@@ -5,6 +5,8 @@ import { ApiError, asyncRoute, parseBody } from "../lib/http.js";
 import { rateLimit } from "../lib/rateLimit.js";
 import { admin, signInWithPassword } from "../lib/supabase.js";
 
+import { recordConsentEvent } from "../lib/consent.js";
+
 export const authRouter = Router();
 
 /**
@@ -158,6 +160,36 @@ authRouter.get(
       verification_tier: context.verificationTier,
       full_name: context.fullName,
       phone: context.phone,
+    });
+  }),
+);
+
+authRouter.delete(
+  "/account",
+  requireAuth(),
+  rateLimit({ key: "account-deletion", max: 3, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const userId = context.userId;
+
+    // Log the data erasure request consent event (Proclamation 1321/2024 compliance)
+    await recordConsentEvent(userId, "data_erasure_request", {
+      requested_at: new Date().toISOString(),
+      role: context.role,
+    });
+
+    // Delete user profile rows and database record (cascades to profiles and docs)
+    const { error: dbError } = await admin.from("users").delete().eq("id", userId);
+    if (dbError) {
+      throw new ApiError(500, "ACCOUNT_DELETION_FAILED", dbError.message);
+    }
+
+    // Delete user from Supabase Auth admin API
+    await admin.auth.admin.deleteUser(userId);
+
+    res.json({
+      success: true,
+      message: "Your account and personal data have been permanently deleted.",
     });
   }),
 );
