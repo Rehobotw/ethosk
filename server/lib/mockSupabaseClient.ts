@@ -455,6 +455,16 @@ export function createMockSupabaseClient() {
           });
           return { data: { user: { id, email: params.email } }, error: null };
         },
+        async updateUserById(id: string, attributes: { password?: string }) {
+          mockStore.init();
+          const authUser = mockStore.authUsersById.get(id);
+          if (authUser && attributes.password) {
+            authUser.password = attributes.password;
+            const byEmail = mockStore.authUsers.get(authUser.email);
+            if (byEmail) byEmail.password = attributes.password;
+          }
+          return { data: { user: authUser ? { id: authUser.id, email: authUser.email } : null }, error: null };
+        },
         async deleteUser(id: string) {
           mockStore.init();
           const authUser = mockStore.authUsersById.get(id);
