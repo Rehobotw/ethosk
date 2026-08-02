@@ -35,6 +35,7 @@ import {
 import { ApiRequestError } from "@/lib/api";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { AccountDeletionModal } from "@/components/AccountDeletionModal";
 
 /** The value a `<Select>` uses for "not answered", since an option cannot hold null. */
 const UNSET = "";
@@ -61,27 +62,13 @@ export function ProfilePage() {
   const queryClient = useQueryClient();
   const [saved, setSaved] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Local-only preferences in this build; wiring them to real notification and
   // licensing behaviour is pilot-stage work.
   const [shareAnonymized, setShareAnonymized] = useState(true);
   const [academicConsent, setAcademicConsent] = useState(true);
   const [marketing, setMarketing] = useState(false);
-
-  const deleteAccount = useMutation({
-    mutationFn: () =>
-      api<{ success: boolean; message: string }>("/auth/account", { method: "DELETE" }),
-    onSuccess: () => {
-      logout();
-    },
-    onError: (err) => {
-      setDeleteError(
-        err instanceof ApiRequestError ? err.message : "Could not delete account. Please try again.",
-      );
-    },
-  });
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["respondent-profile"],
@@ -158,7 +145,7 @@ export function ProfilePage() {
             <h1 className="mt-stack-sm font-headline-md text-headline-md text-on-surface">
               {user?.full_name}
             </h1>
-            <p className="font-body-sm text-body-sm text-on-surface-variant">{user?.phone}</p>
+            <p className="font-body-sm text-body-sm text-on-surface-variant">{user?.email}</p>
             {user ? (
               <div className="mt-stack-sm flex justify-center">
                 <TierBadge tier={user.verification_tier} />
@@ -378,45 +365,14 @@ export function ProfilePage() {
               />
             </div>
 
-            {!showDeleteConfirm ? (
-              <button
-                className="mt-stack-md flex items-center gap-stack-sm font-title-sm text-body-md text-error hover:underline"
-                onClick={() => {
-                  setDeleteError(null);
-                  setShowDeleteConfirm(true);
-                }}
-                type="button"
-              >
-                <Icon className="text-[18px]" name="delete_forever" />
-                Request account deletion
-              </button>
-            ) : (
-              <div className="mt-stack-md space-y-stack-sm rounded-lg border border-error/30 bg-error-container/10 p-stack-sm">
-                <p className="font-title-sm text-body-sm font-semibold text-error">
-                  Are you sure you want to delete your account?
-                </p>
-                <p className="font-body-sm text-[12px] text-on-surface-variant">
-                  This will permanently delete your profile, responses, and verification history under Proclamation 1321/2024. This action cannot be undone.
-                </p>
-                {deleteError ? <Notice tone="error">{deleteError}</Notice> : null}
-                <div className="flex items-center gap-stack-sm pt-base">
-                  <Button
-                    loading={deleteAccount.isPending}
-                    onClick={() => deleteAccount.mutate()}
-                    variant="danger"
-                  >
-                    Confirm deletion
-                  </Button>
-                  <Button
-                    disabled={deleteAccount.isPending}
-                    onClick={() => setShowDeleteConfirm(false)}
-                    variant="ghost"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            )}
+            <button
+              className="mt-stack-md flex items-center gap-stack-sm font-title-sm text-body-md text-error hover:underline"
+              onClick={() => setIsDeleteModalOpen(true)}
+              type="button"
+            >
+              <Icon className="text-[18px]" name="delete_forever" />
+              Request account deletion
+            </button>
           </Card>
 
           <Button className="w-full" onClick={logout} variant="ghost">
@@ -424,6 +380,11 @@ export function ProfilePage() {
           </Button>
         </div>
       </div>
+
+      <AccountDeletionModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+      />
     </div>
   );
 }

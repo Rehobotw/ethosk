@@ -20,7 +20,7 @@ export function ProfileDropdown() {
 
   if (!user) return null;
 
-  const initials = (user.full_name || user.phone || "?")
+  const initials = (user.full_name || user.email || "?")
     .split(/\s+/)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
@@ -55,7 +55,7 @@ export function ProfileDropdown() {
               {user.full_name || "User"}
             </p>
             <p className="font-body-sm text-[12px] text-on-surface-variant truncate">
-              {user.phone} · <span className="capitalize font-semibold text-primary">{user.role}</span>
+              {user.email} · <span className="capitalize font-semibold text-primary">{user.role}</span>
             </p>
             {user.verification_tier ? (
               <div className="mt-2">

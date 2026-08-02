@@ -139,17 +139,17 @@ const DEMO_QUESTIONS: Question[] = [
 ];
 
 async function ensureUser(input: {
-  phone: string;
+  email: string;
   fullName: string;
   role: "respondent" | "researcher" | "admin";
   tier: string;
 }): Promise<string> {
-  const email = `${input.phone}@phone.ethosk.local`;
+  const email = input.email.toLowerCase();
 
   const { data: existing } = await db
     .from("users")
     .select("id")
-    .eq("phone", input.phone)
+    .eq("email", email)
     .maybeSingle();
 
   if (existing) return existing.id;
@@ -158,18 +158,19 @@ async function ensureUser(input: {
     email,
     password: DEMO_PASSWORD,
     email_confirm: true,
-    user_metadata: { role: input.role, full_name: input.fullName, phone: input.phone },
+    user_metadata: { role: input.role, full_name: input.fullName, email },
   });
 
   if (error || !created.user) {
-    throw new Error(`Could not create ${input.phone}: ${error?.message}`);
+    throw new Error(`Could not create ${email}: ${error?.message}`);
   }
 
   const { error: rowError } = await db.from("users").insert({
     id: created.user.id,
     role: input.role,
     full_name: input.fullName,
-    phone: input.phone,
+    email,
+    email_verified: true,
     verification_tier: input.tier,
   });
 
@@ -229,9 +230,8 @@ async function seedPayouts(input: {
   );
 }
 
-function phoneFor(index: number): string {
-  // Keeps every generated number inside the 09XXXXXXXX format the schema enforces.
-  return `09${String(10_000_000 + index).slice(0, 8)}`;
+function emailFor(index: number): string {
+  return `panel_${index + 1}@ethosk.com`;
 }
 
 async function main() {
@@ -239,7 +239,7 @@ async function main() {
 
   // --- Researcher and admin -------------------------------------------------
   const researcherId = await ensureUser({
-    phone: "0911000001",
+    email: "researcher@ethosk.com",
     fullName: "Meron Tesfaye",
     role: "researcher",
     tier: "3_institution_attested",
@@ -251,7 +251,7 @@ async function main() {
     verified: true,
     rating: 4.8,
   });
-  console.log("  researcher_demo  0911000001");
+  console.log("  researcher_demo  researcher@ethosk.com");
 
   // Sending a survey now reserves its full reward budget, so the demo researcher
   // needs a funded balance or the send button fails on insufficient funds. The
@@ -273,17 +273,17 @@ async function main() {
   }
 
   const adminId = await ensureUser({
-    phone: "0911000002",
+    email: "admin@ethosk.com",
     fullName: "Ethosk Operator",
     role: "admin",
     tier: "3_institution_attested",
   });
-  console.log(`  admin            0911000002 (${adminId.slice(0, 8)}…)`);
+  console.log(`  admin            admin@ethosk.com (${adminId.slice(0, 8)}…)`);
 
   // --- Named demo respondents ----------------------------------------------
   const cleanId = await ensureUser({
-    phone: "0912000001",
-    fullName: "Hiwot Tadesse",
+    email: "respondent@ethosk.com",
+    fullName: "Selam Girma",
     role: "respondent",
     tier: "2_attribute_verified",
   });
@@ -295,10 +295,10 @@ async function main() {
     age: 22,
     attributes: {},
   });
-  console.log("  respondent_clean 0912000001");
+  console.log("  respondent_clean respondent@ethosk.com");
 
   const badId = await ensureUser({
-    phone: "0912000002",
+    email: "bad_respondent@ethosk.com",
     fullName: "Dawit Alemu",
     role: "respondent",
     tier: "2_attribute_verified",
@@ -311,7 +311,7 @@ async function main() {
     age: 24,
     attributes: {},
   });
-  console.log("  respondent_bad   0912000002");
+  console.log("  respondent_bad   bad_respondent@ethosk.com");
 
   // --- Bulk respondent panel ------------------------------------------------
   // Weighted toward Hawassa Sociology years 3-4 so the demo's headline filter
@@ -320,7 +320,7 @@ async function main() {
   const panelIds: string[] = [];
 
   for (let i = 0; i < 170; i += 1) {
-    const phone = phoneFor(i + 100);
+    const email = emailFor(i);
     const isHeadlineSegment = i < 140;
 
     const university = isHeadlineSegment
@@ -337,7 +337,7 @@ async function main() {
 
     try {
       const id = await ensureUser({
-        phone,
+        email,
         fullName: `Panel Respondent ${i + 1}`,
         role: "respondent",
         // A few remain at Tier 1 so raising the minimum tier visibly changes the count.
@@ -364,7 +364,7 @@ async function main() {
 
       panelIds.push(id);
     } catch (error) {
-      console.warn(`    skipped ${phone}: ${(error as Error).message}`);
+      console.warn(`    skipped ${email}: ${(error as Error).message}`);
     }
   }
   console.log(`  ${panelIds.length} panel respondents ready`);

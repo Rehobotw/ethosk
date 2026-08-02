@@ -286,7 +286,7 @@ respondentsRouter.get(
     const initial = await admin
       .from("survey_targets")
       .select(
-        "survey_id, notified_at, surveys(id, title, description, questions, reward_etb, status)",
+        "survey_id, notified_at, surveys(id, title, questions, reward_etb, status)",
       )
       .eq("respondent_id", context.userId)
       .order("notified_at", { ascending: false });
@@ -313,7 +313,7 @@ respondentsRouter.get(
         const { data: refetched } = await admin
           .from("survey_targets")
           .select(
-            "survey_id, notified_at, surveys(id, title, description, questions, reward_etb, status)",
+            "survey_id, notified_at, surveys(id, title, questions, reward_etb, status)",
           )
           .eq("respondent_id", context.userId)
           .order("notified_at", { ascending: false });
@@ -331,34 +331,42 @@ respondentsRouter.get(
 
     const answeredIds = new Set((answered ?? []).map((row) => row.survey_id));
 
-    type TargetRow = {
-      survey_id: string;
-      surveys: {
-        id: string;
-        title: string;
-        description: string | null;
-        questions: unknown[];
-        reward_etb: number | null;
-        status: string;
-      } | null;
+    type SurveyEmbed = {
+      id: string;
+      title: string;
+      description?: string | null;
+      questions: unknown[];
+      reward_etb: number | null;
+      status: string;
     };
 
-    // Supabase types an embedded relation as an array; this join returns at most
-    // one survey per target row, so it is narrowed here rather than at each use.
+    type TargetRow = {
+      survey_id: string;
+      surveys: SurveyEmbed | SurveyEmbed[] | null;
+    };
+
     const surveys = ((targets ?? []) as unknown as TargetRow[])
-      .filter((row) => row.surveys && row.surveys.status === "active")
-      .filter((row) => !answeredIds.has(row.survey_id))
       .map((row) => {
-        const questionCount = Array.isArray(row.surveys?.questions)
-          ? row.surveys.questions.length
+        const survey = Array.isArray(row.surveys) ? row.surveys[0] : row.surveys;
+        return {
+          survey_id: row.survey_id,
+          survey: survey ?? null,
+        };
+      })
+      .filter((item): item is { survey_id: string; survey: SurveyEmbed } => 
+        Boolean(item.survey && item.survey.status === "active" && !answeredIds.has(item.survey_id))
+      )
+      .map(({ survey }) => {
+        const questionCount = Array.isArray(survey.questions)
+          ? survey.questions.length
           : 0;
         return {
-          id: row.surveys!.id,
-          title: row.surveys!.title,
-          description: row.surveys!.description,
+          id: survey.id,
+          title: survey.title,
+          description: survey.description ?? null,
           // +1 accounts for the consistency check inserted at fill time.
           estimated_minutes: Math.max(1, Math.round(((questionCount + 1) * 20) / 60)),
-          reward_etb: row.surveys!.reward_etb ?? 0,
+          reward_etb: survey.reward_etb ?? 0,
         };
       });
 

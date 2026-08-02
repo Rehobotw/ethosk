@@ -22,7 +22,7 @@ export function SignupPage() {
 
   const form = useForm<SignupInput>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { full_name: "", phone: "", password: "", role: requestedRole },
+    defaultValues: { full_name: "", email: "", password: "", role: requestedRole },
   });
   const {
     register,
@@ -32,11 +32,14 @@ export function SignupPage() {
   const onSubmit = async (values: SignupInput) => {
     setFormError(null);
     try {
-      const session = await signup({ ...values, role });
-      // A new respondent needs a profile before anything can match them.
-      navigate(session.role === "respondent" ? "/profile" : homePathForRole(session.role), {
-        replace: true,
-      });
+      const result = await signup({ ...values, role });
+      if (result.verification_required) {
+        navigate(`/verify-email?email=${encodeURIComponent(result.email)}`);
+      } else {
+        navigate(role === "respondent" ? "/profile" : homePathForRole(role), {
+          replace: true,
+        });
+      }
     } catch (error) {
       setFormError(
         error instanceof ApiRequestError ? error.message : "Could not create your account. Try again.",
@@ -59,7 +62,7 @@ export function SignupPage() {
       >
         <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
           <p className="font-body-md text-on-surface">
-            Currently logged in as <strong className="text-primary">{user.full_name || user.phone}</strong> ({user.role}).
+            Currently logged in as <strong className="text-primary">{user.full_name || user.email}</strong> ({user.role}).
           </p>
           <div className="flex flex-col gap-2 sm:flex-row justify-center">
             <Button onClick={() => navigate(homePathForRole(user.role))}>
@@ -79,7 +82,7 @@ export function SignupPage() {
       footer={
         <>
           Already registered?{" "}
-          <Link className="font-semibold text-primary hover:underline" to="/login">
+          <Link className="font-semibold text-primary hover:underline" to={`/login?role=${role}`}>
             {t("nav.login")}
           </Link>
         </>
@@ -99,12 +102,13 @@ export function SignupPage() {
             <Input autoComplete="name" placeholder="Abebe Bekele" {...register("full_name")} />
           </Field>
 
-          <Field error={errors.phone?.message} label={t("auth.phone")}>
+          <Field error={errors.email?.message} label={t("auth.email")}>
             <Input
-              autoComplete="tel"
-              inputMode="tel"
-              placeholder="0912345678"
-              {...register("phone")}
+              autoComplete="email"
+              inputMode="email"
+              placeholder="name@example.com"
+              type="email"
+              {...register("email")}
             />
           </Field>
 

@@ -16,7 +16,7 @@ interface ReviewItem {
   doc_type: DocType;
   ai_notes: string | null;
   created_at: string;
-  respondent: { full_name: string; phone: string; verification_tier: string } | null;
+  respondent: { full_name: string; email: string; verification_tier: string } | null;
   preview_url: string | null;
 }
 

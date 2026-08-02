@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { UserRole } from "@shared/types";
 import { loginSchema, type LoginInput } from "@shared/validation/schemas";
 import { Button, Field, Icon, Input, Notice } from "@/components/ui";
-import { api, ApiRequestError } from "@/lib/api";
+import { ApiRequestError } from "@/lib/api";
 import { homePathForRole, useAuth } from "@/lib/auth";
 import { useAutofillSafeSubmit } from "@/lib/forms";
 import { useLanguage } from "@/lib/language";
@@ -21,72 +21,18 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const [showForgotModal, setShowForgotModal] = useState(false);
-  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
-  const [forgotPhone, setForgotPhone] = useState("");
-  const [forgotCode, setForgotCode] = useState("123456");
-  const [forgotNewPassword, setForgotNewPassword] = useState("");
-  const [forgotLoading, setForgotLoading] = useState(false);
-  const [forgotNotice, setForgotNotice] = useState<string | null>(null);
-  const [forgotError, setForgotError] = useState<string | null>(null);
-  const [successNotice, setSuccessNotice] = useState<string | null>(null);
-
-  const handleOpenForgot = () => {
-    const currentPhone = form.getValues("phone");
-    setForgotPhone(currentPhone || "0912000001");
-    setForgotStep(1);
-    setForgotCode("123456");
-    setForgotNewPassword("");
-    setForgotNotice(null);
-    setForgotError(null);
-    setShowForgotModal(true);
-  };
-
-  const handleRequestCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setForgotError(null);
-    setForgotLoading(true);
-    try {
-      const res = await api<{ success: boolean; message: string; demo_code?: string }>("/auth/forgot-password", {
-        body: { phone: forgotPhone },
-      });
-      setForgotNotice(`${res.message} (Demo code: ${res.demo_code || "123456"})`);
-      setForgotStep(2);
-    } catch (err) {
-      setForgotError(err instanceof ApiRequestError ? err.message : "Could not send verification code.");
-    } finally {
-      setForgotLoading(false);
-    }
-  };
-
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setForgotError(null);
-    setForgotLoading(true);
-    try {
-      const res = await api<{ success: boolean; message: string }>("/auth/reset-password", {
-        body: { phone: forgotPhone, code: forgotCode, new_password: forgotNewPassword },
-      });
-      setValue("phone", forgotPhone);
-      setValue("password", forgotNewPassword);
-      setShowForgotModal(false);
-      setSuccessNotice(res.message);
-    } catch (err) {
-      setForgotError(err instanceof ApiRequestError ? err.message : "Could not reset password.");
-    } finally {
-      setForgotLoading(false);
-    }
-  };
-
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { phone: "", password: "" },
+    defaultValues: { email: "", password: "" },
   });
   const {
     register,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = form;
+
+  const watchEmail = watch("email");
 
   const onSubmit = async (values: LoginInput) => {
     setFormError(null);
@@ -94,6 +40,11 @@ export function LoginPage() {
       const session = await login({ ...values, role });
       navigate(homePathForRole(session.role), { replace: true });
     } catch (error) {
+      if (error instanceof ApiRequestError && (error.data as any)?.verification_required) {
+        const email = (error.data as any)?.email || values.email;
+        navigate(`/verify-email?email=${encodeURIComponent(email)}`);
+        return;
+      }
       setFormError(
         error instanceof ApiRequestError ? error.message : "Could not sign in. Try again.",
       );
@@ -102,13 +53,13 @@ export function LoginPage() {
 
   const { formRef, onSubmit: handleFormSubmit } = useAutofillSafeSubmit(form, onSubmit);
 
-  const handleDemoFill = async (targetRole: UserRole, phone: string) => {
+  const handleDemoFill = async (targetRole: UserRole, email: string) => {
     setRole(targetRole);
-    setValue("phone", phone);
+    setValue("email", email);
     setValue("password", "ethosk-demo-2024");
     setFormError(null);
     try {
-      const session = await login({ phone, password: "ethosk-demo-2024", role: targetRole });
+      const session = await login({ email, password: "ethosk-demo-2024", role: targetRole });
       navigate(homePathForRole(session.role), { replace: true });
     } catch (error) {
       setFormError(
@@ -130,7 +81,7 @@ export function LoginPage() {
       >
         <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
           <p className="font-body-md text-on-surface">
-            Currently logged in as <strong className="text-primary">{user.full_name || user.phone}</strong> ({user.role}).
+            Currently logged in as <strong className="text-primary">{user.full_name || user.email}</strong> ({user.role}).
           </p>
           <div className="flex flex-col gap-2 sm:flex-row justify-center">
             <Button onClick={() => navigate(homePathForRole(user.role))}>
@@ -168,20 +119,20 @@ export function LoginPage() {
         <div className="mt-2 grid grid-cols-2 gap-2">
           <button
             className="flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest p-2 text-[11px] font-medium text-on-surface hover:bg-surface-container-high transition-colors"
-            onClick={() => void handleDemoFill("researcher", "0911000001")}
+            onClick={() => void handleDemoFill("researcher", "researcher@ethosk.com")}
             type="button"
           >
             <span className="font-bold">{t("auth.demo_researcher")}</span>
-            <span className="text-[10px] text-on-surface-variant">0911000001</span>
+            <span className="text-[10px] text-on-surface-variant">researcher@ethosk.com</span>
           </button>
 
           <button
             className="flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest p-2 text-[11px] font-medium text-on-surface hover:bg-surface-container-high transition-colors"
-            onClick={() => void handleDemoFill("respondent", "0912000001")}
+            onClick={() => void handleDemoFill("respondent", "respondent@ethosk.com")}
             type="button"
           >
-            <span className="font-bold">{t("auth.demo_respondent")} (Hiwot)</span>
-            <span className="text-[10px] text-on-surface-variant">0912000001</span>
+            <span className="font-bold">{t("auth.demo_respondent")}</span>
+            <span className="text-[10px] text-on-surface-variant">respondent@ethosk.com</span>
           </button>
         </div>
       </div>
@@ -192,24 +143,24 @@ export function LoginPage() {
         ref={formRef}
       >
         <div className="space-y-stack-md rounded-xl border border-outline-variant bg-surface-container-lowest p-stack-md">
-          <Field error={errors.phone?.message} label={t("auth.phone")}>
+          <Field error={errors.email?.message} label={t("auth.email")}>
             <Input
-              autoComplete="tel"
-              inputMode="tel"
-              placeholder="0912345678"
-              {...register("phone")}
+              autoComplete="email"
+              inputMode="email"
+              placeholder="name@example.com"
+              type="email"
+              {...register("email")}
             />
           </Field>
 
           <Field
             action={
-              <button
+              <Link
                 className="font-label-caps text-label-caps uppercase text-primary hover:underline"
-                onClick={handleOpenForgot}
-                type="button"
+                to={watchEmail ? `/forgot-password?email=${encodeURIComponent(watchEmail)}` : "/forgot-password"}
               >
                 Forgot?
-              </button>
+              </Link>
             }
             error={errors.password?.message}
             label={t("auth.password")}
@@ -234,98 +185,12 @@ export function LoginPage() {
         </div>
 
         {formError ? <Notice tone="error">{formError}</Notice> : null}
-        {successNotice ? <Notice tone="success">{successNotice}</Notice> : null}
 
         <Button className="w-full py-3" loading={isSubmitting} type="submit">
           {t("nav.login")} ({role === "researcher" ? t("auth.role_researcher") : t("auth.role_respondent")})
           <Icon className="text-[18px]" name="arrow_forward" />
         </Button>
       </form>
-
-      {/* Forgot Password Modal */}
-      {showForgotModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md space-y-stack-md rounded-2xl border border-outline-variant bg-surface p-stack-lg shadow-xl">
-            <div className="flex items-center justify-between">
-              <h3 className="font-headline-sm text-headline-sm text-on-surface">Reset Password</h3>
-              <button
-                className="rounded-full p-1 text-on-surface-variant hover:bg-surface-container-high"
-                onClick={() => setShowForgotModal(false)}
-                type="button"
-              >
-                <Icon name="close" />
-              </button>
-            </div>
-
-            {forgotStep === 1 ? (
-              <form className="space-y-stack-md" onSubmit={handleRequestCode}>
-                <p className="font-body-sm text-body-sm text-on-surface-variant">
-                  Enter your registered Ethiopian mobile number to receive a SMS verification code.
-                </p>
-
-                <Field label="Phone number">
-                  <Input
-                    autoComplete="tel"
-                    inputMode="tel"
-                    onChange={(e) => setForgotPhone(e.target.value)}
-                    placeholder="0912345678"
-                    value={forgotPhone}
-                  />
-                </Field>
-
-                {forgotError ? <Notice tone="error">{forgotError}</Notice> : null}
-
-                <div className="flex justify-end gap-stack-sm pt-base">
-                  <Button onClick={() => setShowForgotModal(false)} variant="ghost" type="button">
-                    Cancel
-                  </Button>
-                  <Button loading={forgotLoading} type="submit">
-                    Send Code
-                  </Button>
-                </div>
-              </form>
-            ) : (
-              <form className="space-y-stack-md" onSubmit={handleResetPassword}>
-                <p className="font-body-sm text-body-sm text-on-surface-variant">
-                  Enter the verification code and set your new password.
-                </p>
-
-                {forgotNotice ? <Notice tone="info">{forgotNotice}</Notice> : null}
-
-                <Field label="Verification code">
-                  <Input
-                    inputMode="numeric"
-                    onChange={(e) => setForgotCode(e.target.value)}
-                    placeholder="123456"
-                    value={forgotCode}
-                  />
-                </Field>
-
-                <Field label="New password">
-                  <Input
-                    autoComplete="new-password"
-                    onChange={(e) => setForgotNewPassword(e.target.value)}
-                    placeholder="At least 8 characters"
-                    type="password"
-                    value={forgotNewPassword}
-                  />
-                </Field>
-
-                {forgotError ? <Notice tone="error">{forgotError}</Notice> : null}
-
-                <div className="flex justify-end gap-stack-sm pt-base">
-                  <Button onClick={() => setForgotStep(1)} variant="ghost" type="button">
-                    Back
-                  </Button>
-                  <Button loading={forgotLoading} type="submit">
-                    Reset Password
-                  </Button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      ) : null}
     </AuthShell>
   );
 }

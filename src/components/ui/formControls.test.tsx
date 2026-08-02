@@ -10,7 +10,7 @@ import { Button, Field, Input } from "./index";
 function TestForm({ onValid }: { onValid: (values: SignupInput) => void }) {
   const form = useForm<SignupInput>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { full_name: "", phone: "", password: "", role: "respondent" },
+    defaultValues: { full_name: "", email: "", password: "", role: "respondent" },
   });
   const {
     register,
@@ -23,8 +23,8 @@ function TestForm({ onValid }: { onValid: (values: SignupInput) => void }) {
       <Field error={errors.full_name?.message} label="Full name">
         <Input {...register("full_name")} />
       </Field>
-      <Field error={errors.phone?.message} label="Phone number">
-        <Input {...register("phone")} />
+      <Field error={errors.email?.message} label="Email address">
+        <Input {...register("email")} />
       </Field>
       <Field error={errors.password?.message} label="Password">
         <Input type="password" {...register("password")} />
@@ -51,8 +51,8 @@ describe("form controls with react-hook-form", () => {
     fireEvent.change(screen.getByLabelText("Full name"), {
       target: { value: "Rehobot Wolde" },
     });
-    fireEvent.change(screen.getByLabelText("Phone number"), {
-      target: { value: "+251935268237" },
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "rehobot@example.com" },
     });
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "ethosk-demo-2024" },
@@ -62,7 +62,7 @@ describe("form controls with react-hook-form", () => {
     await waitFor(() => expect(onValid).toHaveBeenCalledTimes(1));
     expect(onValid.mock.calls[0]?.[0]).toMatchObject({
       full_name: "Rehobot Wolde",
-      phone: "+251935268237",
+      email: "rehobot@example.com",
     });
   });
 
@@ -71,7 +71,7 @@ describe("form controls with react-hook-form", () => {
     render(<TestForm onValid={onValid} />);
 
     autofill(screen.getByLabelText("Full name") as HTMLInputElement, "Rehobot Wolde");
-    autofill(screen.getByLabelText("Phone number") as HTMLInputElement, "+251935268237");
+    autofill(screen.getByLabelText("Email address") as HTMLInputElement, "rehobot@example.com");
     autofill(screen.getByLabelText("Password") as HTMLInputElement, "ethosk-demo-2024");
 
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));

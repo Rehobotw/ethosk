@@ -9,8 +9,8 @@ export function LearnRespondentsPage() {
   const steps = [
     {
       icon: "person_add",
-      title: "Register with your phone",
-      body: "No email needed. Your phone number is your account.",
+      title: "Register with your email",
+      body: "Create your account and verify your email address to get started.",
     },
     {
       icon: "fingerprint",
@@ -32,7 +32,7 @@ export function LearnRespondentsPage() {
   const rights = [
     "You can see every consent event recorded against your account.",
     "You can request deletion of your uploaded documents.",
-    "Researchers see only the attributes a study filtered on — never your phone number.",
+    "Researchers see only the attributes a study filtered on — never your email address.",
     "Your Fayda ID number is never stored, only an irreversible hash of it.",
   ];
 

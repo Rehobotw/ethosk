@@ -19,6 +19,7 @@ import {
 import { ApiRequestError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { describeFormError } from "@/lib/forms";
+import { AccountDeletionModal } from "@/components/AccountDeletionModal";
 
 interface ResearcherProfile {
   user_id: string;
@@ -36,6 +37,7 @@ export function SettingsPage() {
   const [institution, setInstitution] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Local-only in this build. Wiring these to real delivery is pilot-stage work,
   // and they are shown as switches rather than promises of behaviour that exists.
@@ -174,6 +176,7 @@ export function SettingsPage() {
               <div>
                 <button
                   className="flex items-center gap-stack-sm font-title-sm text-body-md text-error hover:underline"
+                  onClick={() => setIsDeleteModalOpen(true)}
                   type="button"
                 >
                   <Icon className="text-[18px]" name="delete_forever" />
@@ -197,7 +200,7 @@ export function SettingsPage() {
             <p className="mt-stack-sm font-title-sm text-title-sm text-on-surface">
               {user?.full_name}
             </p>
-            <p className="font-body-sm text-body-sm text-on-surface-variant">{user?.phone}</p>
+            <p className="font-body-sm text-body-sm text-on-surface-variant">{user?.email}</p>
             {user ? (
               <div className="mt-stack-sm">
                 <TierBadge tier={user.verification_tier} />
@@ -232,6 +235,11 @@ export function SettingsPage() {
           </Card>
         </div>
       </div>
+
+      <AccountDeletionModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+      />
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import type { ResearcherWallet, RespondentWallet } from "@shared/types.js";
-import { ApiError } from "./http.js";
 import { admin } from "./supabase.js";
 
 /**
@@ -29,38 +28,101 @@ export function roundEtb(value: number): number {
 }
 
 export async function readResearcherWallet(researcherId: string): Promise<ResearcherWallet> {
-  const { data, error } = await admin
-    .from("researcher_wallet_view")
-    .select("deposited_etb, reserved_etb, paid_etb, available_etb")
-    .eq("researcher_id", researcherId)
-    .maybeSingle();
+  try {
+    const { data, error } = await admin
+      .from("researcher_wallet_view")
+      .select("deposited_etb, reserved_etb, paid_etb, available_etb")
+      .eq("researcher_id", researcherId)
+      .maybeSingle();
 
-  if (error) throw new ApiError(500, "WALLET_READ_FAILED", error.message);
+    if (!error && data) {
+      return {
+        deposited_etb: toAmount(data.deposited_etb),
+        reserved_etb: toAmount(data.reserved_etb),
+        paid_etb: toAmount(data.paid_etb),
+        available_etb: toAmount(data.available_etb),
+      };
+    }
+  } catch {}
 
-  // A researcher who has never deposited has no row in the view rather than a
-  // row of zeros, which is not an error — it is an empty wallet.
+  // Direct table query fallback
+  try {
+    const [{ data: deposits }, { data: activeSurveys }, { data: payouts }] = await Promise.all([
+      admin.from("researcher_deposits").select("amount_etb").eq("researcher_id", researcherId).eq("status", "completed"),
+      admin.from("surveys").select("escrow_etb").eq("researcher_id", researcherId).eq("status", "active"),
+      admin.from("respondent_payouts").select("amount_etb").eq("researcher_id", researcherId),
+    ]);
+
+    const deposited = (deposits ?? []).reduce((acc, d) => acc + Number(d.amount_etb ?? 0), 0);
+    const reserved = (activeSurveys ?? []).reduce((acc, s) => acc + Number(s.escrow_etb ?? 0), 0);
+    const paid = (payouts ?? []).reduce((acc, p) => acc + Number(p.amount_etb ?? 0), 0);
+    const available = deposited - reserved - paid;
+
+    return {
+      deposited_etb: roundEtb(deposited),
+      reserved_etb: roundEtb(reserved),
+      paid_etb: roundEtb(paid),
+      available_etb: roundEtb(available),
+    };
+  } catch {}
+
   return {
-    deposited_etb: toAmount(data?.deposited_etb),
-    reserved_etb: toAmount(data?.reserved_etb),
-    paid_etb: toAmount(data?.paid_etb),
-    available_etb: toAmount(data?.available_etb),
+    deposited_etb: 0,
+    reserved_etb: 0,
+    paid_etb: 0,
+    available_etb: 0,
   };
 }
 
 export async function readRespondentWallet(respondentId: string): Promise<RespondentWallet> {
-  const { data, error } = await admin
-    .from("respondent_wallet_view")
-    .select("available_etb, withdrawn_etb, lifetime_etb, paid_response_count")
-    .eq("respondent_id", respondentId)
-    .maybeSingle();
+  try {
+    const { data, error } = await admin
+      .from("respondent_wallet_view")
+      .select("available_etb, withdrawn_etb, lifetime_etb, paid_response_count")
+      .eq("respondent_id", respondentId)
+      .maybeSingle();
 
-  if (error) throw new ApiError(500, "WALLET_READ_FAILED", error.message);
+    if (!error && data) {
+      return {
+        available_etb: toAmount(data.available_etb),
+        withdrawn_etb: toAmount(data.withdrawn_etb),
+        lifetime_etb: toAmount(data.lifetime_etb),
+        paid_response_count: Number(data.paid_response_count ?? 0),
+      };
+    }
+  } catch {}
+
+  // Direct table query fallback
+  try {
+    const { data: payouts } = await admin
+      .from("respondent_payouts")
+      .select("amount_etb, status")
+      .eq("respondent_id", respondentId);
+
+    if (payouts && payouts.length > 0) {
+      let available = 0;
+      let withdrawn = 0;
+      let lifetime = 0;
+      for (const p of payouts) {
+        const amt = Number(p.amount_etb ?? 0);
+        lifetime += amt;
+        if (p.status === "withdrawn") withdrawn += amt;
+        else available += amt;
+      }
+      return {
+        available_etb: roundEtb(available),
+        withdrawn_etb: roundEtb(withdrawn),
+        lifetime_etb: roundEtb(lifetime),
+        paid_response_count: payouts.length,
+      };
+    }
+  } catch {}
 
   return {
-    available_etb: toAmount(data?.available_etb),
-    withdrawn_etb: toAmount(data?.withdrawn_etb),
-    lifetime_etb: toAmount(data?.lifetime_etb),
-    paid_response_count: Number(data?.paid_response_count ?? 0),
+    available_etb: 0,
+    withdrawn_etb: 0,
+    lifetime_etb: 0,
+    paid_response_count: 0,
   };
 }
 

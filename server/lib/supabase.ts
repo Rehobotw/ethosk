@@ -53,6 +53,10 @@ export function userClient(accessToken: string): SupabaseClient {
   });
 }
 
+export const publicClient: SupabaseClient = isMock
+  ? (createMockSupabaseClient() as unknown as SupabaseClient)
+  : createClient(env.supabaseUrl, env.supabaseAnonKey, serverSupabaseClientOptions());
+
 /**
  * Exchanges a password for a session on a throwaway client.
  */
@@ -60,7 +64,6 @@ export function signInWithPassword(email: string, password: string) {
   if (isMock) {
     return createMockSupabaseClient().auth.signInWithPassword({ email, password });
   }
-  const client = createClient(env.supabaseUrl, env.supabaseAnonKey, serverSupabaseClientOptions());
-  return client.auth.signInWithPassword({ email, password });
+  return publicClient.auth.signInWithPassword({ email, password });
 }
 

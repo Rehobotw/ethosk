@@ -1,5 +1,3 @@
-import type { ApiErrorShape } from "@shared/types";
-
 const TOKEN_KEY = "ethosk.token";
 
 /**
@@ -27,6 +25,7 @@ export class ApiRequestError extends Error {
     readonly code: string,
     message: string,
     readonly fields?: string[],
+    readonly data?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "ApiRequestError";
@@ -65,20 +64,29 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     let code = "REQUEST_FAILED";
     let message = `Request failed with status ${response.status}`;
     let fields: string[] | undefined;
+    let errorData: Record<string, unknown> | undefined;
 
     try {
-      const payload = await readJsonBody<ApiErrorShape>(response);
-      if (payload?.error) {
-        code = payload.error.code;
-        message = payload.error.message;
-        fields = payload.error.fields;
+      const payload = await readJsonBody<any>(response);
+      if (payload) {
+        errorData = payload;
+        if (typeof payload.error === "string") {
+          code = payload.error;
+          message = payload.message || message;
+        } else if (payload.error) {
+          code = payload.error.code || code;
+          message = payload.error.message || message;
+          fields = payload.error.fields;
+        } else if (payload.message) {
+          message = payload.message;
+        }
       }
     } catch {
       // A non-JSON error body leaves the status-based defaults in place.
     }
 
     if (response.status === 401) setToken(null);
-    throw new ApiRequestError(response.status, code, message, fields);
+    throw new ApiRequestError(response.status, code, message, fields, errorData);
   }
 
   if (response.status === 204) return undefined as T;

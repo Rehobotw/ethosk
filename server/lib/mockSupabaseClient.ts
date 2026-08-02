@@ -261,7 +261,6 @@ class QueryBuilder {
     this.action = "delete";
     return this;
   }
-
   private resolveRows(): Record<string, any>[] {
     let rows = this.getTableData();
     for (const filter of this.filters) {
@@ -270,7 +269,11 @@ class QueryBuilder {
     if (this.orderCol) {
       const col = this.orderCol;
       const asc = this.orderAsc ? 1 : -1;
-      rows.sort((a, b) => (a[col] > b[col] ? asc : a[col] < b[col] ? -asc : 0));
+      rows.sort((a, b) => {
+        const valA = a[col] ?? "";
+        const valB = b[col] ?? "";
+        return valA > valB ? asc : valA < valB ? -asc : 0;
+      });
     }
     if (this.limitCount !== undefined) {
       rows = rows.slice(0, this.limitCount);
@@ -303,12 +306,18 @@ class QueryBuilder {
             mockStore.surveys.set(id, newItem as SurveyRecord);
             break;
           case "survey_targets": {
+            const targetItem = {
+              survey_id: item.survey_id,
+              respondent_id: item.respondent_id,
+              notified_at: item.notified_at || now,
+            };
             const existing = mockStore.surveyTargets.findIndex(
               (t) => t.survey_id === item.survey_id && t.respondent_id === item.respondent_id
             );
-            if (existing >= 0) mockStore.surveyTargets[existing] = item;
-            else mockStore.surveyTargets.push(item);
-            break;
+            if (existing >= 0) mockStore.surveyTargets[existing] = targetItem;
+            else mockStore.surveyTargets.push(targetItem);
+            createdItems.push(targetItem);
+            continue;
           }
           case "survey_responses": {
             const existing = mockStore.surveyResponses.findIndex(
@@ -455,15 +464,24 @@ export function createMockSupabaseClient() {
           });
           return { data: { user: { id, email: params.email } }, error: null };
         },
-        async updateUserById(id: string, attributes: { password?: string }) {
+        async updateUserById(id: string, attributes: { password?: string; user_metadata?: Record<string, any> }) {
           mockStore.init();
           const authUser = mockStore.authUsersById.get(id);
-          if (authUser && attributes.password) {
-            authUser.password = attributes.password;
-            const byEmail = mockStore.authUsers.get(authUser.email);
-            if (byEmail) byEmail.password = attributes.password;
+          const byEmail = authUser ? mockStore.authUsers.get(authUser.email) : null;
+          if (authUser) {
+            if (attributes.password) {
+              authUser.password = attributes.password;
+              if (byEmail) byEmail.password = attributes.password;
+            }
+            if (attributes.user_metadata) {
+              authUser.user_metadata = { ...(authUser.user_metadata ?? {}), ...attributes.user_metadata };
+              if (byEmail) byEmail.user_metadata = authUser.user_metadata;
+            }
           }
-          return { data: { user: authUser ? { id: authUser.id, email: authUser.email } : null }, error: null };
+          return {
+            data: { user: authUser ? { id: authUser.id, email: authUser.email, user_metadata: authUser.user_metadata } : null },
+            error: null,
+          };
         },
         async deleteUser(id: string) {
           mockStore.init();
@@ -486,11 +504,20 @@ export function createMockSupabaseClient() {
         }
         return { data: { user: { id: userId } }, error: null };
       },
+      async resetPasswordForEmail(_email: string) {
+        return { data: {}, error: null };
+      },
+      async verifyOtp(_params: { email: string; token: string; type: string }) {
+        return { data: { user: { id: crypto.randomUUID() }, session: { access_token: `mock-token-${crypto.randomUUID()}` } }, error: null };
+      },
+      async resend(_params: { type: string; email: string }) {
+        return { data: {}, error: null };
+      },
       async signInWithPassword(params: { email: string; password?: string }) {
         mockStore.init();
-        if (params.email === "0912000001@phone.ethosk.local") {
+        if (params.email === "respondent@ethosk.com") {
           mockStore.ensureDemoRespondent();
-        } else if (params.email === "0911000001@phone.ethosk.local") {
+        } else if (params.email === "researcher@ethosk.com") {
           mockStore.ensureDemoResearcher();
         }
         const authUser = mockStore.authUsers.get(params.email);

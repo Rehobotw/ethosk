@@ -277,7 +277,8 @@ export interface UserRecord {
   id: string;
   role: UserRole;
   full_name: string;
-  phone: string;
+  email: string;
+  email_verified?: boolean;
   verification_tier: VerificationTier;
   created_at: string;
 }

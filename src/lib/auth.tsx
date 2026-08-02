@@ -1,43 +1,59 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { UserRole, VerificationTier } from "@shared/types";
-import type { LoginInput, SignupInput } from "@shared/validation/schemas";
-import { ApiRequestError, api, getToken, setToken } from "./api";
+import type {
+  ForgotPasswordInput,
+  LoginInput,
+  ResendCodeInput,
+  ResetPasswordInput,
+  SignupInput,
+  VerifyEmailInput,
+} from "@shared/validation/schemas";
+import { api, getToken, setToken } from "./api";
 
 export interface SessionUser {
   user_id: string;
   role: UserRole;
   verification_tier: VerificationTier;
   full_name: string;
-  phone: string;
+  email: string;
+  email_verified?: boolean;
+}
+
+export interface SignupResult {
+  success: boolean;
+  verification_required?: boolean;
+  email: string;
+  message?: string;
+  user_id?: string;
+  role?: UserRole;
+}
+
+export interface VerifyResult {
+  success: boolean;
+  message?: string;
+  user_id: string;
+  email: string;
+  role: UserRole;
+  verification_tier: VerificationTier;
+  full_name: string;
+  access_token: string;
 }
 
 interface AuthState {
   user: SessionUser | null;
   loading: boolean;
   login: (input: LoginInput) => Promise<SessionUser>;
-  signup: (input: SignupInput) => Promise<SessionUser>;
+  signup: (input: SignupInput) => Promise<SignupResult>;
+  verifyEmail: (input: VerifyEmailInput) => Promise<SessionUser>;
+  resendCode: (input: ResendCodeInput) => Promise<{ success: boolean; message: string }>;
+  forgotPassword: (input: ForgotPasswordInput) => Promise<{ success: boolean; message: string }>;
+  resetPassword: (input: ResetPasswordInput) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
-
-interface SignupResponse {
-  success?: boolean;
-  message?: string;
-  user?: {
-    id: string;
-    email: string;
-    role: UserRole;
-    verification_tier: VerificationTier;
-    access_token: string | null;
-  };
-  user_id?: string;
-  role?: UserRole;
-  verification_tier?: VerificationTier;
-  access_token?: string | null;
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -74,38 +90,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role: result.role,
       verification_tier: result.verification_tier,
       full_name: result.full_name,
-      phone: result.phone,
+      email: result.email || input.email,
+      email_verified: result.email_verified ?? true,
     };
     setUser(session);
     return session;
   }, []);
 
-  const signup = useCallback(async (input: SignupInput) => {
-    const result = await api<SignupResponse>("/auth/signup", { body: input });
+  const signup = useCallback(async (input: SignupInput): Promise<SignupResult> => {
+    const result = await api<SignupResult>("/auth/signup", { body: input });
+    return result;
+  }, []);
 
-    const userId = result.user?.id ?? result.user_id;
-    const role = result.user?.role ?? result.role ?? input.role;
-    const verificationTier = result.user?.verification_tier ?? result.verification_tier ?? "0_registered";
-    const accessToken = result.user?.access_token ?? result.access_token ?? null;
-
-    if (!userId) {
-      throw new ApiRequestError(
-        502,
-        "EMPTY_RESPONSE",
-        "The server created the account but returned no user details. Please try logging in if the account already exists.",
-      );
+  const verifyEmail = useCallback(async (input: VerifyEmailInput) => {
+    const result = await api<VerifyResult>("/auth/verify-email", { body: input });
+    if (result.access_token) {
+      setToken(result.access_token);
     }
-
-    if (accessToken) setToken(accessToken);
     const session: SessionUser = {
-      user_id: userId,
-      role,
-      verification_tier: verificationTier,
-      full_name: input.full_name,
-      phone: input.phone,
+      user_id: result.user_id,
+      role: result.role,
+      verification_tier: result.verification_tier,
+      full_name: result.full_name,
+      email: result.email,
+      email_verified: true,
     };
     setUser(session);
     return session;
+  }, []);
+
+  const resendCode = useCallback(async (input: ResendCodeInput) => {
+    return await api<{ success: boolean; message: string }>("/auth/resend-code", {
+      body: input,
+    });
+  }, []);
+
+  const forgotPassword = useCallback(async (input: ForgotPasswordInput) => {
+    return await api<{ success: boolean; message: string }>("/auth/forgot-password", {
+      body: input,
+    });
+  }, []);
+
+  const resetPassword = useCallback(async (input: ResetPasswordInput) => {
+    return await api<{ success: boolean; message: string }>("/auth/reset-password", {
+      body: input,
+    });
   }, []);
 
   const logout = useCallback(() => {
@@ -114,8 +143,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({ user, loading, login, signup, logout, refresh }),
-    [user, loading, login, signup, logout, refresh],
+    () => ({
+      user,
+      loading,
+      login,
+      signup,
+      verifyEmail,
+      resendCode,
+      forgotPassword,
+      resetPassword,
+      logout,
+      refresh,
+    }),
+    [user, loading, login, signup, verifyEmail, resendCode, forgotPassword, resetPassword, logout, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

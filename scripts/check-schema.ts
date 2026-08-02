@@ -15,7 +15,7 @@ import { admin } from "../server/lib/supabase.js";
 
 /** One representative selection per migration, newest last. */
 const EXPECTATIONS: { migration: string; table: string; select: string }[] = [
-  { migration: "0001", table: "users", select: "id,role,verification_tier" },
+  { migration: "0001", table: "users", select: "id,role,verification_tier,email,email_verified" },
   { migration: "0001", table: "surveys", select: "id,title,status,reward_etb" },
   { migration: "0001", table: "survey_responses", select: "id,fraud_flag,fraud_signals" },
   { migration: "0001", table: "respondent_match_view", select: "user_id,tier_rank" },
