@@ -5,7 +5,7 @@ import { Button, Icon, Notice } from "@/components/ui";
 import { useLanguage } from "@/lib/language";
 
 const TIER_DETAIL: Record<VerificationTier, string> = {
-  "0_registered": "Phone number confirmed. Not included in any verified match by default.",
+  "0_registered": "Email address confirmed. Not included in any verified match by default.",
   "1_id_verified": "Identity confirmed against Fayda, so one person holds one account.",
   "2_attribute_verified":
     "A supporting document passed a legibility and consistency check against the claimed profile.",

@@ -23,13 +23,16 @@ export function LoginPage() {
 
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { phone: "", password: "" },
+    defaultValues: { email: "", password: "" },
   });
   const {
     register,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = form;
+
+  const watchEmail = watch("email");
 
   const onSubmit = async (values: LoginInput) => {
     setFormError(null);
@@ -37,6 +40,11 @@ export function LoginPage() {
       const session = await login({ ...values, role });
       navigate(homePathForRole(session.role), { replace: true });
     } catch (error) {
+      if (error instanceof ApiRequestError && (error.data as any)?.verification_required) {
+        const email = (error.data as any)?.email || values.email;
+        navigate(`/verify-email?email=${encodeURIComponent(email)}`);
+        return;
+      }
       setFormError(
         error instanceof ApiRequestError ? error.message : "Could not sign in. Try again.",
       );
@@ -45,13 +53,13 @@ export function LoginPage() {
 
   const { formRef, onSubmit: handleFormSubmit } = useAutofillSafeSubmit(form, onSubmit);
 
-  const handleDemoFill = async (targetRole: UserRole, phone: string) => {
+  const handleDemoFill = async (targetRole: UserRole, email: string) => {
     setRole(targetRole);
-    setValue("phone", phone);
+    setValue("email", email);
     setValue("password", "ethosk-demo-2024");
     setFormError(null);
     try {
-      const session = await login({ phone, password: "ethosk-demo-2024", role: targetRole });
+      const session = await login({ email, password: "ethosk-demo-2024", role: targetRole });
       navigate(homePathForRole(session.role), { replace: true });
     } catch (error) {
       setFormError(
@@ -73,7 +81,7 @@ export function LoginPage() {
       >
         <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
           <p className="font-body-md text-on-surface">
-            Currently logged in as <strong className="text-primary">{user.full_name || user.phone}</strong> ({user.role}).
+            Currently logged in as <strong className="text-primary">{user.full_name || user.email}</strong> ({user.role}).
           </p>
           <div className="flex flex-col gap-2 sm:flex-row justify-center">
             <Button onClick={() => navigate(homePathForRole(user.role))}>
@@ -111,20 +119,20 @@ export function LoginPage() {
         <div className="mt-2 grid grid-cols-2 gap-2">
           <button
             className="flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest p-2 text-[11px] font-medium text-on-surface hover:bg-surface-container-high transition-colors"
-            onClick={() => void handleDemoFill("researcher", "0911000001")}
+            onClick={() => void handleDemoFill("researcher", "researcher@ethosk.com")}
             type="button"
           >
             <span className="font-bold">{t("auth.demo_researcher")}</span>
-            <span className="text-[10px] text-on-surface-variant">0911000001</span>
+            <span className="text-[10px] text-on-surface-variant">researcher@ethosk.com</span>
           </button>
 
           <button
             className="flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest p-2 text-[11px] font-medium text-on-surface hover:bg-surface-container-high transition-colors"
-            onClick={() => void handleDemoFill("respondent", "0912000001")}
+            onClick={() => void handleDemoFill("respondent", "respondent@ethosk.com")}
             type="button"
           >
             <span className="font-bold">{t("auth.demo_respondent")}</span>
-            <span className="text-[10px] text-on-surface-variant">0912000001</span>
+            <span className="text-[10px] text-on-surface-variant">respondent@ethosk.com</span>
           </button>
         </div>
       </div>
@@ -135,23 +143,24 @@ export function LoginPage() {
         ref={formRef}
       >
         <div className="space-y-stack-md rounded-xl border border-outline-variant bg-surface-container-lowest p-stack-md">
-          <Field error={errors.phone?.message} label={t("auth.phone")}>
+          <Field error={errors.email?.message} label={t("auth.email")}>
             <Input
-              autoComplete="tel"
-              inputMode="tel"
-              placeholder="0912345678"
-              {...register("phone")}
+              autoComplete="email"
+              inputMode="email"
+              placeholder="name@example.com"
+              type="email"
+              {...register("email")}
             />
           </Field>
 
           <Field
             action={
-              <button
+              <Link
                 className="font-label-caps text-label-caps uppercase text-primary hover:underline"
-                type="button"
+                to={watchEmail ? `/forgot-password?email=${encodeURIComponent(watchEmail)}` : "/forgot-password"}
               >
                 Forgot?
-              </button>
+              </Link>
             }
             error={errors.password?.message}
             label={t("auth.password")}

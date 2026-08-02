@@ -18,7 +18,7 @@ export function InboxPage() {
   const { user } = useAuth();
   const { t } = useLanguage();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ["inbox"],
     queryFn: () => api<{ surveys: InboxSurvey[] }>("/respondents/inbox"),
   });
@@ -86,7 +86,19 @@ export function InboxPage() {
         {isLoading ? <LoadingBlock label="Checking for tasks…" /> : null}
 
         {error ? (
-          <Notice tone="error">Could not load your inbox. Pull down to refresh.</Notice>
+          <Notice tone="error">
+            <div className="flex items-center justify-between gap-2">
+              <span>Could not load your inbox. Pull down or click to refresh.</span>
+              <Button
+                className="shrink-0 text-xs px-2.5 py-1"
+                loading={isRefetching}
+                onClick={() => void refetch()}
+                variant="outline"
+              >
+                Retry
+              </Button>
+            </div>
+          </Notice>
         ) : null}
 
         {data && data.surveys.length === 0 ? (

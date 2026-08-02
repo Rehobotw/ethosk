@@ -14,8 +14,8 @@ const STEPS: {
   {
     tier: "0_registered",
     title: "Registered",
-    body: "Your phone number is confirmed.",
-    icon: "phone_iphone",
+    body: "Your email address is confirmed.",
+    icon: "mail",
   },
   {
     tier: "1_id_verified",

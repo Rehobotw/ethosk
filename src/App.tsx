@@ -4,8 +4,10 @@ import { MarketingLayout } from "./components/layout/MarketingLayout";
 import { RespondentLayout } from "./components/layout/RespondentLayout";
 import { RequireRole } from "./components/RequireRole";
 import { LoadingBlock } from "./components/ui";
+import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { SignupPage } from "./pages/auth/SignupPage";
+import { VerifyEmailPage } from "./pages/auth/VerifyEmailPage";
 import { HomePage } from "./pages/HomePage";
 import { LearnRespondentsPage } from "./pages/LearnRespondentsPage";
 import { LearnResearchersPage } from "./pages/LearnResearchersPage";
@@ -64,6 +66,8 @@ export default function App() {
 
       <Route element={<LoginPage />} path="/login" />
       <Route element={<SignupPage />} path="/signup" />
+      <Route element={<VerifyEmailPage />} path="/verify-email" />
+      <Route element={<ForgotPasswordPage />} path="/forgot-password" />
 
       {/* Respondent */}
       <Route

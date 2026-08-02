@@ -16,7 +16,7 @@ adminRouter.get(
   asyncRoute(async (_req, res) => {
     const { data, error } = await admin
       .from("documents")
-      .select("id, user_id, doc_type, status, ai_notes, storage_path, created_at, users(full_name, phone, verification_tier)")
+      .select("id, user_id, doc_type, status, ai_notes, storage_path, created_at, users(full_name, email, verification_tier)")
       .eq("status", "needs_review")
       .order("created_at", { ascending: true });
 

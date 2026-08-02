@@ -29,27 +29,34 @@ walletRouter.get(
     const context = auth(req);
     const wallet = await readResearcherWallet(context.userId);
 
-    const [{ data: deposits }, { data: activeSurveys }] = await Promise.all([
-      admin
-        .from("researcher_deposits")
-        .select("id, amount_etb, method, reference, status, created_at")
-        .eq("researcher_id", context.userId)
-        .order("created_at", { ascending: false })
-        .limit(50),
-      admin
-        .from("surveys")
-        .select("id, title, escrow_etb, reward_etb")
-        .eq("researcher_id", context.userId)
-        .eq("status", "active")
-        .gt("escrow_etb", 0),
-    ]);
+    let deposits: any[] = [];
+    let activeSurveys: any[] = [];
+
+    try {
+      const [{ data: d }, { data: s }] = await Promise.all([
+        admin
+          .from("researcher_deposits")
+          .select("id, amount_etb, method, reference, status, created_at")
+          .eq("researcher_id", context.userId)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        admin
+          .from("surveys")
+          .select("id, title, escrow_etb, reward_etb")
+          .eq("researcher_id", context.userId)
+          .eq("status", "active")
+          .gt("escrow_etb", 0),
+      ]);
+      if (d) deposits = d;
+      if (s) activeSurveys = s;
+    } catch {}
 
     res.json({
       wallet,
-      deposits: deposits ?? [],
+      deposits,
       // Shown beside the balance so a researcher can see what their reserved
       // total is actually committed to, rather than just its size.
-      commitments: (activeSurveys ?? []).map((survey) => ({
+      commitments: activeSurveys.map((survey) => ({
         survey_id: survey.id,
         title: survey.title,
         reserved_etb: Number(survey.escrow_etb ?? 0),
@@ -357,14 +364,17 @@ walletRouter.get(
     const context = auth(req);
     const wallet = await readRespondentWallet(context.userId);
 
-    const { data: payouts, error } = await admin
-      .from("respondent_payouts")
-      .select("id, survey_id, amount_etb, status, created_at, surveys(title)")
-      .eq("respondent_id", context.userId)
-      .order("created_at", { ascending: false })
-      .limit(50);
+    let payouts: any[] = [];
+    try {
+      const { data } = await admin
+        .from("respondent_payouts")
+        .select("id, survey_id, amount_etb, status, created_at, surveys(title)")
+        .eq("respondent_id", context.userId)
+        .order("created_at", { ascending: false })
+        .limit(50);
 
-    if (error) throw new ApiError(500, "WALLET_READ_FAILED", error.message);
+      if (data) payouts = data;
+    } catch {}
 
     type PayoutRow = {
       id: string;
@@ -377,7 +387,7 @@ walletRouter.get(
 
     res.json({
       wallet,
-      payouts: ((payouts ?? []) as unknown as PayoutRow[]).map((row) => ({
+      payouts: payouts.map((row: PayoutRow) => ({
         id: row.id,
         survey_id: row.survey_id,
         amount_etb: Number(row.amount_etb),

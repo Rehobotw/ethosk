@@ -4,7 +4,8 @@ export interface UserRecord {
   id: string;
   role: "respondent" | "researcher" | "admin";
   full_name: string;
-  phone: string;
+  email: string;
+  email_verified?: boolean;
   national_id_hash?: string | null;
   fayda_verified_at?: string | null;
   verification_tier: "0_registered" | "1_id_verified" | "2_attribute_verified" | "3_institution_attested";
@@ -138,8 +139,7 @@ class MockDatabaseStore {
     const researcherId = "11111111-1111-4111-a111-111111111111";
     this.addUser({
       id: researcherId,
-      phone: "0911000001",
-      email: "0911000001@phone.ethosk.local",
+      email: "researcher@ethosk.com",
       password: DEMO_PASSWORD,
       fullName: "Abebe Bekele",
       role: "researcher",
@@ -167,8 +167,7 @@ class MockDatabaseStore {
     const adminId = "22222222-2222-4222-a222-222222222222";
     this.addUser({
       id: adminId,
-      phone: "0911000002",
-      email: "0911000002@phone.ethosk.local",
+      email: "admin@ethosk.com",
       password: DEMO_PASSWORD,
       fullName: "Ethosk Admin",
       role: "admin",
@@ -179,8 +178,7 @@ class MockDatabaseStore {
     const cleanId = "33333333-3333-4333-a333-333333333333";
     this.addUser({
       id: cleanId,
-      phone: "0912000001",
-      email: "0912000001@phone.ethosk.local",
+      email: "respondent@ethosk.com",
       password: DEMO_PASSWORD,
       fullName: "Selam Girma",
       role: "respondent",
@@ -204,8 +202,7 @@ class MockDatabaseStore {
     const badId = "44444444-4444-4444-a444-444444444444";
     this.addUser({
       id: badId,
-      phone: "0912000002",
-      email: "0912000002@phone.ethosk.local",
+      email: "dawit@ethosk.com",
       password: DEMO_PASSWORD,
       fullName: "Dawit Alemu",
       role: "respondent",
@@ -233,7 +230,6 @@ class MockDatabaseStore {
     const panelIds: string[] = [cleanId, badId];
 
     for (let i = 0; i < 170; i++) {
-      const pNum = `09${String(10000000 + i + 100).slice(0, 8)}`;
       const pId = crypto.randomUUID();
       const isHeadline = i < 140;
       const isStudent = i % 3 !== 2;
@@ -243,8 +239,7 @@ class MockDatabaseStore {
 
       this.addUser({
         id: pId,
-        phone: pNum,
-        email: `${pNum}@phone.ethosk.local`,
+        email: `panel_${i + 1}@ethosk.com`,
         password: DEMO_PASSWORD,
         fullName: `Panel Respondent ${i + 1}`,
         role: "respondent",
@@ -384,7 +379,7 @@ class MockDatabaseStore {
       "Yes, multiple times",
     ];
 
-    for (let idx = 0; idx < 38; idx++) {
+    for (let idx = 1; idx < 38; idx++) {
       const rId = targets[idx]!;
       const badFaith = idx === 5 || idx === 18 || idx === 31;
       const respId = crypto.randomUUID();
@@ -436,36 +431,34 @@ class MockDatabaseStore {
 
   addUser(input: {
     id: string;
-    phone: string;
     email: string;
     password: string;
     fullName: string;
     role: "respondent" | "researcher" | "admin";
     tier: "0_registered" | "1_id_verified" | "2_attribute_verified" | "3_institution_attested";
+    emailVerified?: boolean;
   }) {
     const now = new Date().toISOString();
+    const emailLower = input.email.toLowerCase();
     const user: UserRecord = {
       id: input.id,
       role: input.role,
       full_name: input.fullName,
-      phone: input.phone,
+      email: emailLower,
+      email_verified: input.emailVerified ?? true,
       verification_tier: input.tier,
       created_at: now,
       updated_at: now,
     };
     this.users.set(input.id, user);
-    this.authUsers.set(input.email, {
+    const authUser = {
       id: input.id,
-      email: input.email,
+      email: emailLower,
       password: input.password,
-      user_metadata: { role: input.role, full_name: input.fullName },
-    });
-    this.authUsersById.set(input.id, {
-      id: input.id,
-      email: input.email,
-      password: input.password,
-      user_metadata: { role: input.role, full_name: input.fullName },
-    });
+      user_metadata: { role: input.role, full_name: input.fullName, email: emailLower },
+    };
+    this.authUsers.set(emailLower, authUser);
+    this.authUsersById.set(input.id, authUser);
   }
 }
 

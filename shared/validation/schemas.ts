@@ -25,22 +25,62 @@ export const phoneSchema = z
   .trim()
   .regex(ETHIOPIAN_PHONE_REGEX, "Enter a valid Ethiopian mobile number (e.g. 0912345678)");
 
+export const emailSchema = z
+  .string()
+  .trim()
+  .min(1, "Enter your email address")
+  .email("Enter a valid email address (e.g. name@example.com)")
+  .toLowerCase();
+
 export const passwordSchema = z.string().min(8, "Password must be at least 8 characters");
 
 export const signupSchema = z.object({
   full_name: z.string().trim().min(2, "Enter your full name").max(120),
-  phone: phoneSchema,
+  email: emailSchema,
   password: passwordSchema,
   role: z.enum(USER_ROLES).default("respondent"),
 });
 export type SignupInput = z.infer<typeof signupSchema>;
 
 export const loginSchema = z.object({
-  phone: phoneSchema,
+  email: emailSchema,
   password: z.string().min(1, "Enter your password"),
   role: z.enum(USER_ROLES).optional(),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
+
+export const verifyEmailSchema = z.object({
+  email: emailSchema,
+  code: z.string().trim().min(4, "Enter the verification code").max(8),
+});
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+
+export const resendCodeSchema = z.object({
+  email: emailSchema,
+});
+export type ResendCodeInput = z.infer<typeof resendCodeSchema>;
+
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+});
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+export const resetPasswordSchema = z.object({
+  email: emailSchema,
+  code: z.string().trim().min(4, "Enter the 6-digit reset code").max(8),
+  new_password: passwordSchema,
+  confirm_password: z.string().min(1, "Please confirm your password").optional(),
+}).refine((data) => !data.confirm_password || data.new_password === data.confirm_password, {
+  message: "Passwords do not match",
+  path: ["confirm_password"],
+});
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+export const deleteAccountRequestSchema = z.object({
+  reason: z.string().trim().max(500).optional(),
+  confirm_text: z.string().trim().optional(),
+});
+export type DeleteAccountRequestInput = z.infer<typeof deleteAccountRequestSchema>;
 
 export const respondentProfileSchema = z.object({
   university: z.string().trim().min(2).max(160).nullable().optional(),

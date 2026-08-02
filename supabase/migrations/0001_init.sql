@@ -39,7 +39,8 @@ create table if not exists users (
   id uuid primary key default gen_random_uuid(),
   role user_role not null,
   full_name text not null,
-  phone text unique not null check (phone ~ '^(?:\+251|0)9\d{8}$'),
+  email text unique check (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
+  email_verified boolean not null default false,
   -- Never the raw national ID: only a SHA-256 of the ID plus a server-side
   -- pepper, which is enough to detect duplicate registrations (§17.6).
   national_id_hash text,
@@ -50,6 +51,17 @@ create table if not exists users (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Ensure email columns exist if users table was created previously with phone
+alter table users add column if not exists email text;
+alter table users add column if not exists email_verified boolean not null default false;
+alter table users drop column if exists phone;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'users_email_check') then
+    alter table users add constraint users_email_check check (email is null or email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
+  end if;
+end $$;
+create unique index if not exists users_email_unique_idx on users (lower(email));
 
 create unique index if not exists idx_users_national_id_hash
   on users (national_id_hash) where national_id_hash is not null;

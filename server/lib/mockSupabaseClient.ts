@@ -261,7 +261,6 @@ class QueryBuilder {
     this.action = "delete";
     return this;
   }
-
   private resolveRows(): Record<string, any>[] {
     let rows = this.getTableData();
     for (const filter of this.filters) {
@@ -270,7 +269,11 @@ class QueryBuilder {
     if (this.orderCol) {
       const col = this.orderCol;
       const asc = this.orderAsc ? 1 : -1;
-      rows.sort((a, b) => (a[col] > b[col] ? asc : a[col] < b[col] ? -asc : 0));
+      rows.sort((a, b) => {
+        const valA = a[col] ?? "";
+        const valB = b[col] ?? "";
+        return valA > valB ? asc : valA < valB ? -asc : 0;
+      });
     }
     if (this.limitCount !== undefined) {
       rows = rows.slice(0, this.limitCount);
@@ -303,12 +306,18 @@ class QueryBuilder {
             mockStore.surveys.set(id, newItem as SurveyRecord);
             break;
           case "survey_targets": {
+            const targetItem = {
+              survey_id: item.survey_id,
+              respondent_id: item.respondent_id,
+              notified_at: item.notified_at || now,
+            };
             const existing = mockStore.surveyTargets.findIndex(
               (t) => t.survey_id === item.survey_id && t.respondent_id === item.respondent_id
             );
-            if (existing >= 0) mockStore.surveyTargets[existing] = item;
-            else mockStore.surveyTargets.push(item);
-            break;
+            if (existing >= 0) mockStore.surveyTargets[existing] = targetItem;
+            else mockStore.surveyTargets.push(targetItem);
+            createdItems.push(targetItem);
+            continue;
           }
           case "survey_responses": {
             const existing = mockStore.surveyResponses.findIndex(
@@ -455,6 +464,14 @@ export function createMockSupabaseClient() {
           });
           return { data: { user: { id, email: params.email } }, error: null };
         },
+        async updateUserById(id: string, attributes: { password?: string; user_metadata?: Record<string, any> }) {
+          mockStore.init();
+          const user = mockStore.authUsersById.get(id);
+          if (user && attributes.password) {
+            user.password = attributes.password;
+          }
+          return { data: { user }, error: null };
+        },
         async deleteUser(id: string) {
           mockStore.init();
           mockStore.authUsersById.delete(id);
@@ -469,6 +486,15 @@ export function createMockSupabaseClient() {
           return { data: { user: null }, error: { message: "Invalid token" } };
         }
         return { data: { user: { id: userId } }, error: null };
+      },
+      async resetPasswordForEmail(_email: string) {
+        return { data: {}, error: null };
+      },
+      async verifyOtp(_params: { email: string; token: string; type: string }) {
+        return { data: { user: { id: crypto.randomUUID() }, session: { access_token: `mock-token-${crypto.randomUUID()}` } }, error: null };
+      },
+      async resend(_params: { type: string; email: string }) {
+        return { data: {}, error: null };
       },
       async signInWithPassword(params: { email: string; password?: string }) {
         mockStore.init();

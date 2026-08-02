@@ -35,6 +35,7 @@ import {
 import { ApiRequestError } from "@/lib/api";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { AccountDeletionModal } from "@/components/AccountDeletionModal";
 
 /** The value a `<Select>` uses for "not answered", since an option cannot hold null. */
 const UNSET = "";
@@ -61,6 +62,7 @@ export function ProfilePage() {
   const queryClient = useQueryClient();
   const [saved, setSaved] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Local-only preferences in this build; wiring them to real notification and
   // licensing behaviour is pilot-stage work.
@@ -143,7 +145,7 @@ export function ProfilePage() {
             <h1 className="mt-stack-sm font-headline-md text-headline-md text-on-surface">
               {user?.full_name}
             </h1>
-            <p className="font-body-sm text-body-sm text-on-surface-variant">{user?.phone}</p>
+            <p className="font-body-sm text-body-sm text-on-surface-variant">{user?.email}</p>
             {user ? (
               <div className="mt-stack-sm flex justify-center">
                 <TierBadge tier={user.verification_tier} />
@@ -365,6 +367,7 @@ export function ProfilePage() {
 
             <button
               className="mt-stack-md flex items-center gap-stack-sm font-title-sm text-body-md text-error hover:underline"
+              onClick={() => setIsDeleteModalOpen(true)}
               type="button"
             >
               <Icon className="text-[18px]" name="delete_forever" />
@@ -377,6 +380,11 @@ export function ProfilePage() {
           </Button>
         </div>
       </div>
+
+      <AccountDeletionModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+      />
     </div>
   );
 }
