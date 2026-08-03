@@ -416,11 +416,14 @@ authRouter.post(
       expiresAt: Date.now() + 15 * 60 * 1000,
     });
 
-    console.log(`[auth] Password reset code for ${email}: ${otp}`);
+    if (process.env.NODE_ENV === "development" || env.nodeEnv === "development") {
+      console.log(`[auth] Password reset code for ${email}: ${otp}`);
+    }
 
     res.json({
       success: true,
       message: resetMessage,
+      ...(env.nodeEnv === "development" ? { demo_code: otp } : {}),
     });
   }),
 );
@@ -642,72 +645,6 @@ authRouter.post(
       success: true,
       message:
         "Your account deletion request has been submitted under Proclamation 1321/2024. Our compliance team will process it within 30 days.",
-    });
-  }),
-);
-
-authRouter.post(
-  "/forgot-password",
-  rateLimit({ key: "forgot-password", max: 5, windowMs: 60_000 }),
-  asyncRoute(async (req, res) => {
-    const { phone } = parseBody(requestPasswordResetSchema, req.body);
-
-    const { data: user } = await admin
-      .from("users")
-      .select("id, phone")
-      .eq("phone", phone)
-      .maybeSingle();
-
-    if (!user) {
-      throw new ApiError(404, "USER_NOT_FOUND", "No account registered with that phone number.");
-    }
-
-    const code = "123456";
-
-    // Only print the code if we are running locally in development
-    if (process.env.NODE_ENV === "development" || env.nodeEnv === "development") {
-      console.log(`[auth] Verification code for ${phone}: ${code}`);
-    }
-
-    res.json({
-      success: true,
-      message: "Verification code sent to your phone number.",
-      ...(env.nodeEnv === "development" ? { demo_code: code } : {}),
-    });
-  }),
-);
-
-authRouter.post(
-  "/reset-password",
-  rateLimit({ key: "reset-password", max: 5, windowMs: 60_000 }),
-  asyncRoute(async (req, res) => {
-    const { phone, code, new_password } = parseBody(resetPasswordSchema, req.body);
-
-    const { data: user } = await admin
-      .from("users")
-      .select("id, phone")
-      .eq("phone", phone)
-      .maybeSingle();
-
-    if (!user) {
-      throw new ApiError(404, "USER_NOT_FOUND", "No account registered with that phone number.");
-    }
-
-    if (code !== "123456" && code.length < 4) {
-      throw new ApiError(400, "INVALID_CODE", "Invalid verification code.");
-    }
-
-    const { error: updateError } = await admin.auth.admin.updateUserById(user.id, {
-      password: new_password,
-    });
-
-    if (updateError) {
-      throw new ApiError(500, "RESET_FAILED", updateError.message);
-    }
-
-    res.json({
-      success: true,
-      message: "Password reset successfully. You can now log in with your new password.",
     });
   }),
 );
