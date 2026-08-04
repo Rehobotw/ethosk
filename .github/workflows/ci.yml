@@ -1,0 +1,30 @@
+name: CI Pipeline
+
+# This tells GitHub to run these tests every time someone opens a Pull Request to main
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Grab the code from your ethosk repository
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      # 2. Set up the environment (Change this if you are using Python, etc.)
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18' # Change this to match your project's Node version
+
+      # 3. Install your dependencies
+      - name: Install Dependencies
+        run: npm install
+
+      # 4. Run your tests (Make sure you have a "test" script in your package.json!)
+      - name: Run Tests
+        run: npm test
