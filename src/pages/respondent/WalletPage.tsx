@@ -119,7 +119,11 @@ export function WalletPage() {
                       </p>
                       <p className="font-body-sm text-[12px] text-on-surface-variant">
                         {new Date(payout.created_at).toLocaleDateString()} ·{" "}
-                        {payout.status === "withdrawn" ? "Withdrawn" : "Available"}
+                        {payout.status === "withdrawn"
+                          ? "Withdrawn"
+                          : payout.status === "pending"
+                            ? "Pending Payment"
+                            : "Available"}
                       </p>
                     </div>
                     <span className="shrink-0 font-title-sm text-body-md text-primary">

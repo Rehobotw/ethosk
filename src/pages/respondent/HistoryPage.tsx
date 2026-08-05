@@ -25,17 +25,11 @@ export function HistoryPage() {
         </p>
       </div>
 
-      <Notice tone="info">
-        A respondent cannot see the quality flag on their own response. Showing it would tell a
-        bad-faith respondent exactly which behaviour got caught, which is the one thing the check
-        depends on not revealing.
-      </Notice>
-
       {isLoading ? <LoadingBlock label="Loading completed surveys…" /> : null}
       {error ? <Notice tone="error">Could not load your history.</Notice> : null}
 
       {data && data.history.length === 0 ? (
-        <EmptyState icon="history" title="Completed surveys appear here">
+        <EmptyState icon="history" title="Completed surveys will appear here">
           Once you complete a study, your submission record and reward details will appear here.
         </EmptyState>
       ) : null}

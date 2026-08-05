@@ -268,7 +268,7 @@ export interface PayoutRecord {
   id: string;
   survey_id: string;
   amount_etb: number;
-  status: "available" | "withdrawn";
+  status: "pending" | "available" | "withdrawn";
   created_at: string;
   survey_title: string | null;
 }

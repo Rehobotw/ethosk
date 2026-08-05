@@ -107,7 +107,7 @@ export async function readRespondentWallet(respondentId: string): Promise<Respon
         const amt = Number(p.amount_etb ?? 0);
         lifetime += amt;
         if (p.status === "withdrawn") withdrawn += amt;
-        else available += amt;
+        else if (p.status === "available" || p.status === "pending") available += amt;
       }
       return {
         available_etb: roundEtb(available),
@@ -155,7 +155,7 @@ export async function payForResponse(input: {
     respondent_id: input.respondentId,
     researcher_id: input.researcherId,
     amount_etb: amount,
-    status: "available",
+    status: "pending",
   });
 
   if (error) {
