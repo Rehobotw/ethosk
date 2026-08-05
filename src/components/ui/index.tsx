@@ -124,7 +124,7 @@ export function Field({
 
 const CONTROL_CLASS =
   "w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 font-body-md text-body-md text-on-surface " +
-  "placeholder:text-outline focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60";
+  "placeholder:text-on-surface-variant/40 placeholder:font-normal focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60";
 
 /**
  * Every control below forwards its ref, because `register` from react-hook-form

@@ -91,7 +91,6 @@ surveysRouter.post(
       .insert({
         researcher_id: context.userId,
         title: input.title,
-        description: input.description ?? null,
         questions: input.questions,
         reward_etb: input.reward_etb ?? null,
         status: "draft",
@@ -144,7 +143,6 @@ surveysRouter.patch(
       .from("surveys")
       .update({
         ...(input.title !== undefined && { title: input.title }),
-        ...(input.description !== undefined && { description: input.description }),
         ...(input.questions !== undefined && { questions: input.questions }),
         ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
         translations,
@@ -730,6 +728,7 @@ async function loadOwnedSurvey(id: string, researcherId: string): Promise<Survey
 function normalizeSurvey(row: Record<string, unknown>): SurveyRecord {
   return {
     ...(row as unknown as SurveyRecord),
+    description: (row.description as string | null | undefined) ?? null,
     questions: Array.isArray(row.questions) ? (row.questions as Question[]) : [],
     translations: (row.translations ?? {}) as SurveyRecord["translations"],
   };

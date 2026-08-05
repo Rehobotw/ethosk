@@ -34,23 +34,31 @@ const DOC_TYPE_LABELS: Record<DocType, string> = {
 
 const STATUS_CONFIG: Record<
   DocReviewStatus,
-  { label: string; className: string; icon: string }
+  { label: string; className: string; icon: string; description: string }
 > = {
   processing: {
-    label: "Checking…",
-    className: "bg-surface-container-high text-on-surface-variant",
+    label: "Pending Verification",
+    className: "bg-surface-container-high text-primary border border-primary/20 animate-pulse",
     icon: "hourglass_top",
+    description: "Automated verification in progress…",
   },
   passed: {
-    label: "Passed",
-    className: "bg-status-passed/15 text-flag-clean",
-    icon: "check_circle",
+    label: "Verified",
+    className: "bg-status-passed/15 text-flag-clean border border-status-passed/30 font-bold",
+    icon: "verified",
+    description: "Document confirmed and approved.",
   },
-  failed: { label: "Not accepted", className: "bg-error-container text-on-error-container", icon: "error" },
+  failed: {
+    label: "Rejected",
+    className: "bg-error-container text-on-error-container border border-error/30 font-bold",
+    icon: "cancel",
+    description: "Document could not be verified.",
+  },
   needs_review: {
-    label: "Manual review",
-    className: "bg-status-review/15 text-[#7c4a03]",
+    label: "Pending Manual Review",
+    className: "bg-status-review/15 text-[#7c4a03] border border-status-review/30",
     icon: "person_search",
+    description: "Queued for administrator review.",
   },
 };
 
@@ -60,6 +68,7 @@ export function DocumentsPage() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [docType, setDocType] = useState<DocType>("student_id");
   const [clientError, setClientError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["documents"],
@@ -78,6 +87,7 @@ export function DocumentsPage() {
     },
     onSuccess: async () => {
       if (fileInput.current) fileInput.current.value = "";
+      setUploadSuccess("Document uploaded successfully! Review is in progress.");
       await queryClient.invalidateQueries({ queryKey: ["documents"] });
       await refresh();
     },
@@ -153,6 +163,12 @@ export function DocumentsPage() {
               JPEG, PNG, or PDF · up to 8MB
             </p>
 
+            {uploadSuccess ? (
+              <div className="mt-stack-md">
+                <Notice tone="success">{uploadSuccess}</Notice>
+              </div>
+            ) : null}
+
             {clientError ? (
               <div className="mt-stack-md">
                 <Notice tone="error">{clientError}</Notice>
@@ -203,8 +219,12 @@ export function DocumentsPage() {
                       {status.label}
                     </span>
                   </div>
+                  <p className="mt-2 font-body-sm text-[13px] text-on-surface-variant/80">
+                    {status.description}
+                  </p>
                   {document.ai_notes ? (
-                    <p className="mt-stack-sm font-body-sm text-body-sm text-on-surface-variant">
+                    <p className="mt-stack-sm rounded-lg bg-surface-container-high/50 p-2 font-body-sm text-body-sm text-on-surface-variant border border-outline-variant/40">
+                      <span className="font-semibold text-on-surface">Review notes: </span>
                       {document.ai_notes}
                     </p>
                   ) : null}
