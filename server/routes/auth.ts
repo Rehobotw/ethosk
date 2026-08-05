@@ -76,6 +76,37 @@ authRouter.post(
         .maybeSingle();
 
       if (existing) {
+        const profileTable =
+          input.role === "respondent"
+            ? "respondent_profiles"
+            : input.role === "researcher"
+              ? "researcher_profiles"
+              : null;
+
+        if (profileTable) {
+          const { data: profile } = await admin
+            .from(profileTable)
+            .select("user_id")
+            .eq("user_id", existing.id)
+            .maybeSingle();
+
+          if (profile) {
+            throw new ApiError(409, "EMAIL_ALREADY_REGISTERED", "That email address is already registered.");
+          }
+
+          // User exists under another role; provision the new profile
+          await admin.from(profileTable).upsert({ user_id: existing.id }, { onConflict: "user_id" });
+
+          return res.status(201).json({
+            success: true,
+            verification_required: false,
+            email,
+            message: `Your account is now enabled as a ${input.role}.`,
+            user_id: existing.id,
+            role: input.role,
+          });
+        }
+
         throw new ApiError(409, "EMAIL_ALREADY_REGISTERED", "That email address is already registered.");
       }
     } catch (e) {
@@ -585,13 +616,25 @@ authRouter.post(
       });
     }
 
-    // The login screen asks which portal the user wants; refuse a mismatch
+    // If login requested a specific role, ensure target role profile is provisioned and set role
     if (input.role && input.role !== row.role) {
-      throw new ApiError(
-        403,
-        "ROLE_MISMATCH",
-        `This account is registered as a ${row.role}. Switch tabs to sign in.`,
-      );
+      const profileTable =
+        input.role === "respondent"
+          ? "respondent_profiles"
+          : input.role === "researcher"
+            ? "researcher_profiles"
+            : null;
+
+      if (profileTable) {
+        await admin.from(profileTable).upsert({ user_id: row.id }, { onConflict: "user_id" });
+        row.role = input.role;
+      } else {
+        throw new ApiError(
+          403,
+          "ROLE_MISMATCH",
+          `This account is registered as a ${row.role}. Switch tabs to sign in.`,
+        );
+      }
     }
 
     res.json({

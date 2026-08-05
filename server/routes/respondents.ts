@@ -158,6 +158,14 @@ respondentsRouter.post(
 
     if (error) throw new ApiError(500, "VERIFICATION_FAILED", error.message);
 
+    try {
+      if (typeof admin.auth?.admin?.updateUserById === "function") {
+        await admin.auth.admin.updateUserById(context.userId, {
+          user_metadata: { verification_tier: nextTier },
+        });
+      }
+    } catch {}
+
     await recordConsentEvent(context.userId, "fayda_verification", {
       result: "verified",
       live: isFaydaConfigured(),

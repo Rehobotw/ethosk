@@ -84,6 +84,7 @@ export function SurveyFillPage() {
   if (!data) return null;
 
   if (submitted) {
+    const reward = submit.data?.reward_etb ?? data.reward_etb ?? 0;
     return (
       <FillFrame>
         <Card className="p-stack-lg text-center">
@@ -91,15 +92,19 @@ export function SurveyFillPage() {
           <h1 className="mt-stack-sm font-headline-md text-headline-md text-on-surface">
             Response submitted
           </h1>
-          {/* The credited amount comes from the server, not from the survey's
-              advertised reward: a response held back by the quality check is not
-              paid, and this screen must not promise money that was not credited. */}
+          {reward > 0 ? (
+            <div className="mt-stack-md flex justify-center">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 font-label-caps text-label-caps text-amber-600 font-semibold border border-amber-500/20">
+                <Icon className="text-[16px]" name="schedule" />
+                Pending Payment: {reward} ETB
+              </span>
+            </div>
+          ) : null}
           <p className="mt-stack-sm font-body-md text-body-md text-on-surface-variant">
             Thank you. Your answers have been recorded
-            {submit.data?.reward_etb
-              ? ` and ${submit.data.reward_etb} ETB has been credited to your wallet`
-              : ""}
-            .
+            {reward > 0
+              ? ` and your reward of ${reward} ETB is currently in Pending Payment status while being processed into your wallet.`
+              : "."}
           </p>
           <Link className="mt-stack-lg inline-block" to="/inbox">
             <Button>Back to inbox</Button>
