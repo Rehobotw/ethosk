@@ -63,17 +63,34 @@ export function FaydaVerifyForm({ onVerified }: { onVerified: () => Promise<void
         />
       </Field>
 
-      <div className="flex flex-wrap items-center gap-stack-sm">
-        <Button disabled={!complete} icon="fingerprint" loading={verify.isPending} type="submit">
+      <div className="flex flex-wrap items-center gap-stack-sm pt-1">
+        <Button
+          className={
+            complete
+              ? "!bg-status-passed hover:!bg-status-passed/90 !text-white shadow-md ring-2 ring-status-passed/40 transition-all duration-200"
+              : undefined
+          }
+          disabled={!complete}
+          icon={complete ? "verified_user" : "fingerprint"}
+          loading={verify.isPending}
+          type="submit"
+        >
           Verify with Fayda
         </Button>
         <Button onClick={handleFillDemo} type="button" variant="outline">
           Use Demo FIN
         </Button>
-        <span className="inline-flex items-center gap-1 font-body-sm text-body-sm text-on-surface-variant">
-          <Icon className="text-[16px]" name="lock" />
-          Sent directly to Fayda
-        </span>
+        {complete ? (
+          <span className="inline-flex items-center gap-1 font-body-sm text-body-sm font-medium text-status-passed animate-fade-in">
+            <Icon className="text-[16px]" filled name="check_circle" />
+            12 digits entered — ready
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 font-body-sm text-body-sm text-on-surface-variant">
+            <Icon className="text-[16px]" name="lock" />
+            Sent directly to Fayda
+          </span>
+        )}
       </div>
 
       {verify.error ? (
