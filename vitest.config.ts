@@ -20,5 +20,10 @@ export default defineConfig({
     ],
     // Pure logic stays in Node; only the component tests pay for a DOM.
     environmentMatchGlobs: [["src/**", "jsdom"]],
+    server: {
+      deps: {
+        inline: [/@exodus\/bytes/, /html-encoding-sniffer/, /jsdom/],
+      },
+    },
   },
 });

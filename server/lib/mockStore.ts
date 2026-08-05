@@ -131,6 +131,57 @@ class MockDatabaseStore {
   consentEvents: any[] = [];
   translationCache = new Map<string, any>();
 
+  ensureDemoRespondent() {
+    const cleanId = "33333333-3333-4333-a333-333333333333";
+    const email = "respondent@ethosk.com";
+    if (!this.users.has(cleanId) || !this.authUsers.has(email)) {
+      this.addUser({
+        id: cleanId,
+        email: email,
+        password: DEMO_PASSWORD,
+        fullName: "Selam Girma",
+        role: "respondent",
+        tier: "2_attribute_verified",
+      });
+      this.respondentProfiles.set(cleanId, {
+        user_id: cleanId,
+        university: "Hawassa University",
+        department: "Sociology",
+        year: 3,
+        age: 22,
+        gender: "female",
+        region: "Sidama",
+        city: "Hawassa",
+        employment_status: "student",
+        attributes: {},
+        updated_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  ensureDemoResearcher() {
+    const researcherId = "11111111-1111-4111-a111-111111111111";
+    const email = "researcher@ethosk.com";
+    if (!this.users.has(researcherId) || !this.authUsers.has(email)) {
+      this.addUser({
+        id: researcherId,
+        email: email,
+        password: DEMO_PASSWORD,
+        fullName: "Abebe Bekele",
+        role: "researcher",
+        tier: "2_attribute_verified",
+      });
+      this.researcherProfiles.set(researcherId, {
+        user_id: researcherId,
+        bio: "Senior Healthcare & Public Policy Analyst",
+        institution: "Addis Ababa University",
+        past_studies: [],
+        rating: 4.9,
+        verified: true,
+      });
+    }
+  }
+
   init() {
     if (this.initialized) return;
     this.initialized = true;
@@ -174,13 +225,13 @@ class MockDatabaseStore {
       tier: "3_institution_attested",
     });
 
-    // 3. Respondent Clean: Selam Girma
+    // 3. Respondent Clean: Hiwot Tadesse
     const cleanId = "33333333-3333-4333-a333-333333333333";
     this.addUser({
       id: cleanId,
       email: "respondent@ethosk.com",
       password: DEMO_PASSWORD,
-      fullName: "Selam Girma",
+      fullName: "Hiwot Tadesse",
       role: "respondent",
       tier: "2_attribute_verified",
     });

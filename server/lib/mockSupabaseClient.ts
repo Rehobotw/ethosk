@@ -466,16 +466,33 @@ export function createMockSupabaseClient() {
         },
         async updateUserById(id: string, attributes: { password?: string; user_metadata?: Record<string, any> }) {
           mockStore.init();
-          const user = mockStore.authUsersById.get(id);
-          if (user && attributes.password) {
-            user.password = attributes.password;
+          const authUser = mockStore.authUsersById.get(id);
+          const byEmail = authUser ? mockStore.authUsers.get(authUser.email) : null;
+          if (authUser) {
+            if (attributes.password) {
+              authUser.password = attributes.password;
+              if (byEmail) byEmail.password = attributes.password;
+            }
+            if (attributes.user_metadata) {
+              authUser.user_metadata = { ...(authUser.user_metadata ?? {}), ...attributes.user_metadata };
+              if (byEmail) byEmail.user_metadata = authUser.user_metadata;
+            }
           }
-          return { data: { user }, error: null };
+          return {
+            data: { user: authUser ? { id: authUser.id, email: authUser.email, user_metadata: authUser.user_metadata } : null },
+            error: null,
+          };
         },
         async deleteUser(id: string) {
           mockStore.init();
+          const authUser = mockStore.authUsersById.get(id);
+          if (authUser) {
+            mockStore.authUsers.delete(authUser.email);
+          }
           mockStore.authUsersById.delete(id);
           mockStore.users.delete(id);
+          mockStore.respondentProfiles.delete(id);
+          mockStore.researcherProfiles.delete(id);
           return { error: null };
         },
       },
@@ -498,8 +515,13 @@ export function createMockSupabaseClient() {
       },
       async signInWithPassword(params: { email: string; password?: string }) {
         mockStore.init();
+        if (params.email === "respondent@ethosk.com") {
+          mockStore.ensureDemoRespondent();
+        } else if (params.email === "researcher@ethosk.com") {
+          mockStore.ensureDemoResearcher();
+        }
         const authUser = mockStore.authUsers.get(params.email);
-        if (!authUser) {
+        if (!authUser || (params.password && authUser.password !== params.password)) {
           return { data: { user: null, session: null }, error: { message: "Invalid credentials" } };
         }
         const token = `token-${crypto.randomUUID()}`;

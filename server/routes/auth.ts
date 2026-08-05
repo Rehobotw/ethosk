@@ -14,6 +14,8 @@ import { ApiError, asyncRoute, parseBody } from "../lib/http.js";
 import { rateLimit } from "../lib/rateLimit.js";
 import { admin, publicClient, signInWithPassword } from "../lib/supabase.js";
 
+import { env } from "../env.js";
+
 export const authRouter = Router();
 
 /**
@@ -414,11 +416,14 @@ authRouter.post(
       expiresAt: Date.now() + 15 * 60 * 1000,
     });
 
-    console.log(`[auth] Password reset code for ${email}: ${otp}`);
+    if (process.env.NODE_ENV === "development" || env.nodeEnv === "development") {
+      console.log(`[auth] Password reset code for ${email}: ${otp}`);
+    }
 
     res.json({
       success: true,
       message: resetMessage,
+      ...(env.nodeEnv === "development" ? { demo_code: otp } : {}),
     });
   }),
 );

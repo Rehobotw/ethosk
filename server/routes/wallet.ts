@@ -382,19 +382,30 @@ walletRouter.get(
       amount_etb: number | string;
       status: string;
       created_at: string;
-      surveys: { title: string } | null;
+      surveys: { title: string } | Array<{ title: string }> | null;
     };
+
+    const payoutRows = (payouts ?? []) as unknown as PayoutRow[];
 
     res.json({
       wallet,
-      payouts: payouts.map((row: PayoutRow) => ({
-        id: row.id,
-        survey_id: row.survey_id,
-        amount_etb: Number(row.amount_etb),
-        status: row.status,
-        created_at: row.created_at,
-        survey_title: row.surveys?.title ?? null,
-      })),
+      payouts: payoutRows.map((row) => {
+        let surveyTitle: string | null = null;
+        if (Array.isArray(row.surveys)) {
+          surveyTitle = row.surveys[0]?.title ?? null;
+        } else if (row.surveys && typeof row.surveys === "object") {
+          surveyTitle = row.surveys.title ?? null;
+        }
+
+        return {
+          id: row.id,
+          survey_id: row.survey_id,
+          amount_etb: Number(row.amount_etb),
+          status: row.status,
+          created_at: row.created_at,
+          survey_title: surveyTitle,
+        };
+      }),
     });
   }),
 );
