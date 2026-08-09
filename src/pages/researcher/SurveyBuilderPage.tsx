@@ -274,6 +274,42 @@ export function SurveyBuilderPage() {
             </Field>
 
             <div className="mt-stack-md">
+              <Field label="Supported Response Formats">
+                <div className="grid gap-stack-sm sm:grid-cols-3">
+                  <div className="rounded-xl border-2 border-primary bg-surface-container-lowest p-stack-sm shadow-sm">
+                    <div className="flex items-center gap-base font-title-sm text-body-md font-semibold text-on-surface">
+                      <Icon className="text-primary" name="description" /> Traditional Form
+                    </div>
+                    <p className="mt-stack-xs font-body-sm text-[11px] text-on-surface-variant">
+                      Standard structured web questions.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-outline-variant bg-surface-container-low p-stack-sm">
+                    <div className="flex items-center gap-base font-title-sm text-body-md font-semibold text-on-surface">
+                      <Icon className="text-secondary" name="forum" /> Conversational Chat
+                    </div>
+                    <p className="mt-stack-xs font-body-sm text-[11px] text-on-surface-variant">
+                      Interactive AI chat turn-taking.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-dashed border-outline-variant bg-surface-container-low p-stack-sm opacity-60">
+                    <div className="flex items-center justify-between font-title-sm text-body-md font-semibold text-on-surface-variant">
+                      <div className="flex items-center gap-base">
+                        <Icon name="mic" /> Voice Response
+                      </div>
+                      <span className="rounded bg-surface-variant px-1.5 py-0.5 font-status-badge text-[10px] uppercase font-bold text-on-surface-variant">
+                        Coming Soon
+                      </span>
+                    </div>
+                    <p className="mt-stack-xs font-body-sm text-[11px] text-on-surface-variant">
+                      Audio IVR & speech-to-text response format.
+                    </p>
+                  </div>
+                </div>
+              </Field>
+            </div>
+
+            <div className="mt-stack-md">
               <Field
                 hint={`Shown to respondents under the title, before they start. ${description.length}/2000`}
                 label="Description (optional)"
