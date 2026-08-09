@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Question, SurveyRecord, TargetLanguage } from "@shared/types";
-import { surveySchema, type MatchFiltersInput } from "@shared/validation/schemas";
+import { finalDraftSchema, surveySchema, type MatchFiltersInput } from "@shared/validation/schemas";
 import { AudiencePanel } from "@/components/filter-builder/AudiencePanel";
 import {
   QuestionEditor,
@@ -79,6 +79,7 @@ export function SurveyBuilderPage() {
         description: description.trim() ? description : null,
         questions,
         reward_etb: rewardEtb,
+        status: "draft",
       });
       if (surveyId) {
         return api<SurveyRecord>(`/surveys/${surveyId}`, { method: "PATCH", body: payload });
@@ -89,7 +90,34 @@ export function SurveyBuilderPage() {
       setSurveyId(survey.id);
       // Editing questions clears cached translations server-side; mirror that here.
       setTranslations(survey.translations ?? {});
-      setBanner({ tone: "success", text: "Draft saved." });
+      setBanner({ tone: "success", text: "Work-in-progress draft saved." });
+      await queryClient.invalidateQueries({ queryKey: ["surveys"] });
+      if (!id) navigate(`/researcher/surveys/${survey.id}/edit`, { replace: true });
+    },
+    onError: (error) => setBanner({ tone: "error", text: describeError(error) }),
+  });
+
+  const saveFinalDraft = useMutation({
+    mutationFn: async () => {
+      const payload = finalDraftSchema.parse({
+        title,
+        description: description.trim() ? description : null,
+        questions,
+        reward_etb: rewardEtb,
+        status: "final_draft",
+      });
+      if (surveyId) {
+        return api<SurveyRecord>(`/surveys/${surveyId}`, { method: "PATCH", body: payload });
+      }
+      return api<SurveyRecord>("/surveys", { body: payload });
+    },
+    onSuccess: async (survey) => {
+      setSurveyId(survey.id);
+      setTranslations(survey.translations ?? {});
+      setBanner({
+        tone: "success",
+        text: "Final draft validated and saved. Ready for launch and audience allocation!",
+      });
       await queryClient.invalidateQueries({ queryKey: ["surveys"] });
       if (!id) navigate(`/researcher/surveys/${survey.id}/edit`, { replace: true });
     },
@@ -177,11 +205,21 @@ export function SurveyBuilderPage() {
           <>
             <Button
               icon="save"
+              disabled={isSent}
               loading={saveDraft.isPending}
               onClick={() => saveDraft.mutate()}
               variant="outline"
             >
-              Save Draft
+              Save WIP Draft
+            </Button>
+            <Button
+              icon="task_alt"
+              disabled={isSent}
+              loading={saveFinalDraft.isPending}
+              onClick={() => saveFinalDraft.mutate()}
+              variant="secondary"
+            >
+              Save as Final Draft
             </Button>
             <Button
               icon="translate"

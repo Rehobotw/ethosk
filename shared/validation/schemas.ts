@@ -154,8 +154,25 @@ export const surveySchema = z.object({
     .min(1, "Add at least one question")
     .max(30, "The MVP builder supports up to 30 questions"),
   reward_etb: z.number().min(0).max(10_000).nullable().optional(),
+  status: z.enum(["draft", "final_draft"]).optional(),
 });
 export type SurveyInput = z.infer<typeof surveySchema>;
+
+export const finalDraftSchema = surveySchema.extend({
+  title: z.string().trim().min(3, "Give the survey a title").max(200),
+  questions: z
+    .array(
+      questionSchema.refine((q) => {
+        if (q.type === "single_choice" || q.type === "multi_choice") {
+          return Array.isArray(q.options) && q.options.length >= 2 && q.options.every((o) => o.trim().length > 0);
+        }
+        return true;
+      }, "Choice questions must have at least 2 non-empty answer options"),
+    )
+    .min(1, "Add at least one question"),
+  reward_etb: z.number({ required_error: "Set a reward amount per response" }).min(1, "Reward per response must be at least 1 ETB"),
+});
+export type FinalDraftInput = z.infer<typeof finalDraftSchema>;
 
 export const improveQuestionSchema = z.object({
   question_id: z.string().min(1),

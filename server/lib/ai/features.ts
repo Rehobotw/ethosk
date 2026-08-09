@@ -110,7 +110,7 @@ export async function checkDocument(input: {
  * Three-bullet dashboard summary from aggregates only — never raw answers or PII.
  * On failure the summary section is omitted entirely rather than half-rendered.
  */
-export async function summarizeAnalytics(aggregates: any): Promise<string[] | null> {
+export async function summarizeAnalytics(aggregates: unknown): Promise<string[] | null> {
   if (isClaudeConfigured()) {
     try {
       const raw = await claudeText({
@@ -134,8 +134,9 @@ export async function summarizeAnalytics(aggregates: any): Promise<string[] | nu
 
   // Realistic analytical takeaways fallback for demo mode based on aggregates
   if (aggregates && typeof aggregates === "object") {
-    const total = aggregates.response_count || 38;
-    const cleanCount = total - (aggregates.flagged_count || 3);
+    const agg = aggregates as Record<string, number | undefined>;
+    const total = agg.response_count || 38;
+    const cleanCount = total - (agg.flagged_count || 3);
     const cleanRate = Math.round((cleanCount / total) * 100);
 
     return [

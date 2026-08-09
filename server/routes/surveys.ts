@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Router } from "express";
 import {
   chatTurnSchema,
+  finalDraftSchema,
   improveQuestionSchema,
   matchRequestSchema,
   sendRequestSchema,
@@ -84,6 +85,9 @@ surveysRouter.post(
   asyncRoute(async (req, res) => {
     const context = auth(req);
     const input = parseBody(surveySchema, req.body);
+    if (input.status === "final_draft") {
+      finalDraftSchema.parse(input);
+    }
     const client = userClient(context.accessToken);
 
     const { data, error } = await client
@@ -93,7 +97,7 @@ surveysRouter.post(
         title: input.title,
         questions: input.questions,
         reward_etb: input.reward_etb ?? null,
-        status: "draft",
+        status: input.status ?? "draft",
       })
       .select()
       .single();
@@ -129,8 +133,19 @@ surveysRouter.patch(
     const input = parseBody(surveySchema.partial(), req.body);
     const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
 
-    if (survey.status !== "draft") {
+    if (survey.status === "active" || survey.status === "closed") {
       throw new ApiError(409, "SURVEY_NOT_EDITABLE", "A sent survey can no longer be edited.");
+    }
+
+    const nextStatus = input.status ?? survey.status;
+
+    if (nextStatus === "final_draft") {
+      finalDraftSchema.parse({
+        title: input.title ?? survey.title,
+        questions: input.questions ?? survey.questions,
+        reward_etb: input.reward_etb ?? survey.reward_etb,
+        description: input.description !== undefined ? input.description : survey.description,
+      });
     }
 
     // Editing a question invalidates only that question's cached translation, not
@@ -145,6 +160,7 @@ surveysRouter.patch(
         ...(input.title !== undefined && { title: input.title }),
         ...(input.questions !== undefined && { questions: input.questions }),
         ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
+        ...(input.status !== undefined && { status: input.status }),
         translations,
       })
       .eq("id", survey.id)
@@ -153,6 +169,51 @@ surveysRouter.patch(
 
     if (error) throw new ApiError(500, "SURVEY_UPDATE_FAILED", error.message);
     res.json(data);
+  }),
+);
+
+surveysRouter.delete(
+  "/:id",
+  requireAuth("researcher"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
+
+    if (survey.status === "active" || survey.status === "closed") {
+      throw new ApiError(409, "CANNOT_DELETE_ACTIVE", "Active or closed surveys cannot be deleted.");
+    }
+
+    const client = userClient(context.accessToken);
+    const { error } = await client.from("surveys").delete().eq("id", survey.id);
+
+    if (error) throw new ApiError(500, "SURVEY_DELETE_FAILED", error.message);
+    res.json({ success: true, deleted_id: survey.id });
+  }),
+);
+
+surveysRouter.post(
+  "/:id/duplicate",
+  requireAuth("researcher"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
+    const client = userClient(context.accessToken);
+
+    const { data, error } = await client
+      .from("surveys")
+      .insert({
+        researcher_id: context.userId,
+        title: `Copy of ${survey.title}`,
+        description: survey.description,
+        questions: survey.questions,
+        reward_etb: survey.reward_etb,
+        status: "draft",
+      })
+      .select()
+      .single();
+
+    if (error) throw new ApiError(500, "SURVEY_DUPLICATE_FAILED", error.message);
+    res.status(201).json(data);
   }),
 );
 
@@ -285,7 +346,7 @@ surveysRouter.post(
     const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
 
     // Idempotency: a survey that has already been sent is not re-notified (§8.3).
-    if (survey.status !== "draft") {
+    if (survey.status === "active" || survey.status === "closed") {
       throw new ApiError(409, "ALREADY_SENT", "This survey has already been sent.");
     }
 
@@ -586,7 +647,8 @@ surveysRouter.post(
         timeoutMs: 8_000,
       });
       res.json({ reply, fallback_to_form: false });
-    } catch (_error) {
+    } catch (error) {
+      console.warn("[surveys] Conversational chat error, falling back to local simulation:", (error as Error).message);
       // In local demo mode when ANTHROPIC_API_KEY is not set, simulate conversational question turns.
       const userMessageCount = messages.filter((m) => m.role === "user").length;
       const currentQuestion = survey.questions[userMessageCount];

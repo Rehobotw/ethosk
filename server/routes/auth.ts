@@ -8,6 +8,7 @@ import {
   signupSchema,
   verifyEmailSchema,
 } from "@shared/validation/schemas.js";
+import type { UserRole } from "@shared/types.js";
 import { auth, requireAuth } from "../lib/auth.js";
 import { recordConsentEvent } from "../lib/consent.js";
 import { ApiError, asyncRoute, parseBody } from "../lib/http.js";
@@ -40,7 +41,9 @@ async function findUserByEmail(email: string): Promise<{ id: string } | null> {
   try {
     const { data } = await admin.from("users").select("id").eq("email", email).maybeSingle();
     if (data?.id) return { id: data.id };
-  } catch {}
+  } catch {
+    /* ignore */
+  }
 
   // 2. Try in-memory stores
   const stored = verificationStore.get(email) || resetPasswordStore.get(email);
@@ -55,7 +58,9 @@ async function findUserByEmail(email: string): Promise<{ id: string } | null> {
       );
       if (match?.id) return { id: match.id };
     }
-  } catch {}
+  } catch {
+    /* ignore */
+  }
 
   return null;
 }
@@ -158,7 +163,9 @@ authRouter.post(
       // Try resending verification email
       try {
         await publicClient.auth.resend({ type: "signup", email });
-      } catch {}
+      } catch {
+        /* ignore */
+      }
     }
 
     let { error: rowError } = await admin.from("users").upsert({
@@ -286,10 +293,12 @@ authRouter.post(
     // Mark email verified in database
     try {
       await admin.from("users").update({ email_verified: true }).eq("email", email);
-    } catch {}
+    } catch {
+      /* ignore */
+    }
 
     // Fetch user details
-    let row: any = null;
+    let row: Record<string, unknown> | null = null;
     try {
       const { data } = await admin
         .from("users")
@@ -297,7 +306,9 @@ authRouter.post(
         .eq("email", email)
         .maybeSingle();
       row = data;
-    } catch {}
+    } catch {
+      /* ignore */
+    }
 
     if (!row && verifiedUserId) {
       try {
@@ -307,7 +318,9 @@ authRouter.post(
           .eq("id", verifiedUserId)
           .maybeSingle();
         row = data;
-      } catch {}
+      } catch {
+        /* ignore */
+      }
     }
 
     if (!row) {
@@ -329,7 +342,7 @@ authRouter.post(
 
     // Confirm email in Supabase Auth
     try {
-      await admin.auth.admin.updateUserById(row.id, { email_confirm: true });
+      await admin.auth.admin.updateUserById(row.id as string, { email_confirm: true });
     } catch (err) {
       console.warn("[auth] Supabase admin updateUserById confirmation skipped:", (err as Error).message);
     }
@@ -394,7 +407,7 @@ authRouter.post(
         const { error: resendError } = await publicClient.auth.resend({ type: "signup", email });
         if (resendError) {
           console.warn("[auth] Supabase resend error:", resendError.message, resendError);
-          if (resendError.message.toLowerCase().includes("rate limit") || (resendError as any).code === "over_email_send_rate_limit") {
+          if (resendError.message.toLowerCase().includes("rate limit") || (resendError as unknown as Record<string, unknown>).code === "over_email_send_rate_limit") {
             resendMessage = "Supabase email rate limit exceeded (max 3/hour on free tier). Please wait or enable Custom SMTP in Supabase.";
           }
         }
@@ -430,7 +443,7 @@ authRouter.post(
         const { error: resetErr } = await publicClient.auth.resetPasswordForEmail(email);
         if (resetErr) {
           console.warn("[auth] Supabase resetPasswordForEmail error:", resetErr.message);
-          if (resetErr.message.toLowerCase().includes("rate limit") || (resetErr as any).code === "over_email_send_rate_limit") {
+          if (resetErr.message.toLowerCase().includes("rate limit") || (resetErr as unknown as Record<string, unknown>).code === "over_email_send_rate_limit") {
             resetMessage = "Supabase email rate limit exceeded (max 3/hour on free tier). Please wait or enable Custom SMTP in Supabase.";
           }
         }
@@ -519,9 +532,9 @@ authRouter.post(
       if (updateError) {
         throw new ApiError(500, "PASSWORD_RESET_FAILED", updateError.message);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof ApiError) throw err;
-      throw new ApiError(500, "PASSWORD_RESET_FAILED", err.message || "Failed to update password.");
+      throw new ApiError(500, "PASSWORD_RESET_FAILED", (err as Error).message || "Failed to update password.");
     }
 
     // Clean up reset store
@@ -560,12 +573,14 @@ authRouter.post(
             email,
           });
         }
-      } catch {}
+      } catch {
+        /* ignore */
+      }
 
       throw new ApiError(401, "INVALID_CREDENTIALS", "That email address and password do not match.");
     }
 
-    let row: any = null;
+    let row: Record<string, unknown> | null = null;
     try {
       const { data: dbUser } = await admin
         .from("users")
@@ -573,7 +588,9 @@ authRouter.post(
         .eq("id", data.user.id)
         .maybeSingle();
       row = dbUser;
-    } catch {}
+    } catch {
+      /* ignore */
+    }
 
     if (!row) {
       try {
@@ -583,15 +600,17 @@ authRouter.post(
           .eq("id", data.user.id)
           .maybeSingle();
         row = fallbackDbUser;
-      } catch {}
+      } catch {
+        /* ignore */
+      }
     }
 
     if (!row) {
       // Create or populate fallback session from auth metadata
-      const userMeta = (data.user as any)?.user_metadata;
+      const userMeta = (data.user as { user_metadata?: Record<string, unknown> })?.user_metadata;
       row = {
         id: data.user.id,
-        role: (userMeta?.role as any) || "respondent",
+        role: (userMeta?.role as UserRole) || "respondent",
         verification_tier: "0_registered",
         full_name: userMeta?.full_name || "User",
         email: data.user.email || email,
@@ -604,7 +623,7 @@ authRouter.post(
       verificationStore.set(email, {
         code: otp,
         password: input.password,
-        userId: row.id,
+        userId: row.id as string,
         expiresAt: Date.now() + 15 * 60 * 1000,
       });
 
