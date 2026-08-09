@@ -22,6 +22,7 @@ app.use(cors({
     if (!origin) return callback(null, true); // same-origin / server-to-server
     if (
       origin === env.siteUrl ||
+      /^http:\/\/(localhost|127\.0\.0\.1):(3000|3001|5173)$/.test(origin) ||
       /^https:\/\/[\w-]+-ethosk\.onrender\.com$/.test(origin) ||
       /\.onrender\.com$/.test(origin)
     ) {
