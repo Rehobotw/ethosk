@@ -8,6 +8,16 @@ import { LanguageToggle } from "../ui/LanguageToggle";
 import { ProfileDropdown } from "./ProfileDropdown";
 import { isNavActive, PRIMARY_NAV, SECONDARY_NAV } from "./researcherNav";
 
+const ADMIN_PRIMARY_NAV = [
+  { label: "Review Queue", to: "/admin/review-queue", icon: "rule" },
+  { label: "Researcher Approvals", to: "/admin/researcher-approvals", icon: "how_to_reg" },
+];
+
+const SUPER_ADMIN_PRIMARY_NAV = [
+  ...ADMIN_PRIMARY_NAV,
+  { label: "User Management", to: "/admin/users", icon: "group" },
+];
+
 export function ResearcherLayout() {
   const { user } = useAuth();
   const { pathname } = useLocation();
@@ -56,8 +66,10 @@ export function ResearcherLayout() {
         )}
       >
         <div className="mb-stack-md">
-          <p className="font-title-sm text-body-md font-bold text-on-surface">Researcher Portal</p>
-          {user ? (
+          <p className="font-title-sm text-body-md font-bold text-on-surface">
+            {user?.role === "admin" || user?.role === "super_admin" ? "Admin Portal" : "Researcher Portal"}
+          </p>
+          {user && user.role === "researcher" ? (
             <div className="mt-stack-sm">
               <TierBadge tier={user.verification_tier} />
             </div>
@@ -65,7 +77,12 @@ export function ResearcherLayout() {
         </div>
 
         <nav className="space-y-base">
-          {PRIMARY_NAV.map((item) => (
+          {(user?.role === "super_admin"
+            ? SUPER_ADMIN_PRIMARY_NAV
+            : user?.role === "admin"
+              ? ADMIN_PRIMARY_NAV
+              : PRIMARY_NAV
+          ).map((item) => (
             <SidebarLink
               active={isNavActive(pathname, item.to)}
               icon={item.icon}
@@ -78,7 +95,7 @@ export function ResearcherLayout() {
         </nav>
 
         <div className="mt-auto space-y-base border-t border-outline-variant pt-stack-md">
-          {SECONDARY_NAV.map((item) => (
+          {(user?.role === "admin" || user?.role === "super_admin" ? [] : SECONDARY_NAV).map((item) => (
             <SidebarLink
               active={isNavActive(pathname, item.to)}
               icon={item.icon}

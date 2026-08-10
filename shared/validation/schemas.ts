@@ -38,7 +38,8 @@ export const signupSchema = z.object({
   full_name: z.string().trim().min(2, "Enter your full name").max(120),
   email: emailSchema,
   password: passwordSchema,
-  role: z.enum(USER_ROLES).default("respondent"),
+  /** Only respondent and researcher can self-register. Admin/super_admin are assigned. */
+  role: z.enum(["respondent", "researcher"] as const).default("respondent"),
 });
 export type SignupInput = z.infer<typeof signupSchema>;
 
@@ -121,6 +122,13 @@ export const researcherProfileSchema = z.object({
     .nullable()
     .optional(),
   institution: z.string().trim().max(160).nullable().optional(),
+  dob: z.string().nullable().optional(), // YYYY-MM-DD
+  phone: z.string().trim().nullable().optional(),
+  institutional_email: z.string().trim().email().nullable().optional(),
+  researcher_type: z.string().trim().nullable().optional(),
+  years_experience: z.number().int().min(0).max(100).nullable().optional(),
+  onboarding_completed: z.boolean().optional(),
+  social_links: z.record(z.string()).default({}),
 });
 export type ResearcherProfileInput = z.infer<typeof researcherProfileSchema>;
 
@@ -260,6 +268,21 @@ export const submitResponseSchema = z.object({
   text_metrics: z.record(textMetricsSchema).default({}),
 });
 export type SubmitResponseInput = z.infer<typeof submitResponseSchema>;
+
+// ===========================================================================
+// AI DRAFTING
+// ===========================================================================
+export const aiDraftRequestSchema = z.object({
+  topic: z
+    .string()
+    .min(5, "Topic must be at least 5 characters.")
+    .max(500, "Topic must be less than 500 characters."),
+});
+export type AiDraftRequestInput = z.infer<typeof aiDraftRequestSchema>;
+
+// ===========================================================================
+// ANALYTICS
+// ===========================================================================
 
 /**
  * A Fayda Identification Number as typed by the respondent. Spaces and dashes are

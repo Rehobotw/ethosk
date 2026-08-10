@@ -4,10 +4,21 @@
 
 @layer base {
   body {
-    @apply bg-background font-body-md text-body-md text-on-background antialiased transition-colors duration-300;
+    background-color: #e4eefb;
+    color: #004162;
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    line-height: 1.7;
   }
 
-  /* Material Symbols are used throughout the Stitch designs for iconography. */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  /* Material Symbols for iconography */
   .material-symbols-outlined {
     font-family: "Material Symbols Outlined";
     font-weight: normal;
@@ -27,63 +38,83 @@
   }
 }
 
-/* Vibrant Dark Mode Custom Styles */
-html.dark {
-  color-scheme: dark;
-  background-color: #090e1a;
-  color: #f1f5f9;
+/* Glassmorphism Aesthetic */
+.glass-silk {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 8px 32px 0 rgba(0, 65, 98, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
 }
 
-html.dark body {
-  background-color: #090e1a;
-  color: #f1f5f9;
+.glass-silk:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px 0 rgba(0, 65, 98, 0.1);
+  border-color: rgba(255, 255, 255, 0.8);
 }
 
-html.dark .bg-background {
-  background-color: #090e1a !important;
-  color: #f1f5f9 !important;
+.glass-pressed {
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: inset 0 2px 8px rgba(0, 65, 98, 0.05);
 }
 
-html.dark .bg-surface {
-  background-color: #0f172a !important;
-  color: #f1f5f9 !important;
+.gradient-text {
+  background: linear-gradient(135deg, #004162, #196490);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-html.dark .bg-surface-container-lowest {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
+.primary-gradient-btn {
+  background: linear-gradient(135deg, #004162, #196490);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 14px 0 rgba(0, 65, 98, 0.2);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-html.dark .bg-surface-container-low,
-html.dark .bg-surface-container,
-html.dark .bg-surface-container-high,
-html.dark .bg-surface-container-highest {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
+.primary-gradient-btn:hover {
+  background: linear-gradient(135deg, #196490, #004162);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px 0 rgba(0, 65, 98, 0.3);
 }
 
-html.dark .bg-surface-subtle {
-  background-color: #162238 !important;
+.magnetic-btn {
+  transition: transform 0.2s cubic-bezier(0.33, 1, 0.68, 1);
 }
 
-html.dark .border-outline-variant {
-  border-color: rgba(255, 255, 255, 0.15) !important;
+.magnetic-btn:hover {
+  transform: scale(1.02);
 }
 
-html.dark .text-on-surface {
-  color: #f8fafc !important;
+/* Animations */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
 }
 
-html.dark .text-on-surface-variant {
-  color: #94a3b8 !important;
+.reveal.active {
+  opacity: 1;
+  transform: translateY(0);
 }
 
-html.dark .text-primary {
-  color: #38bdf8 !important;
+.delay-100 { transition-delay: 100ms; }
+.delay-200 { transition-delay: 200ms; }
+.delay-300 { transition-delay: 300ms; }
+
+/* Floating Parallax */
+.float-subtle {
+  animation: float 6s ease-in-out infinite;
 }
 
-html.dark .bg-primary {
-  background-color: #0284c7 !important;
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+  100% { transform: translateY(0px); }
 }
 
 @keyframes dropdown-in {
@@ -94,38 +125,5 @@ html.dark .bg-primary {
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
-  }
-}
-
-@layer utilities {
-  .trust-glow {
-    box-shadow: 0 1px 2px rgb(0 51 69 / 0.06), 0 8px 24px -12px rgb(0 51 69 / 0.18);
-  }
-
-  .dot-grid {
-    background-image: radial-gradient(rgb(11 28 48 / 0.07) 1px, transparent 0);
-    background-size: 22px 22px;
-    background-position: -11px -11px;
-  }
-
-  .hero-glow {
-    background-image:
-      radial-gradient(60% 80% at 85% 10%, rgb(150 206 235 / 0.22), transparent 60%),
-      radial-gradient(50% 60% at 5% 90%, rgb(0 75 99 / 0.55), transparent 70%);
-  }
-
-  .fade-bottom {
-    mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
   }
 }

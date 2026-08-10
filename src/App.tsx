@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { MarketingLayout } from "./components/layout/MarketingLayout";
 import { RespondentLayout } from "./components/layout/RespondentLayout";
 import { RequireRole } from "./components/RequireRole";
+import { RequireOnboarding } from "./components/RequireOnboarding";
 import { LoadingBlock } from "./components/ui";
 import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage";
 import { LoginPage } from "./pages/auth/LoginPage";
@@ -48,11 +49,29 @@ const ResearcherWalletPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import("./pages/researcher/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
+const ResearcherProfilePage = lazy(() =>
+  import("./pages/researcher/ProfilePage").then((m) => ({ default: m.ProfilePage })),
+);
+const SubscriptionPage = lazy(() =>
+  import("./pages/researcher/SubscriptionPage").then((m) => ({ default: m.SubscriptionPage })),
+);
 const TelebirrDemoPage = lazy(() =>
   import("./pages/researcher/TelebirrDemoPage").then((m) => ({ default: m.TelebirrDemoPage })),
 );
 const AdminReviewQueuePage = lazy(() =>
   import("./pages/admin/ReviewQueuePage").then((m) => ({ default: m.AdminReviewQueuePage })),
+);
+const ResearcherQueuePage = lazy(() =>
+  import("./pages/admin/ResearcherQueuePage").then((m) => ({ default: m.AdminResearcherQueuePage })),
+);
+const UserManagementPage = lazy(() =>
+  import("./pages/admin/UserManagementPage").then((m) => ({ default: m.UserManagementPage })),
+);
+const AdminLoginPage = lazy(() =>
+  import("./pages/admin/AdminLoginPage").then((m) => ({ default: m.AdminLoginPage })),
+);
+const ResearcherOnboardingPage = lazy(() =>
+  import("./pages/researcher/OnboardingPage").then((m) => ({ default: m.OnboardingPage })),
 );
 
 export default function App() {
@@ -65,6 +84,14 @@ export default function App() {
       </Route>
 
       <Route element={<LoginPage />} path="/login" />
+      <Route
+        element={
+          <Suspense fallback={<LoadingBlock />}>
+            <AdminLoginPage />
+          </Suspense>
+        }
+        path="/admin/login"
+      />
       <Route element={<SignupPage />} path="/signup" />
       <Route element={<VerifyEmailPage />} path="/verify-email" />
       <Route element={<ForgotPasswordPage />} path="/forgot-password" />
@@ -96,12 +123,26 @@ export default function App() {
         path="/surveys/:id/fill"
       />
 
-      {/* Researcher */}
+      {/* Researcher Onboarding (outside tab shell) */}
       <Route
         element={
           <RequireRole roles={["researcher"]}>
             <Suspense fallback={<LoadingBlock />}>
-              <ResearcherLayout />
+              <ResearcherOnboardingPage />
+            </Suspense>
+          </RequireRole>
+        }
+        path="/researcher/onboarding"
+      />
+
+      {/* Researcher (Main Dashboard & App) */}
+      <Route
+        element={
+          <RequireRole roles={["researcher"]}>
+            <Suspense fallback={<LoadingBlock />}>
+              <RequireOnboarding>
+                <ResearcherLayout />
+              </RequireOnboarding>
             </Suspense>
           </RequireRole>
         }
@@ -113,6 +154,8 @@ export default function App() {
         <Route element={<SurveyAnalyticsPage />} path="/researcher/surveys/:id/dashboard" />
         <Route element={<ResearcherWalletPage />} path="/researcher/wallet" />
         <Route element={<TelebirrDemoPage />} path="/researcher/wallet/telebirr-demo" />
+        <Route element={<SubscriptionPage />} path="/researcher/subscription" />
+        <Route element={<ResearcherProfilePage />} path="/researcher/profile" />
         <Route element={<SettingsPage />} path="/researcher/settings" />
       </Route>
 
@@ -127,6 +170,20 @@ export default function App() {
         }
       >
         <Route element={<AdminReviewQueuePage />} path="/admin/review-queue" />
+        <Route element={<ResearcherQueuePage />} path="/admin/researcher-approvals" />
+      </Route>
+
+      {/* Super Admin only */}
+      <Route
+        element={
+          <RequireRole roles={["super_admin"]}>
+            <Suspense fallback={<LoadingBlock />}>
+              <ResearcherLayout />
+            </Suspense>
+          </RequireRole>
+        }
+      >
+        <Route element={<UserManagementPage />} path="/admin/users" />
       </Route>
 
       <Route element={<Navigate replace to="/" />} path="/home" />

@@ -7,6 +7,8 @@ export const PRIMARY_NAV = [
 ];
 
 export const SECONDARY_NAV = [
+  { label: "Subscription", to: "/researcher/subscription", icon: "star" },
+  { label: "Profile", to: "/researcher/profile", icon: "person" },
   { label: "Settings", to: "/researcher/settings", icon: "settings" },
 ];
 

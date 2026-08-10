@@ -79,7 +79,7 @@ export function LoginPage() {
         subtitle="You are currently signed in to Ethosk."
         title="Already Logged In"
       >
-        <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
+        <div className="space-y-4 rounded-xl glass-pressed p-4 text-center">
           <p className="font-body-md text-on-surface">
             Currently logged in as <strong className="text-primary">{user.full_name || user.email}</strong> ({user.role}).
           </p>
@@ -88,7 +88,7 @@ export function LoginPage() {
               Go to {user.role.charAt(0).toUpperCase() + user.role.slice(1)} Portal
             </Button>
             <Button variant="outline" onClick={() => logout()}>
-              Log Out & Switch Account
+              Log Out &amp; Switch Account
             </Button>
           </div>
         </div>
@@ -112,37 +112,37 @@ export function LoginPage() {
       <RoleTabs onChange={setRole} value={role} />
 
       {/* Quick Demo Login Shortcuts */}
-      <div className="mt-stack-md rounded-xl border border-primary/20 bg-primary/5 p-3 text-center">
-        <p className="font-title-sm text-[12px] font-semibold text-primary uppercase tracking-wide">
+      <div className="mt-5 rounded-xl glass-pressed p-3 text-center">
+        <p className="font-label-caps text-[12px] font-semibold text-surface-tint uppercase tracking-wide">
           ⚡ {t("auth.demo_login_title")}
         </p>
         <div className="mt-2 grid grid-cols-2 gap-2">
           <button
-            className="flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest p-2 text-[11px] font-medium text-on-surface hover:bg-surface-container-high transition-colors"
+            className="flex flex-col items-center justify-center rounded-xl bg-white/60 backdrop-blur-xl border border-white/40 p-2 text-[11px] font-medium text-on-surface hover:bg-white/80 transition-colors"
             onClick={() => void handleDemoFill("researcher", "researcher@ethosk.com")}
             type="button"
           >
-            <span className="font-bold">{t("auth.demo_researcher")}</span>
+            <span className="font-bold text-primary">{t("auth.demo_researcher")}</span>
             <span className="text-[10px] text-on-surface-variant">researcher@ethosk.com</span>
           </button>
 
           <button
-            className="flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest p-2 text-[11px] font-medium text-on-surface hover:bg-surface-container-high transition-colors"
+            className="flex flex-col items-center justify-center rounded-xl bg-white/60 backdrop-blur-xl border border-white/40 p-2 text-[11px] font-medium text-on-surface hover:bg-white/80 transition-colors"
             onClick={() => void handleDemoFill("respondent", "respondent@ethosk.com")}
             type="button"
           >
-            <span className="font-bold">{t("auth.demo_respondent")}</span>
+            <span className="font-bold text-primary">{t("auth.demo_respondent")}</span>
             <span className="text-[10px] text-on-surface-variant">respondent@ethosk.com</span>
           </button>
         </div>
       </div>
 
       <form
-        className="mt-stack-md space-y-stack-md"
+        className="mt-5 space-y-4"
         onSubmit={handleFormSubmit}
         ref={formRef}
       >
-        <div className="space-y-stack-md rounded-xl border border-outline-variant bg-surface-container-lowest p-stack-md">
+        <div className="space-y-4 rounded-xl bg-white/60 backdrop-blur-xl border border-white/40 p-5">
           <Field error={errors.email?.message} label={t("auth.email")}>
             <Input
               autoComplete="email"
@@ -156,7 +156,7 @@ export function LoginPage() {
           <Field
             action={
               <Link
-                className="font-label-caps text-label-caps uppercase text-primary hover:underline"
+                className="font-label-caps text-label-caps uppercase text-surface-tint hover:text-primary hover:underline"
                 to={watchEmail ? `/forgot-password?email=${encodeURIComponent(watchEmail)}` : "/forgot-password"}
               >
                 Forgot?
@@ -174,7 +174,7 @@ export function LoginPage() {
               />
               <button
                 aria-label={showPassword ? "Hide password" : "Show password"}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors"
                 onClick={() => setShowPassword((shown) => !shown)}
                 type="button"
               >
@@ -186,10 +186,19 @@ export function LoginPage() {
 
         {formError ? <Notice tone="error">{formError}</Notice> : null}
 
-        <Button className="w-full py-3" loading={isSubmitting} type="submit">
-          {t("nav.login")} ({role === "researcher" ? t("auth.role_researcher") : t("auth.role_respondent")})
-          <Icon className="text-[18px]" name="arrow_forward" />
-        </Button>
+        <button
+          className="primary-gradient-btn w-full py-3.5 rounded-xl font-body-lg font-semibold flex items-center justify-center gap-2 shadow-md transform hover:-translate-y-0.5 transition-all magnetic-btn disabled:opacity-50"
+          disabled={isSubmitting}
+          type="submit"
+        >
+          {isSubmitting ? (
+            <span className="material-symbols-outlined animate-spin text-white text-lg">progress_activity</span>
+          ) : null}
+          <span className="text-white">
+            {t("nav.login")} ({role === "researcher" ? t("auth.role_researcher") : t("auth.role_respondent")})
+          </span>
+          <span className="material-symbols-outlined text-lg text-white">arrow_forward</span>
+        </button>
       </form>
     </AuthShell>
   );

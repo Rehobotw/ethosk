@@ -320,6 +320,23 @@ authRouter.post(
     // Clean up verification store
     verificationStore.delete(email);
 
+    let researcherFields = {};
+    if (row.role === "researcher") {
+      try {
+        const { data: profile } = await admin
+          .from("researcher_profiles")
+          .select("verification_level, subscription_tier")
+          .eq("user_id", row.id)
+          .maybeSingle();
+        if (profile) {
+          researcherFields = {
+            researcher_verification_level: profile.verification_level || "unverified",
+            subscription_tier: profile.subscription_tier || "free",
+          };
+        }
+      } catch {}
+    }
+
     res.json({
       success: true,
       message: "Email verified successfully.",
@@ -329,6 +346,7 @@ authRouter.post(
       verification_tier: row.verification_tier,
       full_name: row.full_name,
       access_token: accessToken,
+      ...researcherFields,
     });
   }),
 );
@@ -594,6 +612,23 @@ authRouter.post(
       );
     }
 
+    let researcherFields = {};
+    if (row.role === "researcher") {
+      try {
+        const { data: profile } = await admin
+          .from("researcher_profiles")
+          .select("verification_level, subscription_tier")
+          .eq("user_id", row.id)
+          .maybeSingle();
+        if (profile) {
+          researcherFields = {
+            researcher_verification_level: profile.verification_level || "unverified",
+            subscription_tier: profile.subscription_tier || "free",
+          };
+        }
+      } catch {}
+    }
+
     res.json({
       user_id: row.id,
       role: row.role,
@@ -601,6 +636,7 @@ authRouter.post(
       full_name: row.full_name,
       email: row.email ?? (data.user.email ?? email),
       access_token: data.session.access_token,
+      ...researcherFields,
     });
   }),
 );
@@ -617,6 +653,11 @@ authRouter.get(
       full_name: context.fullName,
       email: context.email,
       email_verified: context.emailVerified ?? true,
+      // Researcher-specific fields (undefined for non-researchers)
+      ...(context.role === "researcher" && {
+        researcher_verification_level: context.researcherVerificationLevel ?? "unverified",
+        subscription_tier: context.subscriptionTier ?? "free",
+      }),
     });
   }),
 );
