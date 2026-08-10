@@ -22,7 +22,7 @@ export type DocReviewStatus = (typeof DOC_REVIEW_STATUSES)[number];
 export const FRAUD_FLAGS = ["clean", "flagged"] as const;
 export type FraudFlag = (typeof FRAUD_FLAGS)[number];
 
-export const SURVEY_STATUSES = ["draft", "active", "closed"] as const;
+export const SURVEY_STATUSES = ["draft", "final_draft", "active", "closed"] as const;
 export type SurveyStatus = (typeof SURVEY_STATUSES)[number];
 
 export const DOC_TYPES = ["student_id", "degree", "employer_id"] as const;
@@ -296,7 +296,7 @@ export interface PayoutRecord {
   id: string;
   survey_id: string;
   amount_etb: number;
-  status: "available" | "withdrawn";
+  status: "pending" | "available" | "withdrawn";
   created_at: string;
   survey_title: string | null;
 }

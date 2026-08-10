@@ -19,6 +19,7 @@ interface SurveyWithStats extends SurveyRecord {
 
 const STATUS_STYLES: Record<SurveyStatus, string> = {
   draft: "bg-surface-container-high text-on-surface-variant",
+  final_draft: "bg-primary/15 text-primary font-semibold",
   active: "bg-status-passed/15 text-flag-clean",
   closed: "bg-surface-variant text-on-surface-variant",
 };

@@ -128,8 +128,8 @@ class MockDatabaseStore {
   researcherDeposits: ResearcherDepositRecord[] = [];
   respondentPayouts: RespondentPayoutRecord[] = [];
   documents: DocumentRecord[] = [];
-  consentEvents: any[] = [];
-  translationCache = new Map<string, any>();
+  consentEvents: Record<string, unknown>[] = [];
+  translationCache = new Map<string, unknown>();
 
   ensureDemoRespondent() {
     const cleanId = "33333333-3333-4333-a333-333333333333";

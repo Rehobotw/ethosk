@@ -29,8 +29,8 @@ walletRouter.get(
     const context = auth(req);
     const wallet = await readResearcherWallet(context.userId);
 
-    let deposits: any[] = [];
-    let activeSurveys: any[] = [];
+    let deposits: Record<string, unknown>[] = [];
+    let activeSurveys: Record<string, unknown>[] = [];
 
     try {
       const [{ data: d }, { data: s }] = await Promise.all([
@@ -49,7 +49,9 @@ walletRouter.get(
       ]);
       if (d) deposits = d;
       if (s) activeSurveys = s;
-    } catch {}
+    } catch {
+      /* ignore */
+    }
 
     res.json({
       wallet,
@@ -415,7 +417,7 @@ walletRouter.get(
     const context = auth(req);
     const wallet = await readRespondentWallet(context.userId);
 
-    let payouts: any[] = [];
+    let payouts: Record<string, unknown>[] = [];
     try {
       const { data } = await admin
         .from("respondent_payouts")
@@ -425,7 +427,9 @@ walletRouter.get(
         .limit(50);
 
       if (data) payouts = data;
-    } catch {}
+    } catch {
+      /* ignore */
+    }
 
     type PayoutRow = {
       id: string;

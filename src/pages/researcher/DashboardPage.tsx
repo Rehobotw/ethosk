@@ -1,5 +1,5 @@
-import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { Link, useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bar,
   BarChart,
@@ -55,7 +55,8 @@ export function DashboardPage() {
   });
 
   const activeSurveys = surveysData?.surveys.filter((s) => s.status === "active") ?? [];
-  const draftSurveys = surveysData?.surveys.filter((s) => s.status === "draft") ?? [];
+  const finalDraftSurveys = surveysData?.surveys.filter((s) => s.status === "final_draft") ?? [];
+  const wipDraftSurveys = surveysData?.surveys.filter((s) => s.status === "draft") ?? [];
   const firstActiveSurvey = activeSurveys[0];
 
   const { data: analyticsData } = useQuery({
@@ -252,14 +253,31 @@ export function DashboardPage() {
         )}
       </section>
 
-      {/* Draft Surveys Section */}
-      {draftSurveys.length > 0 ? (
+      {/* Final Drafts Section */}
+      {finalDraftSurveys.length > 0 ? (
         <section>
           <h2 className="mb-stack-md flex items-center gap-stack-sm font-title-sm text-title-sm text-on-surface">
-            <Icon className="text-on-surface-variant" name="edit_note" /> Draft Surveys ({draftSurveys.length})
+            <Icon className="text-primary" name="verified_user" /> Final Drafts ({finalDraftSurveys.length})
+          </h2>
+          <p className="mb-stack-sm font-body-sm text-[12px] text-on-surface-variant">
+            Validated studies awaiting audience allocation, budget reservation, and launching.
+          </p>
+          <div className="space-y-stack-md">
+            {finalDraftSurveys.map((survey) => (
+              <SurveyCard key={survey.id} survey={survey} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {/* Work-in-Progress Draft Surveys Section */}
+      {wipDraftSurveys.length > 0 ? (
+        <section>
+          <h2 className="mb-stack-md flex items-center gap-stack-sm font-title-sm text-title-sm text-on-surface">
+            <Icon className="text-on-surface-variant" name="edit_note" /> Work-in-Progress Drafts ({wipDraftSurveys.length})
           </h2>
           <div className="space-y-stack-md">
-            {draftSurveys.map((survey) => (
+            {wipDraftSurveys.map((survey) => (
               <SurveyCard key={survey.id} survey={survey} />
             ))}
           </div>
@@ -270,26 +288,52 @@ export function DashboardPage() {
 }
 
 function SurveyCard({ survey }: { survey: SurveyWithStats }) {
-  const isDraft = survey.status === "draft";
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  const isWip = survey.status === "draft";
+  const isFinalDraft = survey.status === "final_draft";
+
+  const deleteMutation = useMutation({
+    mutationFn: () => api(`/surveys/${survey.id}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["surveys"] });
+    },
+  });
+
+  const duplicateMutation = useMutation({
+    mutationFn: () => api<SurveyRecord>(`/surveys/${survey.id}/duplicate`, { method: "POST" }),
+    onSuccess: async (newSurvey) => {
+      await queryClient.invalidateQueries({ queryKey: ["surveys"] });
+      navigate(`/researcher/surveys/${newSurvey.id}/edit`);
+    },
+  });
+
   const completion =
     survey.targeted_count > 0
       ? Math.round((survey.response_count / survey.targeted_count) * 100)
       : 0;
 
+  const statusLabel = isWip
+    ? "Draft (WIP)"
+    : isFinalDraft
+    ? "Final Draft"
+    : `Sent ${survey.sent_at ? new Date(survey.sent_at).toLocaleDateString() : ""}`;
+
+  const dotColor = isWip
+    ? "bg-on-surface-variant"
+    : isFinalDraft
+    ? "bg-primary"
+    : "bg-status-passed";
+
   return (
     <Card className="overflow-hidden">
-      <div className="grid gap-stack-md p-stack-md md:grid-cols-[minmax(0,1fr)_220px]">
+      <div className="grid gap-stack-md p-stack-md md:grid-cols-[minmax(0,1fr)_240px]">
         <div>
           <div className="flex items-center gap-2">
-            <span
-              className={`inline-block h-2 w-2 rounded-full ${
-                isDraft ? "bg-on-surface-variant" : "bg-status-passed"
-              }`}
-            />
+            <span className={`inline-block h-2 w-2 rounded-full ${dotColor}`} />
             <p className="font-label-caps text-label-caps uppercase text-on-surface-variant">
-              {isDraft
-                ? "Draft"
-                : `Sent ${survey.sent_at ? new Date(survey.sent_at).toLocaleDateString() : ""}`}
+              {statusLabel}
             </p>
           </div>
           <h3 className="mt-base font-title-sm text-title-sm text-on-surface">{survey.title}</h3>
@@ -329,12 +373,75 @@ function SurveyCard({ survey }: { survey: SurveyWithStats }) {
         </div>
 
         <div className="flex flex-col justify-center gap-stack-sm">
-          {isDraft ? (
-            <Link to={`/researcher/surveys/${survey.id}/edit`}>
-              <Button className="w-full" icon="edit">
-                Continue editing
-              </Button>
-            </Link>
+          {isFinalDraft ? (
+            <>
+              <Link to={`/researcher/surveys/${survey.id}/edit`}>
+                <Button className="w-full" icon="rocket_launch">
+                  Launch / Post
+                </Button>
+              </Link>
+              <div className="flex gap-2">
+                <Link className="flex-1" to={`/researcher/surveys/${survey.id}/edit`}>
+                  <Button className="w-full text-xs" icon="edit" variant="outline">
+                    Edit
+                  </Button>
+                </Link>
+                <Button
+                  className="flex-1 text-xs"
+                  icon="content_copy"
+                  loading={duplicateMutation.isPending}
+                  onClick={() => duplicateMutation.mutate()}
+                  variant="outline"
+                >
+                  Duplicate
+                </Button>
+                <Button
+                  className="text-xs"
+                  icon="delete"
+                  loading={deleteMutation.isPending}
+                  onClick={() => {
+                    if (confirm(`Delete "${survey.title}"?`)) {
+                      deleteMutation.mutate();
+                    }
+                  }}
+                  variant="outline"
+                >
+                  Delete
+                </Button>
+              </div>
+            </>
+          ) : isWip ? (
+            <>
+              <Link to={`/researcher/surveys/${survey.id}/edit`}>
+                <Button className="w-full" icon="edit">
+                  Continue Editing
+                </Button>
+              </Link>
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1 text-xs"
+                  icon="content_copy"
+                  loading={duplicateMutation.isPending}
+                  onClick={() => duplicateMutation.mutate()}
+                  variant="outline"
+                >
+                  Duplicate
+                </Button>
+                <Button
+                  className="text-xs"
+                  icon="delete"
+                  loading={deleteMutation.isPending}
+                  onClick={() => {
+                    if (confirm(`Delete "${survey.title}"?`)) {
+                      deleteMutation.mutate();
+                    }
+                  }}
+                  variant="outline"
+                >
+                  Delete
+                </Button>
+              </div>
+            </>
           ) : (
             <>
               <Link to={`/researcher/surveys/${survey.id}/dashboard`}>
@@ -342,11 +449,22 @@ function SurveyCard({ survey }: { survey: SurveyWithStats }) {
                   View Data & Graphs
                 </Button>
               </Link>
-              <Link to={`/researcher/surveys/${survey.id}/edit`}>
-                <Button className="w-full" variant="outline">
-                  View questions
+              <div className="flex gap-2">
+                <Link className="flex-1" to={`/researcher/surveys/${survey.id}/edit`}>
+                  <Button className="w-full text-xs" icon="visibility" variant="outline">
+                    View Questions
+                  </Button>
+                </Link>
+                <Button
+                  className="flex-1 text-xs"
+                  icon="content_copy"
+                  loading={duplicateMutation.isPending}
+                  onClick={() => duplicateMutation.mutate()}
+                  variant="outline"
+                >
+                  Duplicate
                 </Button>
-              </Link>
+              </div>
             </>
           )}
         </div>

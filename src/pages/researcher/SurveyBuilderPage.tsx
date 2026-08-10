@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Question, SurveyRecord, TargetLanguage } from "@shared/types";
-import { surveySchema, type MatchFiltersInput } from "@shared/validation/schemas";
+import { finalDraftSchema, surveySchema, type MatchFiltersInput } from "@shared/validation/schemas";
 import { AudiencePanel } from "@/components/filter-builder/AudiencePanel";
 import {
   QuestionEditor,
@@ -80,6 +80,7 @@ export function SurveyBuilderPage() {
         description: description.trim() ? description : null,
         questions,
         reward_etb: rewardEtb,
+        status: "draft",
       });
       if (surveyId) {
         return api<SurveyRecord>(`/surveys/${surveyId}`, { method: "PATCH", body: payload });
@@ -90,7 +91,34 @@ export function SurveyBuilderPage() {
       setSurveyId(survey.id);
       // Editing questions clears cached translations server-side; mirror that here.
       setTranslations(survey.translations ?? {});
-      setBanner({ tone: "success", text: "Draft saved." });
+      setBanner({ tone: "success", text: "Work-in-progress draft saved." });
+      await queryClient.invalidateQueries({ queryKey: ["surveys"] });
+      if (!id) navigate(`/researcher/surveys/${survey.id}/edit`, { replace: true });
+    },
+    onError: (error) => setBanner({ tone: "error", text: describeError(error) }),
+  });
+
+  const saveFinalDraft = useMutation({
+    mutationFn: async () => {
+      const payload = finalDraftSchema.parse({
+        title,
+        description: description.trim() ? description : null,
+        questions,
+        reward_etb: rewardEtb,
+        status: "final_draft",
+      });
+      if (surveyId) {
+        return api<SurveyRecord>(`/surveys/${surveyId}`, { method: "PATCH", body: payload });
+      }
+      return api<SurveyRecord>("/surveys", { body: payload });
+    },
+    onSuccess: async (survey) => {
+      setSurveyId(survey.id);
+      setTranslations(survey.translations ?? {});
+      setBanner({
+        tone: "success",
+        text: "Final draft validated and saved. Ready for launch and audience allocation!",
+      });
       await queryClient.invalidateQueries({ queryKey: ["surveys"] });
       if (!id) navigate(`/researcher/surveys/${survey.id}/edit`, { replace: true });
     },
@@ -201,11 +229,21 @@ export function SurveyBuilderPage() {
           <>
             <Button
               icon="save"
+              disabled={isSent}
               loading={saveDraft.isPending}
               onClick={() => saveDraft.mutate()}
               variant="outline"
             >
-              Save Draft
+              Save WIP Draft
+            </Button>
+            <Button
+              icon="task_alt"
+              disabled={isSent}
+              loading={saveFinalDraft.isPending}
+              onClick={() => saveFinalDraft.mutate()}
+              variant="secondary"
+            >
+              Save as Final Draft
             </Button>
             <Button
               icon="translate"
@@ -287,6 +325,42 @@ export function SurveyBuilderPage() {
                 value={title}
               />
             </Field>
+
+            <div className="mt-stack-md">
+              <Field label="Supported Response Formats">
+                <div className="grid gap-stack-sm sm:grid-cols-3">
+                  <div className="rounded-xl border-2 border-primary bg-surface-container-lowest p-stack-sm shadow-sm">
+                    <div className="flex items-center gap-base font-title-sm text-body-md font-semibold text-on-surface">
+                      <Icon className="text-primary" name="description" /> Traditional Form
+                    </div>
+                    <p className="mt-stack-xs font-body-sm text-[11px] text-on-surface-variant">
+                      Standard structured web questions.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-outline-variant bg-surface-container-low p-stack-sm">
+                    <div className="flex items-center gap-base font-title-sm text-body-md font-semibold text-on-surface">
+                      <Icon className="text-secondary" name="forum" /> Conversational Chat
+                    </div>
+                    <p className="mt-stack-xs font-body-sm text-[11px] text-on-surface-variant">
+                      Interactive AI chat turn-taking.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-dashed border-outline-variant bg-surface-container-low p-stack-sm opacity-60">
+                    <div className="flex items-center justify-between font-title-sm text-body-md font-semibold text-on-surface-variant">
+                      <div className="flex items-center gap-base">
+                        <Icon name="mic" /> Voice Response
+                      </div>
+                      <span className="rounded bg-surface-variant px-1.5 py-0.5 font-status-badge text-[10px] uppercase font-bold text-on-surface-variant">
+                        Coming Soon
+                      </span>
+                    </div>
+                    <p className="mt-stack-xs font-body-sm text-[11px] text-on-surface-variant">
+                      Audio IVR & speech-to-text response format.
+                    </p>
+                  </div>
+                </div>
+              </Field>
+            </div>
 
             <div className="mt-stack-md">
               <Field

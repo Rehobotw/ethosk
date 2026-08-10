@@ -71,9 +71,9 @@ class QueryBuilder {
           user: mockStore.users.get(d.user_id) || null,
         }));
       case "consent_events":
-        return [...mockStore.consentEvents];
+        return [...mockStore.consentEvents] as Record<string, any>[];
       case "translation_cache":
-        return Array.from(mockStore.translationCache.values());
+        return Array.from(mockStore.translationCache.values()) as Record<string, any>[];
       case "respondent_match_view": {
         const rows: Record<string, any>[] = [];
         for (const [userId, user] of mockStore.users.entries()) {

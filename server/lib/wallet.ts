@@ -44,7 +44,9 @@ export async function readResearcherWallet(researcherId: string): Promise<Resear
         available_etb: toAmount(data.available_etb),
       };
     }
-  } catch {}
+  } catch {
+    /* ignore */
+  }
 
   // Direct table query fallback
   try {
@@ -68,7 +70,9 @@ export async function readResearcherWallet(researcherId: string): Promise<Resear
       fees_etb: roundEtb(fees),
       available_etb: roundEtb(available),
     };
-  } catch {}
+  } catch {
+    /* ignore */
+  }
 
   return {
     deposited_etb: 0,
@@ -95,7 +99,9 @@ export async function readRespondentWallet(respondentId: string): Promise<Respon
         paid_response_count: Number(data.paid_response_count ?? 0),
       };
     }
-  } catch {}
+  } catch {
+    /* ignore */
+  }
 
   // Direct table query fallback
   try {

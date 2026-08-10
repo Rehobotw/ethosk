@@ -43,13 +43,22 @@ function bearerToken(req: Request): string | null {
  * For researchers, also fetches `verification_level` and `subscription_tier`
  * from `researcher_profiles`.
  */
+interface DbUserRow {
+  id: string;
+  role: UserRole;
+  verification_tier: VerificationTier;
+  full_name: string;
+  email?: string;
+  email_verified?: boolean;
+}
+
 export async function resolveAuth(req: Request): Promise<AuthContext | null> {
   const token = bearerToken(req);
   if (!token) return null;
 
   let userId: string | null = null;
   let userEmail: string = "";
-  let userMeta: any = null;
+  let userMeta: Record<string, unknown> | null = null;
 
   if (token.startsWith("mock-token-")) {
     userId = token.replace("mock-token-", "");
@@ -61,12 +70,14 @@ export async function resolveAuth(req: Request): Promise<AuthContext | null> {
         userEmail = data.user.email || "";
         userMeta = data.user.user_metadata;
       }
-    } catch {}
+    } catch {
+      /* ignore */
+    }
   }
 
   if (!userId) return null;
 
-  let row: any = null;
+  let row: DbUserRow | null = null;
   try {
     const { data: dbUser, error: dbErr } = await admin
       .from("users")
@@ -75,9 +86,11 @@ export async function resolveAuth(req: Request): Promise<AuthContext | null> {
       .maybeSingle();
 
     if (!dbErr && dbUser) {
-      row = dbUser;
+      row = dbUser as unknown as DbUserRow;
     }
-  } catch {}
+  } catch {
+    /* ignore */
+  }
 
   if (!row) {
     try {
@@ -86,16 +99,20 @@ export async function resolveAuth(req: Request): Promise<AuthContext | null> {
         .select("id, role, verification_tier, full_name")
         .eq("id", userId)
         .maybeSingle();
-      row = fallbackDbUser;
-    } catch {}
+      if (fallbackDbUser) {
+        row = fallbackDbUser as unknown as DbUserRow;
+      }
+    } catch {
+      /* ignore */
+    }
   }
 
   if (!row) {
     row = {
       id: userId,
-      role: userMeta?.role || "respondent",
+      role: (userMeta?.role as UserRole) || "respondent",
       verification_tier: "0_registered",
-      full_name: userMeta?.full_name || "User",
+      full_name: typeof userMeta?.full_name === "string" ? userMeta.full_name : "User",
       email: userEmail,
       email_verified: true,
     };

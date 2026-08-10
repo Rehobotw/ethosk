@@ -46,10 +46,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       const keys = path.split(".");
 
       // Try primary language
-      let current: any = translations[language];
+      let current: unknown = translations[language];
       for (const k of keys) {
-        if (current && typeof current === "object" && k in current) {
-          current = current[k];
+        if (current && typeof current === "object" && k in (current as Record<string, unknown>)) {
+          current = (current as Record<string, unknown>)[k];
         } else {
           current = undefined;
           break;
@@ -58,10 +58,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       if (typeof current === "string") return current;
 
       // Fallback to English
-      let fallback: any = translations.en;
+      let fallback: unknown = translations.en;
       for (const k of keys) {
-        if (fallback && typeof fallback === "object" && k in fallback) {
-          fallback = fallback[k];
+        if (fallback && typeof fallback === "object" && k in (fallback as Record<string, unknown>)) {
+          fallback = (fallback as Record<string, unknown>)[k];
         } else {
           fallback = undefined;
           break;
