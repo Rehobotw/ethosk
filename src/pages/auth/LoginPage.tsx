@@ -40,8 +40,8 @@ export function LoginPage() {
       const session = await login({ ...values, role });
       navigate(homePathForRole(session.role), { replace: true });
     } catch (error) {
-      if (error instanceof ApiRequestError && (error.data as any)?.verification_required) {
-        const email = (error.data as any)?.email || values.email;
+      if (error instanceof ApiRequestError && (error.data as Record<string, unknown>)?.verification_required) {
+        const email = (error.data as Record<string, unknown>)?.email as string || values.email;
         navigate(`/verify-email?email=${encodeURIComponent(email)}`);
         return;
       }

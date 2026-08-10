@@ -164,7 +164,9 @@ respondentsRouter.post(
           user_metadata: { verification_tier: nextTier },
         });
       }
-    } catch {}
+    } catch {
+      /* ignore */
+    }
 
     await recordConsentEvent(context.userId, "fayda_verification", {
       result: "verified",

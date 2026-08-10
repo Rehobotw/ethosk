@@ -67,17 +67,18 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     let errorData: Record<string, unknown> | undefined;
 
     try {
-      const payload = await readJsonBody<any>(response);
+      const payload = await readJsonBody<Record<string, unknown>>(response);
       if (payload) {
         errorData = payload;
-        if (typeof payload.error === "string") {
-          code = payload.error;
-          message = payload.message || message;
-        } else if (payload.error) {
-          code = payload.error.code || code;
-          message = payload.error.message || message;
-          fields = payload.error.fields;
-        } else if (payload.message) {
+        const errObj = payload.error as Record<string, unknown> | string | undefined;
+        if (typeof errObj === "string") {
+          code = errObj;
+          message = (payload.message as string) || message;
+        } else if (errObj && typeof errObj === "object") {
+          code = (errObj.code as string) || code;
+          message = (errObj.message as string) || message;
+          fields = errObj.fields as string[] | undefined;
+        } else if (typeof payload.message === "string") {
           message = payload.message;
         }
       }

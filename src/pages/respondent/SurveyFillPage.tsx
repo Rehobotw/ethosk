@@ -208,6 +208,9 @@ export function SurveyFillPage() {
         <Button icon="forum" onClick={() => setChatMode(true)} variant="outline">
           Switch to chat mode
         </Button>
+        <Button disabled icon="mic" title="Voice response format coming soon" variant="outline">
+          Voice mode (Coming soon)
+        </Button>
       </div>
 
       <div className="space-y-stack-md">
