@@ -29,6 +29,7 @@ import {
   Toggle,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 interface Analytics {
   response_count: number;
@@ -57,9 +58,12 @@ const FLAG_COLORS: Record<FraudFlag, string> = {
 };
 
 export function SurveyAnalyticsPage() {
+  const { user } = useAuth();
   const { id = "" } = useParams();
   const location = useLocation() as { state?: { justSent?: number } };
   const [includeFlagged, setIncludeFlagged] = useState(false);
+
+  const isSubscribed = user?.subscription_tier === "subscribed";
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["analytics", id, includeFlagged],
@@ -95,11 +99,24 @@ export function SurveyAnalyticsPage() {
     <div className="space-y-stack-lg">
       <SectionHeading
         actions={
-          <Link to="/researcher">
-            <Button icon="arrow_back" variant="outline">
-              Back to Dashboard
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            {!isSubscribed ? (
+              <Link to="/researcher/subscription">
+                <Button icon="lock" variant="outline" title="Upgrade to Pro to export data">
+                  Export Data
+                </Button>
+              </Link>
+            ) : (
+              <Button icon="download" variant="outline" onClick={() => alert("Export feature coming soon!")}>
+                Export Data
+              </Button>
+            )}
+            <Link to="/researcher">
+              <Button icon="arrow_back" variant="outline">
+                Back to Dashboard
+              </Button>
+            </Link>
+          </div>
         }
         subtitle="Live response breakdown, interactive graphs, and deterministic data quality metrics."
         title="Survey Insights & Analytics"
@@ -125,18 +142,38 @@ export function SurveyAnalyticsPage() {
       </div>
 
       {/* AI Key Insights Summary Card */}
-      <Card className="bg-primary p-stack-md text-on-primary shadow-lifted">
+      <Card className="relative overflow-hidden bg-primary p-stack-md text-on-primary shadow-lifted">
         <h2 className="flex items-center gap-stack-sm font-title-sm text-title-sm">
           <Icon filled name="auto_awesome" /> Key Insights & Analytics Summary
         </h2>
-        <ul className="mt-stack-md space-y-stack-sm">
-          {generatedSummary.map((bullet, index) => (
-            <li className="flex items-start gap-stack-sm font-body-sm text-body-sm" key={index}>
-              <Icon className="mt-0.5 text-[16px] text-secondary-fixed shrink-0" name="lightbulb" />
-              <span className="text-primary-fixed">{bullet}</span>
-            </li>
-          ))}
-        </ul>
+        
+        <div className={isSubscribed ? "mt-stack-md" : "mt-stack-md blur-sm opacity-50 select-none pointer-events-none"}>
+          <ul className="space-y-stack-sm">
+            {generatedSummary.map((bullet, index) => (
+              <li className="flex items-start gap-stack-sm font-body-sm text-body-sm" key={index}>
+                <Icon className="mt-0.5 text-[16px] text-secondary-fixed shrink-0" name="lightbulb" />
+                <span className="text-primary-fixed">{bullet}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {!isSubscribed && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-primary/40 backdrop-blur-[2px]">
+            <Icon name="lock" className="text-3xl text-primary-fixed mb-2" />
+            <h3 className="font-title-sm text-title-sm text-primary-fixed mb-1">
+              Ethosk Pro Required
+            </h3>
+            <p className="font-body-sm text-body-sm text-primary-fixed max-w-sm text-center mb-4">
+              Upgrade to the Pro tier to unlock automated AI insights and advanced analytics exports.
+            </p>
+            <Link to="/researcher/subscription">
+              <Button variant="outline" className="bg-primary-fixed text-on-primary-fixed border-none hover:bg-primary-fixed-dim">
+                Upgrade Now
+              </Button>
+            </Link>
+          </div>
+        )}
       </Card>
 
       {/* Main Visual Graphs Grid */}

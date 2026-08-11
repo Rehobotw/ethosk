@@ -31,7 +31,7 @@ export async function readResearcherWallet(researcherId: string): Promise<Resear
   try {
     const { data, error } = await admin
       .from("researcher_wallet_view")
-      .select("deposited_etb, reserved_etb, paid_etb, available_etb")
+      .select("deposited_etb, reserved_etb, paid_etb, fees_etb, available_etb")
       .eq("researcher_id", researcherId)
       .maybeSingle();
 
@@ -40,6 +40,7 @@ export async function readResearcherWallet(researcherId: string): Promise<Resear
         deposited_etb: toAmount(data.deposited_etb),
         reserved_etb: toAmount(data.reserved_etb),
         paid_etb: toAmount(data.paid_etb),
+        fees_etb: toAmount(data.fees_etb),
         available_etb: toAmount(data.available_etb),
       };
     }
@@ -49,21 +50,24 @@ export async function readResearcherWallet(researcherId: string): Promise<Resear
 
   // Direct table query fallback
   try {
-    const [{ data: deposits }, { data: activeSurveys }, { data: payouts }] = await Promise.all([
+    const [{ data: deposits }, { data: activeSurveys }, { data: payouts }, { data: charges }] = await Promise.all([
       admin.from("researcher_deposits").select("amount_etb").eq("researcher_id", researcherId).eq("status", "completed"),
       admin.from("surveys").select("escrow_etb").eq("researcher_id", researcherId).eq("status", "active"),
       admin.from("respondent_payouts").select("amount_etb").eq("researcher_id", researcherId),
+      admin.from("researcher_charges").select("amount_etb").eq("researcher_id", researcherId),
     ]);
 
     const deposited = (deposits ?? []).reduce((acc, d) => acc + Number(d.amount_etb ?? 0), 0);
     const reserved = (activeSurveys ?? []).reduce((acc, s) => acc + Number(s.escrow_etb ?? 0), 0);
     const paid = (payouts ?? []).reduce((acc, p) => acc + Number(p.amount_etb ?? 0), 0);
-    const available = deposited - reserved - paid;
+    const fees = (charges ?? []).reduce((acc, c) => acc + Number(c.amount_etb ?? 0), 0);
+    const available = deposited - reserved - paid - fees;
 
     return {
       deposited_etb: roundEtb(deposited),
       reserved_etb: roundEtb(reserved),
       paid_etb: roundEtb(paid),
+      fees_etb: roundEtb(fees),
       available_etb: roundEtb(available),
     };
   } catch {
@@ -74,6 +78,7 @@ export async function readResearcherWallet(researcherId: string): Promise<Resear
     deposited_etb: 0,
     reserved_etb: 0,
     paid_etb: 0,
+    fees_etb: 0,
     available_etb: 0,
   };
 }
@@ -102,29 +107,24 @@ export async function readRespondentWallet(respondentId: string): Promise<Respon
   try {
     const { data: payouts } = await admin
       .from("respondent_payouts")
-      .select("amount_etb, status")
+      .select("amount_etb, platform_fee_etb, status")
       .eq("respondent_id", respondentId);
 
-    if (payouts && payouts.length > 0) {
-      let available = 0;
-      let withdrawn = 0;
-      let lifetime = 0;
-      for (const p of payouts) {
-        const amt = Number(p.amount_etb ?? 0);
-        lifetime += amt;
-        if (p.status === "withdrawn") withdrawn += amt;
-        else if (p.status === "available" || p.status === "pending") available += amt;
-      }
-      return {
-        available_etb: roundEtb(available),
-        withdrawn_etb: roundEtb(withdrawn),
-        lifetime_etb: roundEtb(lifetime),
-        paid_response_count: payouts.length,
-      };
-    }
-  } catch {
-    /* ignore */
-  }
+    const available = (payouts ?? [])
+      .filter((p) => p.status === "available")
+      .reduce((acc, p) => acc + Number(p.amount_etb ?? 0) - Number(p.platform_fee_etb ?? 0), 0);
+    const withdrawn = (payouts ?? [])
+      .filter((p) => p.status === "withdrawn")
+      .reduce((acc, p) => acc + Number(p.amount_etb ?? 0) - Number(p.platform_fee_etb ?? 0), 0);
+    const lifetime = available + withdrawn;
+
+    return {
+      available_etb: roundEtb(available),
+      withdrawn_etb: roundEtb(withdrawn),
+      lifetime_etb: roundEtb(lifetime),
+      paid_response_count: (payouts ?? []).length,
+    };
+  } catch {}
 
   return {
     available_etb: 0,
@@ -156,6 +156,7 @@ export async function payForResponse(input: {
   if (input.amountEtb <= 0) return { paid: false, reason: "unpaid survey" };
 
   const amount = roundEtb(input.amountEtb);
+  const platformFee = roundEtb(amount * 0.10);
 
   const { error } = await admin.from("respondent_payouts").insert({
     response_id: input.responseId,
@@ -163,7 +164,8 @@ export async function payForResponse(input: {
     respondent_id: input.respondentId,
     researcher_id: input.researcherId,
     amount_etb: amount,
-    status: "pending",
+    platform_fee_etb: platformFee,
+    status: "available",
   });
 
   if (error) {

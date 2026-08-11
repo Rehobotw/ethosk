@@ -3,6 +3,7 @@ import { claudeImage, claudeText, extractJson, isClaudeConfigured, MODELS } from
 import {
   ANALYTICS_SUMMARY_SYSTEM,
   DOCUMENT_CHECK_SYSTEM,
+  FULL_DRAFT_SYSTEM,
   QUESTION_IMPROVE_SYSTEM,
   QUESTION_REPHRASE_SYSTEM,
 } from "./prompts.js";
@@ -102,7 +103,49 @@ export async function checkDocument(input: {
     return { check, reason: check.notes };
   } catch (error) {
     console.warn("[ai] checkDocument failed:", describe(error));
-    return { check: null, reason: "Automated check could not complete; queued for manual review." };
+    return { check: null, reason: "Check crashed or timed out." };
+  }
+}
+
+export interface GeneratedSurveyDraft {
+  title: string;
+  description: string;
+  questions: {
+    text: string;
+    type: "single_choice" | "multiple_choice" | "text";
+    options: string[];
+  }[];
+}
+
+/**
+ * Generates a full survey draft based on a topic string.
+ * Uses the Sonnet model to ensure higher quality output.
+ */
+export async function generateSurveyDraft(topic: string): Promise<GeneratedSurveyDraft | null> {
+  if (!isClaudeConfigured()) return null;
+
+  try {
+    const raw = await claudeText({
+      model: MODELS.sonnet,
+      system: FULL_DRAFT_SYSTEM,
+      user: topic,
+      maxTokens: 1500,
+      temperature: 0.7,
+      timeoutMs: 15_000,
+    });
+
+    const parsed = extractJson(raw) as any;
+    if (!parsed) return null;
+    
+    // Basic structural validation
+    if (typeof parsed.title !== "string" || !Array.isArray(parsed.questions)) {
+      return null;
+    }
+
+    return parsed as GeneratedSurveyDraft;
+  } catch (error) {
+    console.warn("[ai] generateSurveyDraft failed:", describe(error));
+    return null;
   }
 }
 

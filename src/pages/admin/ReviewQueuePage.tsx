@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DocType } from "@shared/types";
 import {
   Button,
   Card,
   EmptyState,
+  Field,
+  Input,
   LoadingBlock,
   Notice,
   SectionHeading,
@@ -22,6 +25,8 @@ interface ReviewItem {
 
 export function AdminReviewQueuePage() {
   const queryClient = useQueryClient();
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["review-queue"],
@@ -29,9 +34,13 @@ export function AdminReviewQueuePage() {
   });
 
   const decide = useMutation({
-    mutationFn: ({ id, decision }: { id: string; decision: "passed" | "failed" }) =>
-      api<{ id: string }>(`/admin/review-queue/${id}`, { body: { decision } }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["review-queue"] }),
+    mutationFn: ({ id, decision, notes }: { id: string; decision: "passed" | "failed"; notes?: string }) =>
+      api<{ id: string }>(`/admin/review-queue/${id}`, { body: { decision, notes } }),
+    onSuccess: () => {
+      setRejectingId(null);
+      setRejectReason("");
+      queryClient.invalidateQueries({ queryKey: ["review-queue"] });
+    },
   });
 
   return (
@@ -89,21 +98,63 @@ export function AdminReviewQueuePage() {
                     </p>
                   ) : null}
 
-                  <div className="mt-stack-md flex gap-stack-sm">
-                    <Button
-                      icon="check"
-                      loading={decide.isPending && decide.variables?.id === item.id}
-                      onClick={() => decide.mutate({ id: item.id, decision: "passed" })}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      icon="close"
-                      onClick={() => decide.mutate({ id: item.id, decision: "failed" })}
-                      variant="danger"
-                    >
-                      Reject
-                    </Button>
+                  <div className="mt-stack-md">
+                    {rejectingId === item.id ? (
+                      <div className="space-y-stack-sm rounded-xl border border-error/30 bg-error-container/10 p-stack-md">
+                        <Field label="Reason for rejection (sent to respondent)">
+                          <Input
+                            autoFocus
+                            onChange={(e) => setRejectReason(e.target.value)}
+                            placeholder="e.g., Image is too blurry to read."
+                            value={rejectReason}
+                          />
+                        </Field>
+                        <div className="flex gap-stack-sm">
+                          <Button
+                            icon="close"
+                            loading={decide.isPending}
+                            onClick={() =>
+                              decide.mutate({
+                                id: item.id,
+                                decision: "failed",
+                                notes: rejectReason || "Rejected by administrator.",
+                              })
+                            }
+                            variant="danger"
+                          >
+                            Confirm Reject
+                          </Button>
+                          <Button
+                            disabled={decide.isPending}
+                            onClick={() => {
+                              setRejectingId(null);
+                              setRejectReason("");
+                            }}
+                            variant="secondary"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-stack-sm">
+                        <Button
+                          icon="check"
+                          loading={decide.isPending && decide.variables?.id === item.id && decide.variables.decision === "passed"}
+                          onClick={() => decide.mutate({ id: item.id, decision: "passed" })}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          disabled={decide.isPending}
+                          icon="close"
+                          onClick={() => setRejectingId(item.id)}
+                          variant="danger"
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

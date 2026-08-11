@@ -41,6 +41,7 @@ export function SurveyBuilderPage() {
   const queryClient = useQueryClient();
 
   const [surveyId, setSurveyId] = useState<string | null>(id ?? null);
+  const [aiTopic, setAiTopic] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [rewardEtb, setRewardEtb] = useState<number | null>(15);
@@ -158,6 +159,29 @@ export function SurveyBuilderPage() {
     onError: (error) => setBanner({ tone: "error", text: describeError(error) }),
   });
 
+  const draftAi = useMutation({
+    mutationFn: () =>
+      api<{ title: string; description: string; questions: Question[] }>("/surveys/draft-ai", {
+        method: "POST",
+        body: { topic: aiTopic.trim() },
+      }),
+    onSuccess: (result) => {
+      setTitle(result.title);
+      setDescription(result.description);
+      // Give the generated questions unique IDs before saving
+      setQuestions(
+        result.questions.map((q) => ({
+          ...q,
+          id: `q${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+          required: true,
+        }))
+      );
+      setAiTopic("");
+      setBanner({ tone: "success", text: "AI drafted your survey. Review and save when ready." });
+    },
+    onError: (error) => setBanner({ tone: "error", text: describeError(error) }),
+  });
+
   // The rewrite runs against the stored question, so there has to be a stored
   // survey to run it against.
   const improveDisabledReason = surveyId ? undefined : "Save the draft to enable AI rewrites.";
@@ -263,6 +287,35 @@ export function SurveyBuilderPage() {
 
       <div className="grid gap-gutter lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-stack-md">
+          
+          {/* AI Drafter (Only show if new blank survey) */}
+          {!surveyId && !isSent && questions.length === 1 && !questions[0]?.text && !title && (
+            <div className="rounded-xl border border-primary/20 bg-primary-container/20 p-stack-md">
+              <h2 className="flex items-center gap-2 font-title-sm text-title-sm text-primary-fixed mb-2">
+                <Icon filled name="auto_awesome" /> AI Survey Drafter
+              </h2>
+              <p className="text-body-sm text-on-surface-variant mb-4">
+                Have a topic but need help designing the survey? Describe your research goal below, and Ethosk AI will draft a title, description, and a set of rigorous questions for you.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  className="flex-1 bg-surface-container-lowest"
+                  placeholder="e.g., Digital banking adoption in rural areas"
+                  value={aiTopic}
+                  onChange={(e) => setAiTopic(e.target.value)}
+                  disabled={draftAi.isPending}
+                />
+                <Button 
+                  loading={draftAi.isPending} 
+                  disabled={!aiTopic.trim() || aiTopic.length < 5} 
+                  onClick={() => draftAi.mutate()}
+                >
+                  Generate Draft
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-stack-md">
             <Field label="Survey title">
               <Input

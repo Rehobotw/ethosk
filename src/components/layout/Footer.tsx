@@ -1,102 +1,68 @@
 import { Link } from "react-router-dom";
-import clsx from "clsx";
-import { Icon } from "../ui";
-import { useLanguage, type Language } from "@/lib/language";
 
-const LANGUAGES: { code: Language; label: string }[] = [
-  { code: "en", label: "English" },
-  { code: "am", label: "አማርኛ" },
-];
-
-export function Footer({ className }: { className?: string }) {
-  const { language, setLanguage, t } = useLanguage();
-
-  const columns = [
-    {
-      heading: t("nav.platform"),
-      links: [
-        { label: t("nav.how_it_works"), to: "/#how" },
-        { label: t("nav.platform"), to: "/#product" },
-        { label: t("nav.verification"), to: "/#verification" },
-      ],
-    },
-    {
-      heading: t("nav.for_researchers"),
-      links: [
-        { label: t("nav.for_researchers"), to: "/learn/researchers" },
-        { label: t("nav.for_respondents"), to: "/learn/respondents" },
-      ],
-    },
-    {
-      heading: t("common.actions"),
-      links: [
-        { label: t("nav.login"), to: "/login" },
-        { label: t("nav.signup"), to: "/signup" },
-      ],
-    },
-  ];
-
+export function Footer() {
   return (
-    <footer className={clsx("border-t border-outline-variant bg-surface-subtle", className)}>
-      <div className="mx-auto w-full max-w-container-max px-margin-mobile py-stack-lg md:px-gutter">
-        <div className="grid gap-stack-lg md:grid-cols-[1.4fr_repeat(3,1fr)]">
-          <div>
-            <Link className="font-headline-md text-headline-md font-bold text-primary" to="/">
-              Ethosk
-            </Link>
-            <p className="mt-stack-sm max-w-xs font-body-sm text-body-sm text-on-surface-variant">
-              {t("footer.tagline")}
-            </p>
-
-            <div className="mt-stack-md flex flex-wrap gap-base">
-              {LANGUAGES.map((lang) => (
-                <button
-                  className={clsx(
-                    "rounded-full px-3 py-1 font-label-caps text-label-caps transition-colors",
-                    language === lang.code
-                      ? "bg-surface-container-high text-on-surface font-bold"
-                      : "text-on-surface-variant hover:bg-surface-container",
-                  )}
-                  key={lang.code}
-                  onClick={() => setLanguage(lang.code)}
-                  type="button"
-                >
-                  {lang.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {columns.map((column) => (
-            <nav key={column.heading}>
-              <h2 className="font-label-caps text-label-caps uppercase text-on-surface">
-                {column.heading}
-              </h2>
-              <ul className="mt-stack-sm space-y-stack-sm">
-                {column.links.map((link) => (
-                  <li key={link.label}>
-                    <Link
-                      className="font-body-sm text-body-sm text-on-surface-variant transition-colors hover:text-primary"
-                      to={link.to}
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          ))}
+    <footer className="w-full pt-16 pb-12 px-8 mt-auto bg-white/40 backdrop-blur-3xl text-on-surface-variant font-body-md border-t border-white/40 grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-12 max-w-7xl mx-auto relative z-10">
+      <div className="col-span-1 lg:col-span-2 flex flex-col gap-5">
+        <div className="flex items-center gap-2 mb-1 opacity-90 hover:opacity-100 transition-opacity">
+          <Link className="text-xl font-headline-lg text-primary" to="/">
+            Ethosk
+          </Link>
         </div>
+        <p className="text-on-surface-variant/80 max-w-xs leading-relaxed font-body-md">
+          Empowering trusted research across Ethiopia through verified participants and high-quality data.
+        </p>
+        <p className="mt-6 text-[10px] font-label-caps text-on-surface-variant/60 uppercase tracking-widest">
+          © 2024 Ethosk Research.
+        </p>
+      </div>
 
-        <div className="mt-stack-lg flex flex-col-reverse items-start justify-between gap-stack-sm border-t border-outline-variant pt-stack-md md:flex-row md:items-center">
-          <p className="font-body-sm text-body-sm text-on-surface-variant">
-            © {new Date().getFullYear()} Ethosk
-          </p>
-          <p className="flex items-center gap-2 font-body-sm text-body-sm text-on-surface-variant">
-            <Icon className="text-[18px] text-status-passed" name="shield" />
-            Designed around Proclamation 1321/2024
-          </p>
-        </div>
+      <div className="flex flex-col gap-4">
+        <h4 className="font-label-caps text-primary uppercase tracking-widest mb-1">Product</h4>
+        <Link className="text-on-surface-variant hover:text-primary transition-colors font-body-md" to="/learn/researchers">
+          Research Workspace
+        </Link>
+        <Link className="text-on-surface-variant hover:text-primary transition-colors font-body-md" to="/learn/respondents">
+          Verified Respondents
+        </Link>
+        <Link className="text-on-surface-variant hover:text-primary transition-colors font-body-md" to="/pricing">
+          Pricing
+        </Link>
+        <Link className="text-on-surface-variant hover:text-primary transition-colors font-body-md" to="/trust">
+          Integrations
+        </Link>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <h4 className="font-label-caps text-primary uppercase tracking-widest mb-1">Resources</h4>
+        <Link className="text-on-surface-variant hover:text-primary transition-colors font-body-md" to="/trust">
+          Documentation
+        </Link>
+        <Link className="text-on-surface-variant hover:text-primary transition-colors font-body-md" to="/trust">
+          Help Center
+        </Link>
+        <Link className="text-on-surface-variant hover:text-primary transition-colors font-body-md" to="/trust">
+          API Reference
+        </Link>
+        <Link className="text-on-surface-variant hover:text-primary transition-colors font-body-md" to="/trust">
+          Blog
+        </Link>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <h4 className="font-label-caps text-primary uppercase tracking-widest mb-1">Company</h4>
+        <Link className="text-on-surface-variant hover:text-primary transition-colors font-body-md" to="/trust">
+          About Us
+        </Link>
+        <Link className="text-on-surface-variant hover:text-primary transition-colors font-body-md" to="/trust">
+          Careers
+        </Link>
+        <Link className="text-on-surface-variant hover:text-primary transition-colors font-body-md" to="/trust">
+          Privacy Policy
+        </Link>
+        <Link className="text-on-surface-variant hover:text-primary transition-colors font-body-md" to="/trust">
+          Terms of Service
+        </Link>
       </div>
     </footer>
   );

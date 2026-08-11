@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { UserRole, VerificationTier } from "@shared/types";
+import type { UserRole, VerificationTier, ResearcherVerificationLevel, SubscriptionTier } from "@shared/types";
 import type {
   ForgotPasswordInput,
   LoginInput,
@@ -18,6 +18,12 @@ export interface SessionUser {
   full_name: string;
   email: string;
   email_verified?: boolean;
+  /** Researcher-only: identity verification level. */
+  researcher_verification_level?: ResearcherVerificationLevel;
+  /** Researcher-only: free or subscribed. */
+  subscription_tier?: SubscriptionTier;
+  /** Researcher-only: when the subscription expires. */
+  subscription_expires_at?: string | null;
 }
 
 export interface SignupResult {
@@ -92,6 +98,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       full_name: result.full_name,
       email: result.email || input.email,
       email_verified: result.email_verified ?? true,
+      researcher_verification_level: (result as any).researcher_verification_level,
+      subscription_tier: (result as any).subscription_tier,
+      subscription_expires_at: (result as any).subscription_expires_at,
     };
     setUser(session);
     return session;
@@ -173,6 +182,7 @@ export function homePathForRole(role: UserRole): string {
     case "researcher":
       return "/researcher";
     case "admin":
+    case "super_admin":
       return "/admin/review-queue";
     case "respondent":
     default:

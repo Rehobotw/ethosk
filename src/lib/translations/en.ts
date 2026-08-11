@@ -19,7 +19,7 @@ export const en = {
   hero: {
     badge_fayda: "Fayda-verified panel",
     title_main: "Find verified respondents in minutes, not months.",
-    subtitle: "Ethiosk is a research panel for Ethiopia. Filter by university, department, year, and verification tier, watch the matched count update as you go, and get responses with quality checks already applied.",
+    subtitle: "Ethosk is a research panel for Ethiopia. Filter by university, department, year, and verification tier, watch the matched count update as you go, and get responses with quality checks already applied.",
     cta_start: "Start a study",
     cta_join: "Join as a respondent",
     feature_one: "One person, one account",
@@ -116,9 +116,9 @@ export const en = {
   },
   auth: {
     login_title: "Welcome back",
-    login_subtitle: "Sign in to access your Ethiosk account",
+    login_subtitle: "Sign in to access your Ethosk account",
     signup_title: "Create an account",
-    signup_subtitle: "Join Ethiosk as a researcher or respondent",
+    signup_subtitle: "Join Ethosk as a researcher or respondent",
     full_name: "Full name",
     email: "Email address",
     phone: "Phone number",
@@ -163,7 +163,7 @@ export const en = {
   footer: {
     tagline: "Verified research panel & data platform for Ethiopia.",
     built_for: "Built for researchers, academic institutions, and organizations across Ethiopia.",
-    copyright: "© 2026 Ethiosk. All rights reserved.",
+    copyright: "© 2026 Ethosk. All rights reserved.",
   },
 } as const;
 

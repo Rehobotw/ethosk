@@ -1,13 +1,18 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { VerificationTier } from "@shared/types.js";
-import { TIER_RANK } from "@shared/types.js";
+import type { UserRole, VerificationTier } from "@shared/types.js";
+import { TIER_RANK, USER_ROLES } from "@shared/types.js";
 import { env } from "../env.js";
-import { requireAuth } from "../lib/auth.js";
+import { auth, requireAuth } from "../lib/auth.js";
 import { ApiError, asyncRoute, parseBody } from "../lib/http.js";
 import { admin } from "../lib/supabase.js";
 
 export const adminRouter = Router();
+
+// ============================================================================
+// Routes accessible by BOTH admin and super_admin
+// (requireAuth("admin") now passes super_admin too via roleSatisfies)
+// ============================================================================
 
 /** FR-ADM-1: documents awaiting a human decision, oldest first. */
 adminRouter.get(
@@ -96,6 +101,57 @@ adminRouter.post(
   }),
 );
 
+adminRouter.get(
+  "/researcher-queue",
+  requireAuth("admin"),
+  asyncRoute(async (_req, res) => {
+    const { data, error } = await admin
+      .from("researcher_profiles")
+      .select("user_id, bio, institution, past_studies, verification_status, users!inner(full_name, email)")
+      .eq("verification_status", "pending");
+
+    if (error) throw new ApiError(500, "RESEARCHER_QUEUE_FAILED", error.message);
+
+    res.json({ items: data ?? [] });
+  }),
+);
+
+adminRouter.post(
+  "/researcher-queue/:id",
+  requireAuth("admin"),
+  asyncRoute(async (req, res) => {
+    const input = parseBody(decisionSchema, req.body);
+    const researcherId = req.params.id;
+
+    const { data: profile, error: readError } = await admin
+      .from("researcher_profiles")
+      .select("user_id, verification_status")
+      .eq("user_id", researcherId)
+      .maybeSingle();
+
+    if (readError) throw new ApiError(500, "REVIEW_FAILED", readError.message);
+    if (!profile) throw new ApiError(404, "PROFILE_NOT_FOUND", "That researcher profile does not exist.");
+
+    const updateData: any = {
+      verification_status: input.decision === "passed" ? "approved" : "rejected",
+      verification_notes: input.notes ?? `Manually ${input.decision} by an administrator.`,
+    };
+
+    if (input.decision === "passed") {
+      updateData.verification_level = "id_verified";
+    }
+
+    const { error: updateError } = await admin
+      .from("researcher_profiles")
+      .update(updateData)
+      .eq("user_id", profile.user_id);
+
+    if (updateError) throw new ApiError(500, "REVIEW_FAILED", updateError.message);
+
+    res.json({ id: profile.user_id, status: input.decision });
+  }),
+);
+
 /** FR-ADM-2 groundwork: erasure requests with a due-by date from the request time. */
 adminRouter.get(
   "/data-requests",
@@ -117,6 +173,162 @@ adminRouter.get(
           new Date(row.created_at as string).getTime() + RESPONSE_WINDOW_DAYS * 86_400_000,
         ).toISOString(),
       })),
+    });
+  }),
+);
+
+// ============================================================================
+// SUPER_ADMIN-ONLY routes
+// ============================================================================
+
+/**
+ * List all users with roles.
+ * Only super_admin can see the full user list.
+ */
+adminRouter.get(
+  "/users",
+  requireAuth("super_admin"),
+  asyncRoute(async (req, res) => {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 25));
+    const offset = (page - 1) * limit;
+    const roleFilter = req.query.role as string | undefined;
+    const search = req.query.search as string | undefined;
+
+    let query = admin
+      .from("users")
+      .select("id, role, full_name, email, email_verified, verification_tier, created_at", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (roleFilter && USER_ROLES.includes(roleFilter as UserRole)) {
+      query = query.eq("role", roleFilter);
+    }
+    if (search) {
+      query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
+    }
+
+    const { data, count, error } = await query;
+
+    if (error) throw new ApiError(500, "USER_LIST_FAILED", error.message);
+
+    res.json({
+      users: data ?? [],
+      total: count ?? 0,
+      page,
+      limit,
+    });
+  }),
+);
+
+const roleChangeSchema = z.object({
+  role: z.enum(USER_ROLES),
+});
+
+/**
+ * Change a user's role.
+ * Only super_admin can promote/demote users.
+ *
+ * Safety rules:
+ * - Cannot change your own role (prevents accidental self-demotion)
+ * - Cannot create another super_admin unless you are one
+ */
+adminRouter.post(
+  "/users/:id/role",
+  requireAuth("super_admin"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const targetUserId = req.params.id;
+    const input = parseBody(roleChangeSchema, req.body);
+
+    // Safety: cannot change your own role
+    if (targetUserId === context.userId) {
+      throw new ApiError(400, "CANNOT_CHANGE_OWN_ROLE", "You cannot change your own role.");
+    }
+
+    // Verify target user exists
+    const { data: targetUser, error: readError } = await admin
+      .from("users")
+      .select("id, role, full_name, email")
+      .eq("id", targetUserId)
+      .maybeSingle();
+
+    if (readError) throw new ApiError(500, "USER_READ_FAILED", readError.message);
+    if (!targetUser) throw new ApiError(404, "USER_NOT_FOUND", "That user does not exist.");
+
+    // Perform the role change
+    const { error: updateError } = await admin
+      .from("users")
+      .update({ role: input.role })
+      .eq("id", targetUserId);
+
+    if (updateError) throw new ApiError(500, "ROLE_CHANGE_FAILED", updateError.message);
+
+    // Log this action in consent_events for audit trail
+    await admin.from("consent_events").insert({
+      user_id: context.userId,
+      event_type: "data_erasure_request", // reusing event type for audit — ideally would be 'role_change'
+      details: {
+        action: "role_change",
+        target_user_id: targetUserId,
+        target_email: targetUser.email,
+        from_role: targetUser.role,
+        to_role: input.role,
+        changed_by: context.userId,
+        changed_at: new Date().toISOString(),
+      },
+    });
+
+    res.json({
+      id: targetUserId,
+      role: input.role,
+      message: `${targetUser.full_name}'s role changed from ${targetUser.role} to ${input.role}.`,
+    });
+  }),
+);
+
+/**
+ * Get a single user's full details (super_admin only).
+ */
+adminRouter.get(
+  "/users/:id",
+  requireAuth("super_admin"),
+  asyncRoute(async (req, res) => {
+    const { data, error } = await admin
+      .from("users")
+      .select("id, role, full_name, email, email_verified, verification_tier, created_at, updated_at")
+      .eq("id", req.params.id)
+      .maybeSingle();
+
+    if (error) throw new ApiError(500, "USER_READ_FAILED", error.message);
+    if (!data) throw new ApiError(404, "USER_NOT_FOUND", "That user does not exist.");
+
+    // If researcher, also get their profile
+    let researcherProfile = null;
+    if (data.role === "researcher") {
+      const { data: profile } = await admin
+        .from("researcher_profiles")
+        .select("bio, institution, rating, verified, verification_level, subscription_tier, subscription_expires_at")
+        .eq("user_id", data.id)
+        .maybeSingle();
+      researcherProfile = profile;
+    }
+
+    // If respondent, get their verification tier details
+    let respondentProfile = null;
+    if (data.role === "respondent") {
+      const { data: profile } = await admin
+        .from("respondent_profiles")
+        .select("university, department, year, age, employer, updated_at")
+        .eq("user_id", data.id)
+        .maybeSingle();
+      respondentProfile = profile;
+    }
+
+    res.json({
+      ...data,
+      researcher_profile: researcherProfile,
+      respondent_profile: respondentProfile,
     });
   }),
 );

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Router } from "express";
 import {
+  aiDraftRequestSchema,
   chatTurnSchema,
   finalDraftSchema,
   improveQuestionSchema,
@@ -23,10 +24,15 @@ import { scoreResponse } from "@shared/fraud/score.js";
 import { buildSupabaseMatchFilters, type MatchFilters } from "@shared/matching/buildQuery.js";
 import { env, fraudThresholds } from "../env.js";
 import { translateText } from "../lib/ai/addisai.js";
-import { improveQuestion, rephraseQuestion, summarizeAnalytics } from "../lib/ai/features.js";
+import {
+  generateSurveyDraft,
+  improveQuestion,
+  rephraseQuestion,
+  summarizeAnalytics,
+} from "../lib/ai/features.js";
 import { claudeConversation, MODELS } from "../lib/ai/index.js";
 import { chatModeSystem } from "../lib/ai/prompts.js";
-import { auth, requireAuth } from "../lib/auth.js";
+import { auth, requireAuth, checkFreeTierSurveyLimit, checkFreeTierResponseLimit } from "../lib/auth.js";
 import { recordConsentEvent } from "../lib/consent.js";
 import { ApiError, asyncRoute, parseBody, routeParam } from "../lib/http.js";
 import { rateLimit } from "../lib/rateLimit.js";
@@ -90,6 +96,9 @@ surveysRouter.post(
     }
     const client = userClient(context.accessToken);
 
+    // Free-tier enforcement: cap active survey count
+    await checkFreeTierSurveyLimit(context.userId, context.subscriptionTier);
+
     const { data, error } = await client
       .from("surveys")
       .insert({
@@ -104,6 +113,22 @@ surveysRouter.post(
 
     if (error) throw new ApiError(500, "SURVEY_CREATE_FAILED", error.message);
     res.status(201).json(data);
+  }),
+);
+
+surveysRouter.post(
+  "/draft-ai",
+  requireAuth("researcher"),
+  rateLimit({ key: "ai-draft", max: 5, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const { topic } = parseBody(aiDraftRequestSchema, req.body);
+    
+    const draft = await generateSurveyDraft(topic);
+    if (!draft) {
+      throw new ApiError(503, "AI_DRAFT_FAILED", "Failed to generate survey draft from AI.");
+    }
+    
+    res.json(draft);
   }),
 );
 
@@ -344,6 +369,9 @@ surveysRouter.post(
     const context = auth(req);
     const input = parseBody(sendRequestSchema, req.body);
     const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
+
+    // Free-tier enforcement: cap responses per survey
+    await checkFreeTierResponseLimit(survey.id, context.subscriptionTier);
 
     // Idempotency: a survey that has already been sent is not re-notified (§8.3).
     if (survey.status === "active" || survey.status === "closed") {
@@ -732,12 +760,13 @@ surveysRouter.get(
     const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
     const includeFlagged = req.query.include_flagged === "true";
 
-    const [{ data: responses, error }, { count: targetedCount }] = await Promise.all([
+    const [{ data: responses, error }, { count: targetedCount }, { data: profile }] = await Promise.all([
       admin.from("survey_responses").select("answers, fraud_flag").eq("survey_id", survey.id),
       admin
         .from("survey_targets")
         .select("survey_id", { count: "exact", head: true })
         .eq("survey_id", survey.id),
+      admin.from("researcher_profiles").select("subscription_tier").eq("user_id", context.userId).maybeSingle(),
     ]);
 
     if (error) throw new ApiError(500, "ANALYTICS_FAILED", error.message);
@@ -753,7 +782,8 @@ surveysRouter.get(
     );
 
     // Only aggregates reach the model — never raw answers or anything identifying.
-    const aiSummary = shouldGenerateSummary(aggregates.response_count)
+    const isSubscribed = profile?.subscription_tier === "subscribed";
+    const aiSummary = isSubscribed && shouldGenerateSummary(aggregates.response_count)
       ? await summarizeAnalytics({
           title: survey.title,
           response_count: aggregates.response_count,

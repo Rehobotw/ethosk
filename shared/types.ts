@@ -1,6 +1,6 @@
 /** Domain enums mirrored from the Postgres schema in supabase/migrations/0001_init.sql. */
 
-export const USER_ROLES = ["respondent", "researcher", "admin"] as const;
+export const USER_ROLES = ["respondent", "researcher", "admin", "super_admin"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const VERIFICATION_TIERS = [
@@ -212,6 +212,32 @@ export interface SurveyRecord {
   sent_at: string | null;
 }
 
+export interface ResearcherProfileRecord {
+  user_id: string;
+  bio: string | null;
+  dob: string | null;
+  phone: string | null;
+  phone_verified: boolean;
+  institutional_email: string | null;
+  institutional_email_verified: boolean;
+  researcher_type: string | null;
+  years_experience: number | null;
+  onboarding_completed: boolean;
+  institution: string | null;
+  social_links: Record<string, string>;
+  past_studies: Array<unknown>;
+  rating: number | null;
+  /** 
+   * @deprecated Kept for backwards-compatibility; use `verification_level` instead.
+   */
+  verified: boolean;
+  verification_level: import("./permissions.js").ResearcherVerificationLevel;
+  verification_status: ResearcherVerificationStatus;
+  verification_notes: string | null;
+  subscription_tier: import("./permissions.js").SubscriptionTier;
+  subscription_expires_at: string | null;
+}
+
 export interface RespondentProfileRecord {
   user_id: string;
   university: string | null;
@@ -241,6 +267,8 @@ export interface ResearcherWallet {
   reserved_etb: number;
   /** Already credited to respondents. */
   paid_etb: number;
+  /** Platform fees paid (e.g. subscriptions). */
+  fees_etb: number;
   /** What is left to fund a new study with. */
   available_etb: number;
 }
@@ -280,8 +308,23 @@ export interface UserRecord {
   email: string;
   email_verified?: boolean;
   verification_tier: VerificationTier;
+  /** Researcher-specific: whether their identity has been verified via Fayda. */
+  researcher_verification_level?: import("./permissions.js").ResearcherVerificationLevel;
+  /** Researcher-specific: approval queue status. */
+  researcher_verification_status?: ResearcherVerificationStatus;
+  /** Researcher-specific: free or subscribed. */
+  subscription_tier?: import("./permissions.js").SubscriptionTier;
   created_at: string;
 }
+
+// ---------------------------------------------------------------------------
+// Researcher verification & subscription (re-exported from permissions for
+// convenience, but the canonical definition lives in shared/permissions.ts)
+// ---------------------------------------------------------------------------
+
+export type ResearcherVerificationStatus = "unrequested" | "pending" | "approved" | "rejected";
+
+export type { ResearcherVerificationLevel, SubscriptionTier } from "./permissions.js";
 
 export interface SurveyResponseRecord {
   id: string;

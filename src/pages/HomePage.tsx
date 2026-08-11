@@ -1,545 +1,209 @@
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { VERIFICATION_TIERS, type VerificationTier } from "@shared/types";
-import { Button, Icon } from "@/components/ui";
-import { useLanguage } from "@/lib/language";
 
 export function HomePage() {
-  return (
-    <>
-      <Hero />
-      <HowItWorks />
-      <Capabilities />
-      <VerificationLadder />
-      <Audiences />
-      <ClosingCta />
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Hero
-// ---------------------------------------------------------------------------
-
-function Hero() {
-  const { t } = useLanguage();
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("active");
+          }
+        });
+      },
+      { threshold: 0.1, rootMargin: "0px 0px -50px 0px" },
+    );
+    document.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <section className="relative overflow-hidden bg-primary text-on-primary">
-      <div aria-hidden="true" className="hero-glow absolute inset-0" />
-
-      <div className="relative mx-auto grid max-w-container-max items-center gap-stack-lg px-margin-mobile py-20 md:px-gutter md:py-28 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
-        <div className="animate-fade-up">
-          <span className="inline-flex items-center gap-2 rounded-full border border-primary-fixed-dim/30 bg-primary-fixed/10 px-3 py-1 font-label-caps text-label-caps uppercase text-primary-fixed-dim">
-            <Icon className="text-[14px]" filled name="verified_user" />
-            {t("hero.badge_fayda")}
-          </span>
-
-          <h1 className="mt-stack-md font-display-lg-mobile text-display-lg-mobile text-on-primary md:font-display-xl md:text-display-xl">
-            {t("hero.title_main")}
-          </h1>
-
-          <p className="mt-stack-md max-w-xl font-body-md text-body-md text-primary-fixed-dim">
-            {t("hero.subtitle")}
-          </p>
-
-          <div className="mt-stack-lg flex flex-wrap items-center gap-stack-sm">
-            <Link to="/signup?role=researcher">
-              <Button
-                className="bg-surface-container-lowest px-5 py-3 text-primary shadow-lifted hover:bg-primary-fixed"
-                icon="arrow_forward"
-              >
-                {t("hero.cta_start")}
-              </Button>
-            </Link>
-            <Link to="/learn/respondents">
-              <Button
-                className="border border-primary-fixed-dim/40 px-5 py-3 text-primary-fixed-dim hover:border-primary-fixed-dim hover:bg-primary-fixed/10 hover:text-primary-fixed"
-                variant="ghost"
-              >
-                {t("hero.cta_join")}
-              </Button>
-            </Link>
-          </div>
-
-          <ul className="mt-stack-lg flex flex-wrap gap-x-6 gap-y-stack-sm border-t border-primary-fixed-dim/20 pt-stack-md">
-            {[
-              { icon: "fingerprint", label: t("hero.feature_one") },
-              { icon: "translate", label: t("hero.feature_two") },
-              { icon: "shield", label: t("hero.feature_three") },
-            ].map((item) => (
-              <li
-                className="flex items-center gap-2 font-body-sm text-body-sm text-primary-fixed-dim"
-                key={item.label}
-              >
-                <Icon className="text-[18px] text-primary-fixed" name={item.icon} />
-                {item.label}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="animate-fade-up [animation-delay:120ms] lg:justify-self-end">
-          <AudiencePreview />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/**
- * A still of the audience builder, which is the product's signature moment.
- *
- * Shows the real interface rather than an abstract diagram, and carries a
- * "Preview" chip so the sample count is never mistaken for a claim about the
- * current size of the panel.
- */
-function AudiencePreview() {
-  const { t } = useLanguage();
-
-  const filters = [
-    { label: t("audience_preview.university"), value: "Hawassa University" },
-    { label: t("audience_preview.department"), value: "Sociology" },
-    { label: t("audience_preview.academic_year"), value: "Year 3" },
-    { label: t("audience_preview.minimum_tier"), value: "Tier 2 · Attribute verified" },
-  ];
-
-  return (
-    <div className="w-full max-w-md rounded-4xl border border-primary-fixed-dim/25 bg-primary-container/70 p-2 shadow-lifted backdrop-blur-sm">
-      <div className="rounded-3xl bg-surface-container-lowest p-stack-md">
-        <div className="flex items-center justify-between">
-          <span className="font-title-sm text-title-sm text-on-surface">
-            {t("audience_preview.title")}
-          </span>
-          <span className="rounded-full bg-surface-container-high px-2 py-1 font-label-caps text-[10px] uppercase text-on-surface-variant">
-            {t("audience_preview.preview_badge")}
-          </span>
-        </div>
-
-        <dl className="mt-stack-md space-y-stack-sm">
-          {filters.map((filter) => (
-            <div
-              className="flex items-center justify-between gap-stack-sm rounded-xl border border-outline-variant bg-surface-container-low px-3 py-2"
-              key={filter.label}
-            >
-              <dt className="font-label-caps text-[10px] uppercase text-on-surface-variant">
-                {filter.label}
-              </dt>
-              <dd className="truncate font-body-sm text-body-sm font-semibold text-on-surface">
-                {filter.value}
-              </dd>
+    <div className="w-full">
+      {/* Hero Section */}
+      <section className="pt-40 pb-24 px-6 md:px-12 w-full relative overflow-hidden">
+        <div className="absolute inset-0 bg-primary-fixed/30 blur-[150px] rounded-full z-[-1]" />
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
+          {/* Left Side */}
+          <div className="flex-1 flex flex-col gap-6 reveal active">
+            <h1 className="text-6xl md:text-7xl lg:text-[5.5rem] font-display-lg text-primary leading-[1.05]">
+              Verified<br />Survey<br />Platforms
+            </h1>
+            <p className="text-xl text-on-surface-variant max-w-xl mt-2 leading-relaxed font-body-lg">Run trusted research with verified Ethiopian respondents</p>
+            <div className="flex flex-wrap gap-4 pt-6">
+              <Link to="/signup?role=researcher">
+                <button className="magnetic-btn primary-gradient-btn px-8 py-4 rounded-xl font-body-lg flex items-center justify-between gap-6 shadow-xl hover:shadow-2xl transition-all min-w-[220px] hover:-translate-y-1 active:scale-95" type="button">
+                  <span className="flex flex-col items-start text-left leading-tight"><span className="text-lg text-white">Start Survey</span></span>
+                  <span className="material-symbols-outlined text-xl bg-white/20 p-2 rounded-full text-white">arrow_forward</span>
+                </button>
+              </Link>
+              <Link to="/signup?role=respondent">
+                <button className="magnetic-btn glass-silk text-primary px-8 py-4 rounded-xl font-body-lg transition-all min-w-[220px] text-center leading-tight hover:-translate-y-1 active:scale-95" type="button">Start Response</button>
+              </Link>
             </div>
-          ))}
-        </dl>
-
-        <div className="mt-stack-md rounded-2xl bg-primary p-stack-md text-on-primary">
-          <div className="flex items-baseline gap-2">
-            <span className="font-display-lg text-display-lg leading-none">342</span>
-            <span className="font-body-sm text-body-sm text-primary-fixed-dim">
-              {t("audience_preview.matched_label")}
-            </span>
           </div>
-          <p className="mt-2 flex items-center gap-2 font-body-sm text-[13px] text-primary-fixed-dim">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-status-passed opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-status-passed" />
-            </span>
-            {t("audience_preview.updates_hint")}
-          </p>
+          {/* Right Side: AI Quality Monitor */}
+          <div className="flex-1 w-full max-w-2xl relative reveal delay-200 active">
+            <div className="absolute inset-0 bg-inverse-primary/30 blur-[120px] rounded-full z-[-1]" />
+            <div className="glass-silk rounded-2xl overflow-hidden w-full aspect-[4/3] flex items-center justify-center relative z-0 border-white/60">
+              <img alt="Premium abstract data flow visualization" className="w-full h-full object-cover opacity-90 hover:opacity-100 transition-opacity duration-700 mix-blend-multiply" src="/hero_cards.png" />
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  );
-}
+      </section>
 
-// ---------------------------------------------------------------------------
-// How it works
-// ---------------------------------------------------------------------------
-
-function HowItWorks() {
-  const { t } = useLanguage();
-
-  const steps = [
-    {
-      icon: "tune",
-      title: t("how_it_works.step1_title"),
-      body: t("how_it_works.step1_body"),
-    },
-    {
-      icon: "send",
-      title: t("how_it_works.step2_title"),
-      body: t("how_it_works.step2_body"),
-    },
-    {
-      icon: "insights",
-      title: t("how_it_works.step3_title"),
-      body: t("how_it_works.step3_body"),
-    },
-  ];
-
-  return (
-    <section className="relative bg-surface px-margin-mobile py-20 md:px-gutter md:py-24" id="how">
-      <div aria-hidden="true" className="dot-grid fade-bottom absolute inset-0 opacity-60" />
-
-      <div className="relative mx-auto max-w-container-max">
-        <SectionIntro
-          eyebrow={t("how_it_works.eyebrow")}
-          title={t("how_it_works.title")}
-        />
-
-        <ol className="mt-stack-lg grid gap-stack-md md:grid-cols-3">
-          {steps.map((step, index) => (
-            <li
-              className="group relative rounded-3xl border border-outline-variant bg-surface-container-lowest p-stack-lg shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-card"
-              key={step.title}
-            >
-              <div className="flex items-center justify-between">
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-on-primary">
-                  <Icon className="text-[22px]" name={step.icon} />
-                </span>
-                <span className="font-label-caps text-label-caps text-outline">
-                  0{index + 1}
-                </span>
+      {/* Three Steps */}
+      <section className="py-24 px-6 md:px-12 max-w-7xl mx-auto flex flex-col items-center relative" id="how">
+        <div className="absolute inset-0 bg-primary-fixed/20 blur-[150px] rounded-full z-[-1] opacity-60" />
+        <div className="text-center mb-16 reveal active">
+          <span className="text-xs font-label-caps text-surface-tint mb-4 block bg-white/60 backdrop-blur-xl border border-white/40 w-max mx-auto px-4 py-1.5 rounded-full shadow-sm">HOW IT WORKS</span>
+          <h2 className="text-4xl md:text-5xl font-headline-lg text-primary">Three steps from question to defensible data</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full">
+          {/* Step 1 */}
+          <div className="glass-silk rounded-2xl p-8 flex flex-col gap-6 reveal delay-100 active">
+            <div className="flex justify-between items-start mb-2">
+              <div className="w-12 h-12 rounded-xl bg-white/80 backdrop-blur-xl text-surface-tint flex items-center justify-center shadow-sm border border-white/60">
+                <span className="material-symbols-outlined text-xl font-bold">tune</span>
               </div>
-              <h3 className="mt-stack-md font-title-sm text-title-sm text-on-surface">
-                {step.title}
-              </h3>
-              <p className="mt-2 font-body-sm text-body-sm text-on-surface-variant">{step.body}</p>
-            </li>
-          ))}
-        </ol>
-      </div>
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Capabilities
-// ---------------------------------------------------------------------------
-
-function Capabilities() {
-  const { t } = useLanguage();
-
-  return (
-    <section
-      className="border-y border-outline-variant bg-surface-container-low px-margin-mobile py-20 md:px-gutter md:py-24"
-      id="product"
-    >
-      <div className="mx-auto max-w-container-max">
-        <SectionIntro
-          eyebrow={t("capabilities.eyebrow")}
-          title={t("capabilities.title")}
-          subtitle={t("capabilities.subtitle")}
-        />
-
-        <div className="mt-stack-lg grid gap-stack-md lg:grid-cols-3">
-          <article className="flex flex-col justify-between rounded-3xl border border-outline-variant bg-surface-container-lowest p-stack-lg shadow-soft lg:col-span-2">
-            <div>
-              <h3 className="font-headline-md text-headline-md text-on-surface">
-                {t("capabilities.card1_title")}
-              </h3>
-              <p className="mt-stack-sm max-w-xl font-body-md text-body-md text-on-surface-variant">
-                {t("capabilities.card1_body")}
-              </p>
+              <span className="text-primary/20 font-display-lg text-4xl">01</span>
             </div>
-
-            <ul className="mt-stack-lg grid gap-stack-sm sm:grid-cols-2">
-              {[
-                { icon: "timer", label: t("capabilities.signal_time") },
-                { icon: "linear_scale", label: t("capabilities.signal_straightline") },
-                { icon: "keyboard", label: t("capabilities.signal_typing") },
-                { icon: "psychology_alt", label: t("capabilities.signal_consistency") },
-              ].map((signal) => (
-                <li
-                  className="flex items-center gap-stack-sm rounded-2xl bg-surface-container-low px-3 py-2 font-body-sm text-body-sm text-on-surface"
-                  key={signal.icon}
-                >
-                  <Icon className="text-[18px] text-primary" name={signal.icon} />
-                  {signal.label}
-                </li>
-              ))}
-            </ul>
-          </article>
-
-          <div className="grid gap-stack-md">
-            <CapabilityCard
-              body={t("capabilities.fayda_body")}
-              icon="fingerprint"
-              title={t("capabilities.fayda_title")}
-            />
-            <CapabilityCard
-              body={t("capabilities.data_rights_body")}
-              icon="policy"
-              title={t("capabilities.data_rights_title")}
-            />
+            <h3 className="font-title-md text-primary">Describe your sample</h3>
+            <p className="font-body-md text-on-surface-variant">Set the demographics your study needs. The matched count updates live, and warns you before you send into a sample too small to support a finding.</p>
+          </div>
+          {/* Step 2 */}
+          <div className="glass-silk rounded-2xl p-8 flex flex-col gap-6 reveal delay-200 active">
+            <div className="flex justify-between items-start mb-2">
+              <div className="w-12 h-12 rounded-xl bg-white/80 backdrop-blur-xl text-surface-tint flex items-center justify-center shadow-sm border border-white/60">
+                <span className="material-symbols-outlined text-xl pl-0.5 font-bold">send</span>
+              </div>
+              <span className="text-primary/20 font-display-lg text-4xl">02</span>
+            </div>
+            <h3 className="font-title-md text-primary">Send to matched respondents</h3>
+            <p className="font-body-md text-on-surface-variant">Only respondents who actually meet your filters are invited. Write in English and localise to Amharic or Afan Oromo in a click.</p>
+          </div>
+          {/* Step 3 */}
+          <div className="glass-silk rounded-2xl p-8 flex flex-col gap-6 reveal delay-300 active">
+            <div className="flex justify-between items-start mb-2">
+              <div className="w-12 h-12 rounded-xl bg-white/80 backdrop-blur-xl text-surface-tint flex items-center justify-center shadow-sm border border-white/60">
+                <span className="material-symbols-outlined text-xl font-bold">insights</span>
+              </div>
+              <span className="text-primary/20 font-display-lg text-4xl">03</span>
+            </div>
+            <h3 className="font-title-md text-primary">Read results you can defend</h3>
+            <p className="font-body-md text-on-surface-variant">Every response arrives with quality checks already applied, so you can see which ones to trust before you start analysing.</p>
           </div>
         </div>
-      </div>
-    </section>
-  );
-}
+      </section>
 
-function CapabilityCard({
-  icon,
-  title,
-  body,
-}: {
-  icon: string;
-  title: string;
-  body: string;
-}) {
-  return (
-    <article className="rounded-3xl border border-outline-variant bg-surface-container-lowest p-stack-lg shadow-soft transition-colors hover:border-primary/30">
-      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-container text-primary">
-        <Icon className="text-[22px]" filled name={icon} />
-      </span>
-      <h3 className="mt-stack-md font-title-sm text-title-sm text-on-surface">{title}</h3>
-      <p className="mt-2 font-body-sm text-body-sm text-on-surface-variant">{body}</p>
-    </article>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Verification ladder
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Verification ladder
-// ---------------------------------------------------------------------------
-
-function VerificationLadder() {
-  const { t } = useLanguage();
-
-  const tierDetails: Record<VerificationTier, { title: string; desc: string }> = {
-    "0_registered": {
-      title: t("verification.tier0_title"),
-      desc: t("verification.tier0_desc"),
-    },
-    "1_id_verified": {
-      title: t("verification.tier1_title"),
-      desc: t("verification.tier1_desc"),
-    },
-    "2_attribute_verified": {
-      title: t("verification.tier2_title"),
-      desc: t("verification.tier2_desc"),
-    },
-    "3_institution_attested": {
-      title: t("verification.tier3_title"),
-      desc: t("verification.tier3_desc"),
-    },
-  };
-
-  return (
-    <section
-      className="bg-surface px-margin-mobile py-20 md:px-gutter md:py-24"
-      id="verification"
-    >
-      <div className="mx-auto grid max-w-container-max gap-stack-lg lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-        <div>
-          <SectionIntro
-            align="left"
-            eyebrow={t("verification.eyebrow")}
-            title={t("verification.title")}
-          />
-          <p className="mt-stack-md max-w-lg font-body-md text-body-md text-on-surface-variant">
-            {t("verification.subtitle")}
-          </p>
-          <Link className="mt-stack-md inline-block" to="/learn/researchers">
-            <Button icon="arrow_forward" variant="outline">
-              {t("verification.cta_how")}
-            </Button>
-          </Link>
-        </div>
-
-        <ol className="relative space-y-stack-sm">
-          {VERIFICATION_TIERS.map((tier, index) => (
-            <li
-              className="flex items-start gap-stack-md rounded-3xl border border-outline-variant bg-surface-container-lowest p-stack-md shadow-soft transition-all duration-300 hover:border-primary/30 hover:shadow-card"
-              key={tier}
-            >
-              <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-container font-label-caps text-label-caps text-primary">
-                {index}
-              </span>
+      {/* Response Quality */}
+      <section className="py-24 px-6 md:px-12 w-full relative" id="product">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary-fixed/30 to-transparent z-[-1]" />
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16 reveal active">
+            <span className="text-xs font-label-caps text-surface-tint mb-4 block bg-white/60 backdrop-blur-xl border border-white/40 w-max mx-auto px-4 py-1.5 rounded-full shadow-sm">BUILT IN</span>
+            <h2 className="text-4xl md:text-5xl font-headline-lg text-primary mb-4">The checks that make a response worth<br />analysing</h2>
+            <p className="text-on-surface-variant max-w-2xl mx-auto font-body-lg">Sampling and quality control are part of the platform, not something you bolt on afterwards.</p>
+          </div>
+          <div className="flex flex-col lg:flex-row gap-8">
+            {/* Main Card */}
+            <div className="flex-[2] glass-silk rounded-2xl p-10 flex flex-col justify-between reveal delay-100 active">
               <div>
-                <p className="font-title-sm text-title-sm text-on-surface">
-                  {tierDetails[tier].title}
-                </p>
-                <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
-                  {tierDetails[tier].desc}
-                </p>
+                <h3 className="text-2xl font-title-md mb-4 text-primary">Response quality, scored deterministically</h3>
+                <p className="text-on-surface-variant font-body-lg max-w-2xl mb-10">Timing, repeated answers, typing behaviour on long text, and a consistency check that quietly re-asks one of your questions in different words. A response is flagged or it is not, and you see the numbers behind the decision.</p>
               </div>
-            </li>
-          ))}
-        </ol>
-      </div>
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Audiences
-// ---------------------------------------------------------------------------
-
-function Audiences() {
-  const { t } = useLanguage();
-
-  return (
-    <section
-      className="border-t border-outline-variant bg-surface-container-low px-margin-mobile py-20 md:px-gutter md:py-24"
-      id="platform"
-    >
-      <div className="mx-auto max-w-container-max">
-        <SectionIntro eyebrow={t("audiences.eyebrow")} title={t("audiences.title")} />
-
-        <div className="mt-stack-lg grid gap-stack-md md:grid-cols-2">
-          <AudienceCard
-            bullets={[
-              t("audiences.researcher_b1"),
-              t("audiences.researcher_b2"),
-              t("audiences.researcher_b3"),
-            ]}
-            body={t("audiences.researcher_body")}
-            cta="/learn/researchers"
-            ctaLabel={t("audiences.researcher_cta")}
-            icon="science"
-            title={t("audiences.researcher_title")}
-          />
-          <AudienceCard
-            bullets={[
-              t("audiences.respondent_b1"),
-              t("audiences.respondent_b2"),
-              t("audiences.respondent_b3"),
-            ]}
-            body={t("audiences.respondent_body")}
-            cta="/learn/respondents"
-            ctaLabel={t("audiences.respondent_cta")}
-            icon="groups"
-            title={t("audiences.respondent_title")}
-          />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function AudienceCard({
-  title,
-  icon,
-  body,
-  bullets,
-  cta,
-  ctaLabel,
-}: {
-  title: string;
-  icon: string;
-  body: string;
-  bullets: string[];
-  cta: string;
-  ctaLabel: string;
-}) {
-  return (
-    <article className="group flex h-full flex-col rounded-4xl border border-outline-variant bg-surface-container-lowest p-stack-lg shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-card">
-      <div className="flex items-center gap-stack-sm">
-        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-on-primary">
-          <Icon className="text-[22px]" filled name={icon} />
-        </span>
-        <h3 className="font-headline-md text-headline-md text-on-surface">{title}</h3>
-      </div>
-
-      <p className="mt-stack-md font-body-md text-body-md text-on-surface-variant">{body}</p>
-
-      <ul className="mt-stack-md flex-1 space-y-stack-sm">
-        {bullets.map((bullet) => (
-          <li
-            className="flex items-start gap-stack-sm font-body-sm text-body-sm text-on-surface"
-            key={bullet}
-          >
-            <Icon className="mt-px text-[18px] text-status-passed" name="check_circle" />
-            {bullet}
-          </li>
-        ))}
-      </ul>
-
-      <Link
-        className="mt-stack-lg inline-flex items-center gap-1 font-title-sm text-body-md font-semibold text-primary"
-        to={cta}
-      >
-        {ctaLabel}
-        <Icon
-          className="text-[18px] transition-transform duration-300 group-hover:translate-x-1"
-          name="arrow_forward"
-        />
-      </Link>
-    </article>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Closing CTA
-// ---------------------------------------------------------------------------
-
-function ClosingCta() {
-  const { t } = useLanguage();
-
-  return (
-    <section className="px-margin-mobile py-20 md:px-gutter md:py-24">
-      <div className="relative mx-auto max-w-container-max overflow-hidden rounded-4xl bg-primary px-stack-lg py-16 text-center text-on-primary shadow-lifted">
-        <div aria-hidden="true" className="hero-glow absolute inset-0" />
-
-        <div className="relative mx-auto max-w-2xl">
-          <h2 className="font-display-lg-mobile text-display-lg-mobile text-on-primary md:font-display-lg md:text-display-lg">
-            {t("closing_cta.title")}
-          </h2>
-          <p className="mt-stack-md font-body-md text-body-md text-primary-fixed-dim">
-            {t("closing_cta.subtitle")}
-          </p>
-          <div className="mt-stack-lg flex flex-wrap justify-center gap-stack-sm">
-            <Link to="/signup">
-              <Button
-                className="bg-surface-container-lowest px-5 py-3 text-primary hover:bg-primary-fixed"
-                icon="arrow_forward"
-              >
-                {t("closing_cta.btn_signup")}
-              </Button>
-            </Link>
-            <Link to="/login">
-              <Button
-                className="border border-primary-fixed-dim/40 px-5 py-3 text-primary-fixed-dim hover:border-primary-fixed-dim hover:bg-primary-fixed/10 hover:text-primary-fixed"
-                variant="ghost"
-              >
-                {t("closing_cta.btn_login")}
-              </Button>
-            </Link>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="glass-pressed rounded-xl px-5 py-4 flex items-center gap-4 text-sm font-body-md text-primary border-white/60">
+                  <div className="w-8 h-8 rounded-lg bg-white/80 flex items-center justify-center border border-white/60 shadow-sm">
+                    <span className="material-symbols-outlined text-surface-tint text-lg font-bold">timer</span>
+                  </div> Time per question
+                </div>
+                <div className="glass-pressed rounded-xl px-5 py-4 flex items-center gap-4 text-sm font-body-md text-primary border-white/60">
+                  <div className="w-8 h-8 rounded-lg bg-white/80 flex items-center justify-center border border-white/60 shadow-sm">
+                    <span className="material-symbols-outlined text-surface-tint text-lg font-bold">straighten</span>
+                  </div> Straight-line detection
+                </div>
+                <div className="glass-pressed rounded-xl px-5 py-4 flex items-center gap-4 text-sm font-body-md text-primary border-white/60">
+                  <div className="w-8 h-8 rounded-lg bg-white/80 flex items-center justify-center border border-white/60 shadow-sm">
+                    <span className="material-symbols-outlined text-surface-tint text-lg font-bold">keyboard</span>
+                  </div> Typing and paste checks
+                </div>
+                <div className="glass-pressed rounded-xl px-5 py-4 flex items-center gap-4 text-sm font-body-md text-primary border-white/60">
+                  <div className="w-8 h-8 rounded-lg bg-white/80 flex items-center justify-center border border-white/60 shadow-sm">
+                    <span className="material-symbols-outlined text-surface-tint text-lg font-bold">find_replace</span>
+                  </div> Reworded consistency check
+                </div>
+              </div>
+            </div>
+            {/* Side Cards */}
+            <div className="flex-1 flex flex-col gap-8">
+              <div className="glass-silk rounded-2xl p-8 reveal delay-200 h-full flex flex-col active">
+                <div className="w-12 h-12 rounded-xl bg-white/80 backdrop-blur-xl flex items-center justify-center mb-5 text-surface-tint border border-white/60 shadow-sm">
+                  <span className="material-symbols-outlined text-xl font-bold">fingerprint</span>
+                </div>
+                <h4 className="font-title-md mb-3 text-primary">Verified once, not repeatedly</h4>
+                <p className="font-body-md text-on-surface-variant">Identity is confirmed against Fayda, Ethiopia&rsquo;s national digital ID, so the same person cannot hold two accounts. We store a hash, never the number.</p>
+              </div>
+              <div className="glass-silk rounded-2xl p-8 reveal delay-300 h-full flex flex-col active">
+                <div className="w-12 h-12 rounded-xl bg-white/80 backdrop-blur-xl flex items-center justify-center mb-5 text-surface-tint border border-white/60 shadow-sm">
+                  <span className="material-symbols-outlined text-xl font-bold">security</span>
+                </div>
+                <h4 className="font-title-md mb-3 text-primary">Data rights built in</h4>
+                <p className="font-body-md text-on-surface-variant">Consent is recorded per event, respondents see what was logged, and access to personal data is enforced at the row level.</p>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
-  );
-}
+      </section>
 
-// ---------------------------------------------------------------------------
-// Shared
-// ---------------------------------------------------------------------------
+      {/* Verification Tiers */}
+      <section className="py-24 px-6 md:px-12 max-w-7xl mx-auto" id="verification">
+        <div className="flex flex-col lg:flex-row gap-16 items-center">
+          <div className="flex-1 reveal active">
+            <span className="text-xs font-label-caps text-surface-tint mb-4 block bg-white/60 backdrop-blur-xl border border-white/40 w-max px-4 py-1.5 rounded-full shadow-sm">VERIFICATION</span>
+            <h2 className="text-4xl md:text-5xl font-headline-lg text-primary mb-6">You choose how much proof your study needs</h2>
+            <p className="text-on-surface-variant font-body-lg mb-8">Each tier is a stronger claim about a respondent than the one below it, and you set the minimum when you build your audience. Raising it narrows the pool, which the matched count shows you immediately.</p>
+            <Link to="/learn/researchers">
+              <button className="magnetic-btn glass-silk text-primary px-8 py-4 rounded-xl font-body-lg transition-all min-w-[220px] text-center leading-tight hover:-translate-y-1 active:scale-95 border-white/60" type="button">
+                <span className="material-symbols-outlined text-base font-bold align-middle mr-1 text-surface-tint">arrow_forward</span> How verification works
+              </button>
+            </Link>
+          </div>
+          <div className="flex-1 flex flex-col gap-6 w-full reveal delay-200 active">
+            <div className="glass-silk rounded-2xl p-6 flex gap-5 items-start">
+              <div className="w-12 h-12 rounded-xl bg-white/80 backdrop-blur-xl border border-white/60 text-primary flex items-center justify-center text-lg font-title-md shrink-0 shadow-sm">0</div>
+              <div>
+                <h4 className="font-title-md text-primary mb-1">Tier 0: Registered &amp; ID Verified</h4>
+                <p className="font-body-md text-on-surface-variant">Email address and Fayda ID confirmed. One person holds one account, ensuring unique and reachable respondents.</p>
+              </div>
+            </div>
+            <div className="glass-silk rounded-2xl p-6 flex gap-5 items-start relative overflow-hidden">
+              <div className="w-12 h-12 rounded-xl primary-gradient-btn text-white flex items-center justify-center text-lg font-title-md shrink-0 shadow-md border border-white/40">1</div>
+              <div>
+                <h4 className="font-title-md text-primary mb-1">Tier 1: Attribute &amp; Institution Verified</h4>
+                <p className="font-body-md text-on-surface-variant">A document or registrar backs up the claimed institution or employer, providing the highest level of professional certainty.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-function SectionIntro({
-  eyebrow,
-  title,
-  subtitle,
-  align = "center",
-}: {
-  eyebrow: string;
-  title: string;
-  subtitle?: string;
-  align?: "center" | "left";
-}) {
-  const centered = align === "center";
-
-  return (
-    <div className={centered ? "mx-auto max-w-2xl text-center" : ""}>
-      <span className="font-label-caps text-label-caps uppercase text-primary">{eyebrow}</span>
-      <h2 className="mt-2 font-headline-lg text-headline-lg text-on-surface">{title}</h2>
-      {subtitle ? (
-        <p className="mt-stack-sm font-body-md text-body-md text-on-surface-variant">{subtitle}</p>
-      ) : null}
+      {/* CTA Section */}
+      <section className="py-24 px-6 md:px-12 max-w-7xl mx-auto w-full reveal active">
+        <div className="glass-silk rounded-2xl p-16 text-center text-primary shadow-xl flex flex-col items-center border border-white/60 relative overflow-hidden">
+          <div className="absolute inset-0 bg-primary-fixed/40 blur-[120px] rounded-full z-[0]" />
+          <div className="relative z-10 w-full flex flex-col items-center">
+            <h2 className="text-4xl md:text-5xl font-headline-lg mb-4 text-primary">Start with a sample you can trust</h2>
+            <p className="text-on-surface-variant max-w-xl mx-auto mb-10 font-body-lg">Create an account and build your first audience. You will see the matched count before you spend anything.</p>
+            <div className="flex items-center gap-6">
+              <Link to="/signup">
+                <button className="primary-gradient-btn px-8 py-3.5 rounded-full font-body-lg flex items-center gap-2 shadow-md transform hover:-translate-y-0.5 text-sm magnetic-btn" type="button">
+                  <span className="material-symbols-outlined text-lg font-bold text-white">add</span> <span className="text-white">Create an account</span>
+                </button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

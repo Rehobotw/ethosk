@@ -113,6 +113,57 @@ walletRouter.post(
 );
 
 // ---------------------------------------------------------------------------
+// Researcher: purchase subscription
+// ---------------------------------------------------------------------------
+
+walletRouter.post(
+  "/researcher/subscription",
+  requireAuth("researcher"),
+  rateLimit({ key: "subscription", max: 5, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const amount = 500; // 500 ETB for monthly subscription
+
+    const wallet = await readResearcherWallet(context.userId);
+    if (wallet.available_etb < amount) {
+      throw new ApiError(
+        402,
+        "INSUFFICIENT_FUNDS",
+        "You do not have enough available balance to purchase a subscription.",
+      );
+    }
+
+    // 1. Charge the wallet
+    const { error: chargeError } = await admin.from("researcher_charges").insert({
+      researcher_id: context.userId,
+      amount_etb: amount,
+      reason: "monthly_subscription",
+    });
+
+    if (chargeError) throw new ApiError(500, "CHARGE_FAILED", chargeError.message);
+
+    // 2. Update profile
+    const expiresAt = new Date();
+    expiresAt.setMonth(expiresAt.getMonth() + 1);
+
+    const { data: profile, error: profileError } = await admin
+      .from("researcher_profiles")
+      .update({
+        subscription_tier: "subscribed",
+        subscription_expires_at: expiresAt.toISOString(),
+      })
+      .eq("user_id", context.userId)
+      .select("subscription_tier, subscription_expires_at")
+      .single();
+
+    if (profileError) throw new ApiError(500, "PROFILE_UPDATE_FAILED", profileError.message);
+
+    const updatedWallet = await readResearcherWallet(context.userId);
+    res.json({ profile, wallet: updatedWallet });
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // Researcher: deposit by telebirr
 //
 // Three steps, deliberately separate. The researcher asks for a checkout, pays at
