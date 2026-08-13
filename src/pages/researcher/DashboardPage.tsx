@@ -22,7 +22,6 @@ import {
   EmptyState,
   Icon,
   LoadingBlock,
-  Modal,
   Notice,
   SectionHeading,
   StatBlock,
@@ -30,6 +29,7 @@ import {
 import { api, getToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useLanguage } from "@/lib/language";
+import { ExportGateModal } from "@/components/researcher/ExportGateModal";
 
 interface SurveyWithStats extends SurveyRecord {
   response_count: number;
@@ -427,62 +427,12 @@ export function DashboardPage() {
       ) : null}
 
       {/* Upgrade & Verification Gate Modal */}
-      <Modal
-        isOpen={exportModalOpen}
+      <ExportGateModal
+        open={exportModalOpen}
         onClose={() => setExportModalOpen(false)}
-        title="Raw Data Export Requirements"
-      >
-        <div className="space-y-4 text-sm text-on-surface-variant">
-          <p>
-            Per Ethiosk access rules, downloading raw survey datasets (<code className="rounded bg-surface-container-high px-1 text-xs">.csv</code> / <code className="rounded bg-surface-container-high px-1 text-xs">.xlsx</code>) requires both an <strong>ID-verified account</strong> and an <strong>active Pro Subscription</strong>.
-          </p>
-
-          <div className="space-y-2 rounded-lg border border-outline-variant bg-surface-container-low p-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="flex items-center gap-1.5">
-                <Icon
-                  className={verificationLevel === "id_verified" ? "text-status-passed" : "text-error"}
-                  name={verificationLevel === "id_verified" ? "check_circle" : "cancel"}
-                />
-                Identity Verification
-              </span>
-              <span className="font-semibold text-on-surface">
-                {verificationLevel === "id_verified" ? "Verified" : "Pending"}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-xs">
-              <span className="flex items-center gap-1.5">
-                <Icon
-                  className={subscriptionTier === "subscribed" ? "text-status-passed" : "text-error"}
-                  name={subscriptionTier === "subscribed" ? "check_circle" : "cancel"}
-                />
-                Pro Subscription
-              </span>
-              <span className="font-semibold text-on-surface">
-                {subscriptionTier === "subscribed" ? "Subscribed" : "Free Plan"}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            {verificationLevel !== "id_verified" && (
-              <Link className="flex-1" to="/researcher/profile">
-                <Button className="w-full text-xs" icon="shield" variant="outline">
-                  Verify Identity
-                </Button>
-              </Link>
-            )}
-            {subscriptionTier !== "subscribed" && (
-              <Link className="flex-1" to="/researcher/subscription">
-                <Button className="w-full text-xs" icon="workspace_premium">
-                  Upgrade Plan
-                </Button>
-              </Link>
-            )}
-          </div>
-        </div>
-      </Modal>
+        verificationLevel={verificationLevel}
+        subscriptionTier={subscriptionTier}
+      />
     </div>
   );
 }

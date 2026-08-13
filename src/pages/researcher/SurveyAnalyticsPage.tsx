@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import type { FraudFlag, FraudSignals, Question } from "@shared/types";
+import { canResearcherExport } from "@shared/permissions";
 import { SIGNAL_LABELS } from "@shared/fraud/score";
 import {
   Button,
@@ -28,8 +29,9 @@ import {
   StatBlock,
   Toggle,
 } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { ExportGateModal } from "@/components/researcher/ExportGateModal";
 
 interface Analytics {
   response_count: number;
@@ -62,8 +64,47 @@ export function SurveyAnalyticsPage() {
   const { id = "" } = useParams();
   const location = useLocation() as { state?: { justSent?: number } };
   const [includeFlagged, setIncludeFlagged] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
-  const isSubscribed = user?.subscription_tier === "subscribed";
+  const verificationLevel = user?.researcher_verification_level ?? "unverified";
+  const subscriptionTier = user?.subscription_tier ?? "free";
+  const isExportAllowed = canResearcherExport(verificationLevel, subscriptionTier);
+  const isSubscribed = subscriptionTier === "subscribed";
+
+  const handleExportClick = async () => {
+    if (!isExportAllowed) {
+      setExportModalOpen(true);
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      const token = getToken();
+      const res = await fetch(`/api/surveys/${id}/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (!res.ok) {
+        setExportModalOpen(true);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `survey_${id}_raw_export.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setExportModalOpen(true);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["analytics", id, includeFlagged],
@@ -100,17 +141,15 @@ export function SurveyAnalyticsPage() {
       <SectionHeading
         actions={
           <div className="flex items-center gap-2">
-            {!isSubscribed ? (
-              <Link to="/researcher/subscription">
-                <Button icon="lock" variant="outline" title="Upgrade to Pro to export data">
-                  Export Data
-                </Button>
-              </Link>
-            ) : (
-              <Button icon="download" variant="outline" onClick={() => alert("Export feature coming soon!")}>
-                Export Data
-              </Button>
-            )}
+            <Button
+              icon={isExportAllowed ? "download" : "lock"}
+              loading={isExporting}
+              onClick={handleExportClick}
+              variant="outline"
+              title={isExportAllowed ? "Download CSV export" : "Requires Pro subscription & ID verification"}
+            >
+              Export Raw CSV
+            </Button>
             <Link to="/researcher">
               <Button icon="arrow_back" variant="outline">
                 Back to Dashboard
@@ -408,6 +447,13 @@ export function SurveyAnalyticsPage() {
           </ul>
         )}
       </Card>
+
+      <ExportGateModal
+        open={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        verificationLevel={verificationLevel}
+        subscriptionTier={subscriptionTier}
+      />
     </div>
   );
 }

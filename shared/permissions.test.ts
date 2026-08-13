@@ -66,6 +66,8 @@ describe("permissions module", () => {
     expect(canResearcherExport("unverified", "subscribed")).toBe(false);
     expect(canResearcherExport("id_verified", "free")).toBe(false);
     expect(canResearcherExport("id_verified", "subscribed")).toBe(true);
+    // Invalid/missing inputs default securely to false
+    expect(canResearcherExport("unverified", undefined as unknown as "free")).toBe(false);
   });
 });
 
