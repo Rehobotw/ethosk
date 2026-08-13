@@ -14,6 +14,7 @@ import {
 } from "@shared/validation/schemas.js";
 import type { Question, SurveyRecord, TargetLanguage } from "@shared/types.js";
 import { canResearcherExport } from "@shared/permissions.js";
+import { generateAnonymizedCsv } from "@shared/analytics/anonymizeExport.js";
 import { aggregateResponses, shouldGenerateSummary } from "@shared/analytics/aggregate.js";
 import {
   buildConsistencyQuestion,
@@ -820,41 +821,37 @@ surveysRouter.get(
 
     const { data: responses, error } = await admin
       .from("survey_responses")
-      .select("id, answers, total_time_seconds, fraud_flag, completed_at")
+      .select("id, respondent_id, answers, total_time_seconds, fraud_flag, completed_at")
       .eq("survey_id", survey.id)
       .order("completed_at", { ascending: false });
 
     if (error) throw new ApiError(500, "RESPONSES_EXPORT_FAILED", error.message);
 
-    // Generate CSV format with PII removed (REH-8 compliance)
-    const headers = [
-      "Response ID",
-      "Completed At",
-      "Time (Seconds)",
-      "Integrity Status",
-      ...survey.questions.map((q, i) => `Q${i + 1}: ${q.text.replace(/"/g, '""')}`),
-    ];
+    const respondentIds = Array.from(
+      new Set((responses ?? []).map((r) => r.respondent_id).filter(Boolean)),
+    );
 
-    const rows = (responses ?? []).map((resp) => {
-      const answersObj = (resp.answers ?? {}) as Record<string, unknown>;
-      const questionAnswers = survey.questions.map((q) => {
-        const val = answersObj[q.id];
-        const strVal = Array.isArray(val) ? val.join("; ") : val != null ? String(val) : "";
-        return `"${strVal.replace(/"/g, '""')}"`;
-      });
+    const { data: profiles } = respondentIds.length > 0
+      ? await admin
+          .from("respondent_profiles")
+          .select("user_id, region, city, age, gender, occupation, education_level, primary_language")
+          .in("user_id", respondentIds)
+      : { data: [] };
 
-      return [
-        resp.id,
-        resp.completed_at ? new Date(resp.completed_at).toISOString() : "",
-        resp.total_time_seconds ?? 0,
-        resp.fraud_flag === "clean" ? "Clean" : "Flagged",
-        ...questionAnswers,
-      ].join(",");
-    });
+    const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
 
-    const csvContent = [`"${headers.join('","')}"`, ...rows].join("\n");
+    const exportItems = (responses ?? []).map((resp) => ({
+      id: resp.id,
+      completed_at: resp.completed_at,
+      total_time_seconds: resp.total_time_seconds,
+      fraud_flag: resp.fraud_flag,
+      answers: (resp.answers ?? {}) as Record<string, unknown>,
+      demographics: profileMap.get(resp.respondent_id) ?? null,
+    }));
 
-    res.setHeader("Content-Type", "text/csv");
+    const csvContent = generateAnonymizedCsv(survey, exportItems);
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="survey_${survey.id}_raw_export.csv"`);
     res.status(200).send(csvContent);
   }),
