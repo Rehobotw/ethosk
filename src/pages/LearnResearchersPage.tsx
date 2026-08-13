@@ -44,7 +44,7 @@ export function LearnResearchersPage() {
       <PageHero
         actions={
           <>
-            <Link to="/signup">
+            <Link to="/signup/researcher">
               <Button
                 className="bg-surface-container-lowest px-5 py-3 text-primary hover:bg-primary-fixed"
                 icon="arrow_forward"

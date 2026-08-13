@@ -89,6 +89,24 @@ describe("Email Auth & Account Deletion Validation Schemas", () => {
     expect(mismatch.success).toBe(false);
   });
 
+  it("validates role-specific signup payloads for researcher and respondent", () => {
+    const researcherSignup = signupSchema.safeParse({
+      full_name: "Dr. Almaz Ayana",
+      email: "almaz@research.et",
+      password: "securePassword123",
+      role: "researcher",
+    });
+    expect(researcherSignup.success).toBe(true);
+
+    const respondentSignup = signupSchema.safeParse({
+      full_name: "Dawit Bekele",
+      email: "dawit@gmail.com",
+      password: "securePassword123",
+      role: "respondent",
+    });
+    expect(respondentSignup.success).toBe(true);
+  });
+
   it("validates account deletion request schema", () => {
     const valid = deleteAccountRequestSchema.safeParse({
       reason: "Moving away from research platform",

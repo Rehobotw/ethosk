@@ -30,13 +30,13 @@ export function HomePage() {
             </h1>
             <p className="text-xl text-on-surface-variant max-w-xl mt-2 leading-relaxed font-body-lg">Run trusted research with verified Ethiopian respondents</p>
             <div className="flex flex-wrap gap-4 pt-6">
-              <Link to="/signup?role=researcher">
+              <Link to="/signup/researcher">
                 <button className="magnetic-btn primary-gradient-btn px-8 py-4 rounded-xl font-body-lg flex items-center justify-between gap-6 shadow-xl hover:shadow-2xl transition-all min-w-[220px] hover:-translate-y-1 active:scale-95" type="button">
                   <span className="flex flex-col items-start text-left leading-tight"><span className="text-lg text-white">Start Survey</span></span>
                   <span className="material-symbols-outlined text-xl bg-white/20 p-2 rounded-full text-white">arrow_forward</span>
                 </button>
               </Link>
-              <Link to="/signup?role=respondent">
+              <Link to="/signup/respondent">
                 <button className="magnetic-btn glass-silk text-primary px-8 py-4 rounded-xl font-body-lg transition-all min-w-[220px] text-center leading-tight hover:-translate-y-1 active:scale-95" type="button">Start Response</button>
               </Link>
             </div>

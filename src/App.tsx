@@ -5,6 +5,7 @@ import { RespondentLayout } from "./components/layout/RespondentLayout";
 import { RequireRole } from "./components/RequireRole";
 import { RequireOnboarding } from "./components/RequireOnboarding";
 import { LoadingBlock } from "./components/ui";
+import { AuthRoleRedirect } from "./pages/auth/AuthRoleRedirect";
 import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { SignupPage } from "./pages/auth/SignupPage";
@@ -83,7 +84,9 @@ export default function App() {
         <Route element={<LearnRespondentsPage />} path="learn/respondents" />
       </Route>
 
-      <Route element={<LoginPage />} path="/login" />
+      <Route element={<LoginPage forcedRole="researcher" />} path="/login/researcher" />
+      <Route element={<LoginPage forcedRole="respondent" />} path="/login/respondent" />
+      <Route element={<AuthRoleRedirect mode="login" />} path="/login" />
       <Route
         element={
           <Suspense fallback={<LoadingBlock />}>
@@ -92,7 +95,9 @@ export default function App() {
         }
         path="/admin/login"
       />
-      <Route element={<SignupPage />} path="/signup" />
+      <Route element={<SignupPage forcedRole="researcher" />} path="/signup/researcher" />
+      <Route element={<SignupPage forcedRole="respondent" />} path="/signup/respondent" />
+      <Route element={<AuthRoleRedirect mode="signup" />} path="/signup" />
       <Route element={<VerifyEmailPage />} path="/verify-email" />
       <Route element={<ForgotPasswordPage />} path="/forgot-password" />
 

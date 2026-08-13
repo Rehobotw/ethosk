@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,15 +11,32 @@ import { useAutofillSafeSubmit } from "@/lib/forms";
 import { useLanguage } from "@/lib/language";
 import { AuthShell, RoleTabs } from "./AuthShell";
 
-export function LoginPage() {
+interface LoginPageProps {
+  forcedRole?: "researcher" | "respondent";
+}
+
+export function LoginPage({ forcedRole }: LoginPageProps) {
   const { login, user, loading, logout } = useAuth();
   const navigate = useNavigate();
   const { t } = useLanguage();
   const [searchParams] = useSearchParams();
-  const requestedRole = (searchParams.get("role") as UserRole) || "researcher";
+  const requestedRole = forcedRole || (searchParams.get("role") as UserRole) || "researcher";
   const [role, setRole] = useState<UserRole>(requestedRole);
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (forcedRole) {
+      setRole(forcedRole);
+      localStorage.setItem("ethosk_last_role", forcedRole);
+    }
+  }, [forcedRole]);
+
+  const handleRoleChange = (newRole: UserRole) => {
+    setRole(newRole);
+    localStorage.setItem("ethosk_last_role", newRole);
+    navigate(`/login/${newRole}`, { replace: true });
+  };
 
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
@@ -37,6 +54,7 @@ export function LoginPage() {
   const onSubmit = async (values: LoginInput) => {
     setFormError(null);
     try {
+      localStorage.setItem("ethosk_last_role", role);
       const session = await login({ ...values, role });
       navigate(homePathForRole(session.role), { replace: true });
     } catch (error) {
@@ -55,6 +73,7 @@ export function LoginPage() {
 
   const handleDemoFill = async (targetRole: UserRole, email: string) => {
     setRole(targetRole);
+    localStorage.setItem("ethosk_last_role", targetRole);
     setValue("email", email);
     setValue("password", "ethosk-demo-2024");
     setFormError(null);
@@ -96,20 +115,45 @@ export function LoginPage() {
     );
   }
 
+  const isResearcher = role === "researcher";
+  const title = isResearcher ? "Researcher Sign In" : "Respondent Sign In";
+  const subtitle = isResearcher
+    ? "Access your dashboard to design, deploy, and analyze Ethiopian audience studies."
+    : "Sign in to take surveys, contribute high-quality data, and earn instant rewards.";
+
   return (
     <AuthShell
       footer={
-        <>
-          Don&rsquo;t have an account?{" "}
-          <Link className="font-semibold text-primary hover:underline" to={`/signup?role=${role}`}>
-            {t("nav.signup")}
-          </Link>
-        </>
+        <div className="space-y-2">
+          <div>
+            Don&rsquo;t have an account?{" "}
+            <Link className="font-semibold text-primary hover:underline" to={`/signup/${role}`}>
+              {t("nav.signup")} ({isResearcher ? "Researcher" : "Respondent"})
+            </Link>
+          </div>
+          <div className="text-xs text-on-surface-variant">
+            {isResearcher ? (
+              <>
+                Looking to participate and earn?{" "}
+                <Link className="font-semibold text-primary hover:underline" to="/login/respondent">
+                  Respondent Sign In
+                </Link>
+              </>
+            ) : (
+              <>
+                Conducting research or surveys?{" "}
+                <Link className="font-semibold text-primary hover:underline" to="/login/researcher">
+                  Researcher Sign In
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
       }
-      subtitle={t("auth.login_subtitle")}
-      title={t("auth.login_title")}
+      subtitle={subtitle}
+      title={title}
     >
-      <RoleTabs onChange={setRole} value={role} />
+      <RoleTabs onChange={handleRoleChange} value={role} />
 
       {/* Quick Demo Login Shortcuts */}
       <div className="mt-5 rounded-xl glass-pressed p-3 text-center">
@@ -118,7 +162,11 @@ export function LoginPage() {
         </p>
         <div className="mt-2 grid grid-cols-2 gap-2">
           <button
-            className="flex flex-col items-center justify-center rounded-xl bg-white/60 backdrop-blur-xl border border-white/40 p-2 text-[11px] font-medium text-on-surface hover:bg-white/80 transition-colors"
+            className={`flex flex-col items-center justify-center rounded-xl p-2 text-[11px] font-medium transition-all ${
+              isResearcher
+                ? "bg-primary-fixed/40 border border-primary text-primary font-bold shadow-sm"
+                : "bg-white/60 backdrop-blur-xl border border-white/40 text-on-surface hover:bg-white/80"
+            }`}
             onClick={() => void handleDemoFill("researcher", "researcher@ethosk.com")}
             type="button"
           >
@@ -127,7 +175,11 @@ export function LoginPage() {
           </button>
 
           <button
-            className="flex flex-col items-center justify-center rounded-xl bg-white/60 backdrop-blur-xl border border-white/40 p-2 text-[11px] font-medium text-on-surface hover:bg-white/80 transition-colors"
+            className={`flex flex-col items-center justify-center rounded-xl p-2 text-[11px] font-medium transition-all ${
+              !isResearcher
+                ? "bg-primary-fixed/40 border border-primary text-primary font-bold shadow-sm"
+                : "bg-white/60 backdrop-blur-xl border border-white/40 text-on-surface hover:bg-white/80"
+            }`}
             onClick={() => void handleDemoFill("respondent", "respondent@ethosk.com")}
             type="button"
           >
@@ -195,7 +247,7 @@ export function LoginPage() {
             <span className="material-symbols-outlined animate-spin text-white text-lg">progress_activity</span>
           ) : null}
           <span className="text-white">
-            {t("nav.login")} ({role === "researcher" ? t("auth.role_researcher") : t("auth.role_respondent")})
+            {t("nav.login")} ({isResearcher ? t("auth.role_researcher") : t("auth.role_respondent")})
           </span>
           <span className="material-symbols-outlined text-lg text-white">arrow_forward</span>
         </button>

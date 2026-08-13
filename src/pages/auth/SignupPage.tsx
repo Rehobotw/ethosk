@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,16 +11,34 @@ import { useAutofillSafeSubmit } from "@/lib/forms";
 import { useLanguage } from "@/lib/language";
 import { AuthShell, RoleTabs } from "./AuthShell";
 
-export function SignupPage() {
+interface SignupPageProps {
+  forcedRole?: "researcher" | "respondent";
+}
+
+export function SignupPage({ forcedRole }: SignupPageProps) {
   const { signup, user, loading, logout } = useAuth();
   const navigate = useNavigate();
   const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const requestedParam = searchParams.get("role") as string;
   const requestedRole: "respondent" | "researcher" =
-    requestedParam === "researcher" ? "researcher" : "respondent";
+    forcedRole || (requestedParam === "researcher" ? "researcher" : "respondent");
   const [role, setRole] = useState<"respondent" | "researcher">(requestedRole);
   const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (forcedRole) {
+      setRole(forcedRole);
+      localStorage.setItem("ethosk_last_role", forcedRole);
+    }
+  }, [forcedRole]);
+
+  const handleRoleChange = (newRole: UserRole) => {
+    const validRole = newRole === "researcher" ? "researcher" : "respondent";
+    setRole(validRole);
+    localStorage.setItem("ethosk_last_role", validRole);
+    navigate(`/signup/${validRole}`, { replace: true });
+  };
 
   const form = useForm<SignupInput>({
     resolver: zodResolver(signupSchema),
@@ -34,6 +52,7 @@ export function SignupPage() {
   const onSubmit = async (values: SignupInput) => {
     setFormError(null);
     try {
+      localStorage.setItem("ethosk_last_role", role);
       const result = await signup({ ...values, role });
       if (result.verification_required) {
         navigate(`/verify-email?email=${encodeURIComponent(result.email)}`);
@@ -79,20 +98,45 @@ export function SignupPage() {
     );
   }
 
+  const isResearcher = role === "researcher";
+  const title = isResearcher ? "Create Researcher Account" : "Create Respondent Account";
+  const subtitle = isResearcher
+    ? "Design verified studies, target tailored demographics, and unlock actionable insights across Ethiopia."
+    : "Join Ethiopia's verified community, share your opinion on important topics, and receive instant payouts.";
+
   return (
     <AuthShell
       footer={
-        <>
-          Already registered?{" "}
-          <Link className="font-semibold text-primary hover:underline" to={`/login?role=${role}`}>
-            {t("nav.login")}
-          </Link>
-        </>
+        <div className="space-y-2">
+          <div>
+            Already registered?{" "}
+            <Link className="font-semibold text-primary hover:underline" to={`/login/${role}`}>
+              {t("nav.login")} ({isResearcher ? "Researcher" : "Respondent"})
+            </Link>
+          </div>
+          <div className="text-xs text-on-surface-variant">
+            {isResearcher ? (
+              <>
+                Looking to participate and earn?{" "}
+                <Link className="font-semibold text-primary hover:underline" to="/signup/respondent">
+                  Sign up as Respondent
+                </Link>
+              </>
+            ) : (
+              <>
+                Conducting research or surveys?{" "}
+                <Link className="font-semibold text-primary hover:underline" to="/signup/researcher">
+                  Sign up as Researcher
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
       }
-      subtitle={t("auth.signup_subtitle")}
-      title={t("auth.signup_title")}
+      subtitle={subtitle}
+      title={title}
     >
-      <RoleTabs onChange={(r) => setRole(r as "respondent" | "researcher")} value={role} />
+      <RoleTabs onChange={handleRoleChange} value={role} />
 
       <form
         className="mt-5 space-y-4"
@@ -134,7 +178,7 @@ export function SignupPage() {
             <span className="material-symbols-outlined animate-spin text-white text-lg">progress_activity</span>
           ) : null}
           <span className="text-white">
-            {t("nav.signup")} ({role === "researcher" ? t("auth.role_researcher") : t("auth.role_respondent")})
+            {t("nav.signup")} ({isResearcher ? t("auth.role_researcher") : t("auth.role_respondent")})
           </span>
           <span className="material-symbols-outlined text-lg text-white">arrow_forward</span>
         </button>
