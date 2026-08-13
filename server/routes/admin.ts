@@ -152,6 +152,104 @@ adminRouter.post(
   }),
 );
 
+const surveyDecisionSchema = z.object({
+  decision: z.enum(["approve", "request_correction", "reject"]),
+  feedback: z.string().trim().max(1000).optional(),
+});
+
+/** Survey Approval Queue: surveys awaiting admin moderation. */
+adminRouter.get(
+  "/survey-queue",
+  requireAuth("admin"),
+  asyncRoute(async (_req, res) => {
+    const { data, error } = await admin
+      .from("surveys")
+      .select("id, researcher_id, title, description, questions, reward_etb, escrow_etb, compliance_required, compliance_document_url, compliance_attested_at, target_filters, created_at, sent_at, users!inner(full_name, email)")
+      .eq("status", "pending_review")
+      .order("sent_at", { ascending: true });
+
+    if (error) throw new ApiError(500, "SURVEY_QUEUE_FAILED", error.message);
+
+    const items = await Promise.all(
+      (data ?? []).map(async (row) => {
+        let signedUrl: string | null = null;
+        if (row.compliance_document_url) {
+          const { data: signed } = await admin.storage
+            .from(env.documentsBucket)
+            .createSignedUrl(row.compliance_document_url as string, 600);
+          signedUrl = signed?.signedUrl ?? null;
+        }
+
+        return {
+          ...row,
+          compliance_document_preview: signedUrl,
+        };
+      }),
+    );
+
+    res.json({ items });
+  }),
+);
+
+adminRouter.post(
+  "/survey-queue/:id",
+  requireAuth("admin"),
+  asyncRoute(async (req, res) => {
+    const input = parseBody(surveyDecisionSchema, req.body);
+    const surveyId = req.params.id;
+
+    const { data: survey, error: readError } = await admin
+      .from("surveys")
+      .select("*")
+      .eq("id", surveyId)
+      .maybeSingle();
+
+    if (readError) throw new ApiError(500, "SURVEY_DECISION_FAILED", readError.message);
+    if (!survey) throw new ApiError(404, "SURVEY_NOT_FOUND", "That survey does not exist.");
+
+    if (input.decision === "approve") {
+      const { error: updateError } = await admin
+        .from("surveys")
+        .update({
+          status: "active",
+          approved_at: new Date().toISOString(),
+          admin_feedback: input.feedback ?? null,
+        })
+        .eq("id", survey.id);
+
+      if (updateError) throw new ApiError(500, "APPROVE_FAILED", updateError.message);
+      return res.json({ id: survey.id, status: "active" });
+    }
+
+    if (input.decision === "request_correction") {
+      const { error: updateError } = await admin
+        .from("surveys")
+        .update({
+          status: "needs_correction",
+          admin_feedback: input.feedback ?? "Please review and correct the indicated items before resubmitting.",
+        })
+        .eq("id", survey.id);
+
+      if (updateError) throw new ApiError(500, "CORRECTION_REQUEST_FAILED", updateError.message);
+      return res.json({ id: survey.id, status: "needs_correction" });
+    }
+
+    if (input.decision === "reject") {
+      const { error: updateError } = await admin
+        .from("surveys")
+        .update({
+          status: "rejected",
+          admin_feedback: input.feedback ?? "Survey submission rejected by administration.",
+          escrow_etb: 0,
+        })
+        .eq("id", survey.id);
+
+      if (updateError) throw new ApiError(500, "REJECT_FAILED", updateError.message);
+      return res.json({ id: survey.id, status: "rejected" });
+    }
+  }),
+);
+
 /** FR-ADM-2 groundwork: erasure requests with a due-by date from the request time. */
 adminRouter.get(
   "/data-requests",

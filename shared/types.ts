@@ -22,7 +22,15 @@ export type DocReviewStatus = (typeof DOC_REVIEW_STATUSES)[number];
 export const FRAUD_FLAGS = ["clean", "flagged"] as const;
 export type FraudFlag = (typeof FRAUD_FLAGS)[number];
 
-export const SURVEY_STATUSES = ["draft", "final_draft", "active", "closed"] as const;
+export const SURVEY_STATUSES = [
+  "draft",
+  "final_draft",
+  "pending_review",
+  "needs_correction",
+  "rejected",
+  "active",
+  "closed",
+] as const;
 export type SurveyStatus = (typeof SURVEY_STATUSES)[number];
 
 export const DOC_TYPES = ["student_id", "degree", "employer_id"] as const;
@@ -212,6 +220,9 @@ export interface SurveyRecord {
   compliance_required: boolean | null;
   compliance_document_url: string | null;
   compliance_attested_at: string | null;
+  /** Admin Review Gate fields (REH-70) */
+  admin_feedback: string | null;
+  approved_at: string | null;
   created_at: string;
   sent_at: string | null;
 }

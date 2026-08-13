@@ -7,6 +7,7 @@ import {
   GENDERS,
   PRIMARY_LANGUAGES,
   QUESTION_TYPES,
+  SURVEY_STATUSES,
   TARGET_LANGUAGES,
   USER_ROLES,
   VERIFICATION_TIERS,
@@ -162,7 +163,7 @@ export const surveySchema = z.object({
     .min(1, "Add at least one question")
     .max(30, "The MVP builder supports up to 30 questions"),
   reward_etb: z.number().min(0).max(10_000).nullable().optional(),
-  status: z.enum(["draft", "final_draft"]).optional(),
+  status: z.enum(SURVEY_STATUSES).optional(),
   compliance_required: z.boolean().nullable().optional(),
   compliance_document_url: z.string().nullable().optional(),
   compliance_attested_at: z.string().nullable().optional(),

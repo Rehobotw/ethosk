@@ -20,8 +20,21 @@ interface SurveyWithStats extends SurveyRecord {
 const STATUS_STYLES: Record<SurveyStatus, string> = {
   draft: "bg-surface-container-high text-on-surface-variant",
   final_draft: "bg-primary/15 text-primary font-semibold",
+  pending_review: "bg-secondary-container/60 text-secondary font-semibold",
+  needs_correction: "bg-status-failed/15 text-error font-semibold",
+  rejected: "bg-surface-variant text-on-surface-variant line-through",
   active: "bg-status-passed/15 text-flag-clean",
   closed: "bg-surface-variant text-on-surface-variant",
+};
+
+const STATUS_LABELS: Record<SurveyStatus, string> = {
+  draft: "Draft (WIP)",
+  final_draft: "Final Draft",
+  pending_review: "Pending Review",
+  needs_correction: "Needs Revision",
+  rejected: "Rejected",
+  active: "Active",
+  closed: "Closed",
 };
 
 export function SurveyListPage() {
@@ -53,18 +66,19 @@ export function SurveyListPage() {
 
       <div className="space-y-stack-md">
         {data?.surveys.map((survey) => {
-          const isDraft = survey.status === "draft";
+          const isEditable = survey.status === "draft" || survey.status === "final_draft" || survey.status === "needs_correction";
+          const isLiveOrClosed = survey.status === "active" || survey.status === "closed";
           return (
             <Card className="p-stack-md" key={survey.id}>
               <div className="flex flex-wrap items-center justify-between gap-stack-md">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-stack-sm">
                     <span
-                      className={`rounded-full px-3 py-1 font-status-badge text-status-badge capitalize ${
+                      className={`rounded-full px-3 py-1 font-status-badge text-status-badge ${
                         STATUS_STYLES[survey.status]
                       }`}
                     >
-                      {survey.status}
+                      {STATUS_LABELS[survey.status] || survey.status}
                     </span>
                     <span className="font-body-sm text-[12px] text-on-surface-variant">
                       {new Date(survey.created_at).toLocaleDateString()}
@@ -81,13 +95,13 @@ export function SurveyListPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-stack-sm">
-                  {isDraft ? (
+                  {isEditable ? (
                     <Link to={`/researcher/surveys/${survey.id}/edit`}>
                       <Button icon="edit" variant="outline">
-                        Continue Editing
+                        {survey.status === "needs_correction" ? "Revise & Resubmit" : "Continue Editing"}
                       </Button>
                     </Link>
-                  ) : (
+                  ) : isLiveOrClosed ? (
                     <>
                       <Link to={`/researcher/surveys/${survey.id}/dashboard`}>
                         <Button icon="insights">
@@ -100,6 +114,12 @@ export function SurveyListPage() {
                         </Button>
                       </Link>
                     </>
+                  ) : (
+                    <Link to={`/researcher/surveys/${survey.id}/edit`}>
+                      <Button icon="visibility" variant="outline">
+                        View Submission
+                      </Button>
+                    </Link>
                   )}
                 </div>
               </div>

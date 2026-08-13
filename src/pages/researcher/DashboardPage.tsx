@@ -451,6 +451,9 @@ function SurveyCard({
 
   const isWip = survey.status === "draft";
   const isFinalDraft = survey.status === "final_draft";
+  const isPendingReview = survey.status === "pending_review";
+  const isNeedsCorrection = survey.status === "needs_correction";
+  const isRejected = survey.status === "rejected";
   const isClosed = survey.status === "closed";
   const isExporting = exportingId === survey.id;
 
@@ -478,14 +481,26 @@ function SurveyCard({
     ? "Draft (WIP)"
     : isFinalDraft
     ? "Final Draft"
+    : isPendingReview
+    ? "Under Admin Review"
+    : isNeedsCorrection
+    ? "Revisions Requested"
+    : isRejected
+    ? "Rejected"
     : isClosed
     ? "Completed Study"
-    : `Sent ${survey.sent_at ? new Date(survey.sent_at).toLocaleDateString() : ""}`;
+    : `Live Survey`;
 
   const dotColor = isWip
     ? "bg-on-surface-variant"
     : isFinalDraft
     ? "bg-primary"
+    : isPendingReview
+    ? "bg-secondary"
+    : isNeedsCorrection
+    ? "bg-status-failed"
+    : isRejected
+    ? "bg-on-surface-variant"
     : isClosed
     ? "bg-status-passed"
     : "bg-status-passed";
@@ -537,11 +552,49 @@ function SurveyCard({
         </div>
 
         <div className="flex flex-col justify-center gap-stack-sm">
-          {isFinalDraft ? (
+          {isPendingReview ? (
+            <>
+              <Link to={`/researcher/surveys/${survey.id}/edit`}>
+                <Button className="w-full" icon="visibility" variant="outline">
+                  View Submission
+                </Button>
+              </Link>
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1 text-xs"
+                  icon="content_copy"
+                  loading={duplicateMutation.isPending}
+                  onClick={() => duplicateMutation.mutate()}
+                  variant="outline"
+                >
+                  Duplicate
+                </Button>
+              </div>
+            </>
+          ) : isNeedsCorrection ? (
+            <>
+              <Link to={`/researcher/surveys/${survey.id}/edit`}>
+                <Button className="w-full" icon="edit">
+                  Revise &amp; Resubmit
+                </Button>
+              </Link>
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1 text-xs"
+                  icon="content_copy"
+                  loading={duplicateMutation.isPending}
+                  onClick={() => duplicateMutation.mutate()}
+                  variant="outline"
+                >
+                  Duplicate
+                </Button>
+              </div>
+            </>
+          ) : isFinalDraft ? (
             <>
               <Link to={`/researcher/surveys/${survey.id}/edit`}>
                 <Button className="w-full" icon="rocket_launch">
-                  Launch / Post
+                  Submit for Review
                 </Button>
               </Link>
               <div className="flex gap-2">

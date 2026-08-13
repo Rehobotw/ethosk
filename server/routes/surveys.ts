@@ -435,9 +435,32 @@ surveysRouter.post(
     // Free-tier enforcement: cap responses per survey
     await checkFreeTierResponseLimit(survey.id, context.subscriptionTier);
 
-    // Idempotency: a survey that has already been sent is not re-notified (§8.3).
+    // Soft Gate check: ID verification is required to submit survey for admin review & launch
+    const { data: researcherProfile } = await admin
+      .from("researcher_profiles")
+      .select("verification_status, verification_level")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    const isIdVerified =
+      researcherProfile?.verification_level === "id_verified" ||
+      researcherProfile?.verification_status === "approved" ||
+      researcherProfile?.verification_status === "passed";
+
+    if (!isIdVerified) {
+      throw new ApiError(
+        403,
+        "ID_VERIFICATION_REQUIRED",
+        "Submitting a survey for review and distribution requires verified researcher identity (Fayda / Ethiopian ID).",
+      );
+    }
+
+    // Idempotency: a survey that has already been submitted or launched is guarded.
+    if (survey.status === "pending_review") {
+      throw new ApiError(409, "ALREADY_SUBMITTED", "This survey is currently under admin review.");
+    }
     if (survey.status === "active" || survey.status === "closed") {
-      throw new ApiError(409, "ALREADY_SENT", "This survey has already been sent.");
+      throw new ApiError(409, "ALREADY_SENT", "This survey has already been launched.");
     }
 
     // The count is always recomputed server-side; a client-cached number is never
@@ -446,7 +469,7 @@ surveysRouter.post(
 
     // Sending is the point of no return for money: respondents are about to be
     // promised a reward, so the full cost is checked against the researcher's
-    // balance and reserved here rather than discovered to be missing later.
+    // balance and reserved into escrow.
     const rewardEtb = input.reward_etb ?? survey.reward_etb ?? 0;
     const requiredEtb = roundEtb(rewardEtb * respondentIds.length);
 
@@ -456,31 +479,21 @@ surveysRouter.post(
         throw new ApiError(
           402,
           "INSUFFICIENT_FUNDS",
-          `This send needs ${requiredEtb.toLocaleString()} ETB to cover ${respondentIds.length} ` +
+          `This launch needs ${requiredEtb.toLocaleString()} ETB to cover ${respondentIds.length} ` +
             `responses at ${rewardEtb} ETB. Your available balance is ` +
             `${wallet.available_etb.toLocaleString()} ETB. Add funds and try again.`,
         );
       }
     }
 
-    if (respondentIds.length > 0) {
-      const { error: targetError } = await admin.from("survey_targets").upsert(
-        respondentIds.map((respondentId) => ({
-          survey_id: survey.id,
-          respondent_id: respondentId,
-        })),
-        { onConflict: "survey_id,respondent_id", ignoreDuplicates: true },
-      );
-      if (targetError) throw new ApiError(500, "SEND_FAILED", targetError.message);
-    }
-
     const { error: statusError } = await admin
       .from("surveys")
       .update({
-        status: "active",
+        status: "pending_review",
         sent_at: new Date().toISOString(),
         target_filters: input.filters,
         escrow_etb: requiredEtb,
+        admin_feedback: null,
         ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
       })
       .eq("id", survey.id);
@@ -489,7 +502,7 @@ surveysRouter.post(
 
     res.json({
       targeted_count: respondentIds.length,
-      status: "active",
+      status: "pending_review",
       reserved_etb: requiredEtb,
     });
   }),

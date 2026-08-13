@@ -77,7 +77,11 @@ export function SurveyBuilderPage() {
     setComplianceAttestedAt(existing.compliance_attested_at ?? null);
   }, [existing]);
 
-  const isSent = existing?.status !== undefined && existing.status !== "draft";
+  const isPendingReview = existing?.status === "pending_review";
+  const isNeedsCorrection = existing?.status === "needs_correction";
+  const isRejected = existing?.status === "rejected";
+  const isSent = existing?.status === "active" || existing?.status === "closed";
+  const isLocked = isPendingReview || isSent;
 
   const saveDraft = useMutation({
     mutationFn: async () => {
@@ -130,7 +134,7 @@ export function SurveyBuilderPage() {
       setTranslations(survey.translations ?? {});
       setBanner({
         tone: "success",
-        text: "Final draft validated and saved. Ready for launch and audience allocation!",
+        text: "Final draft validated and saved. Ready to submit for review and audience allocation!",
       });
       await queryClient.invalidateQueries({ queryKey: ["surveys"] });
       if (!id) navigate(`/researcher/surveys/${survey.id}/edit`, { replace: true });
@@ -163,11 +167,13 @@ export function SurveyBuilderPage() {
       api<{ targeted_count: number; status: string }>(`/surveys/${surveyId}/send`, {
         body: { filters, reward_etb: rewardEtb ?? undefined },
       }),
-    onSuccess: async (result) => {
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["surveys"] });
-      navigate(`/researcher/surveys/${surveyId}/dashboard`, {
-        state: { justSent: result.targeted_count },
+      setBanner({
+        tone: "success",
+        text: "Survey submitted to Admin Approval Queue. It will be activated once reviewed.",
       });
+      navigate(`/researcher`);
     },
     onError: (error) => setBanner({ tone: "error", text: describeError(error) }),
   });
@@ -242,7 +248,7 @@ export function SurveyBuilderPage() {
           <>
             <Button
               icon="save"
-              disabled={isSent}
+              disabled={isLocked}
               loading={saveDraft.isPending}
               onClick={() => saveDraft.mutate()}
               variant="outline"
@@ -251,7 +257,7 @@ export function SurveyBuilderPage() {
             </Button>
             <Button
               icon="task_alt"
-              disabled={isSent}
+              disabled={isLocked}
               loading={saveFinalDraft.isPending}
               onClick={() => saveFinalDraft.mutate()}
               variant="secondary"
@@ -260,7 +266,7 @@ export function SurveyBuilderPage() {
             </Button>
             <Button
               icon="translate"
-              disabled={!surveyId || isSent}
+              disabled={!surveyId || isLocked}
               loading={translate.isPending}
               onClick={() => translate.mutate()}
               variant="outline"
@@ -268,12 +274,12 @@ export function SurveyBuilderPage() {
               Localize (AM/OR)
             </Button>
             <Button
-              disabled={!surveyId || isSent}
+              disabled={!surveyId || isLocked}
               icon="send"
               loading={send.isPending}
               onClick={() => send.mutate()}
             >
-              Send Survey
+              {isNeedsCorrection ? "Resubmit for Review" : "Submit for Review"}
             </Button>
           </>
         }
@@ -289,9 +295,27 @@ export function SurveyBuilderPage() {
         </div>
       ) : null}
 
-      {isSent ? (
+      {isPendingReview ? (
         <div className="mb-stack-md">
-          <Notice tone="info" title="This survey has been sent">
+          <Notice tone="info" title="Under Admin Review">
+            This survey has been submitted to the Ethosk Review Queue. It is currently locked and will be activated upon admin approval.
+          </Notice>
+        </div>
+      ) : isNeedsCorrection ? (
+        <div className="mb-stack-md">
+          <Notice tone="warning" title="Action Required — Admin Requested Revisions">
+            {existing?.admin_feedback || "The administration requested revisions to this survey. Update the details and resubmit for review."}
+          </Notice>
+        </div>
+      ) : isRejected ? (
+        <div className="mb-stack-md">
+          <Notice tone="error" title="Submission Rejected">
+            {existing?.admin_feedback || "This survey was not approved by administration. Associated escrow funds have been released."}
+          </Notice>
+        </div>
+      ) : isSent ? (
+        <div className="mb-stack-md">
+          <Notice tone="info" title="This survey is live / completed">
             A sent survey is locked so respondents cannot be shown questions that changed underneath
             them. View its results on the dashboard.
           </Notice>
@@ -302,7 +326,7 @@ export function SurveyBuilderPage() {
         <div className="space-y-stack-md">
           
           {/* AI Drafter (Only show if new blank survey) */}
-          {!surveyId && !isSent && questions.length === 1 && !questions[0]?.text && !title && (
+          {!surveyId && !isLocked && questions.length === 1 && !questions[0]?.text && !title && (
             <div className="rounded-xl border border-primary/20 bg-primary-container/20 p-stack-md">
               <h2 className="flex items-center gap-2 font-title-sm text-title-sm text-primary-fixed mb-2">
                 <Icon filled name="auto_awesome" /> AI Survey Drafter
