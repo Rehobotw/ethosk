@@ -163,6 +163,9 @@ export const surveySchema = z.object({
     .max(30, "The MVP builder supports up to 30 questions"),
   reward_etb: z.number().min(0).max(10_000).nullable().optional(),
   status: z.enum(["draft", "final_draft"]).optional(),
+  compliance_required: z.boolean().nullable().optional(),
+  compliance_document_url: z.string().nullable().optional(),
+  compliance_attested_at: z.string().nullable().optional(),
 });
 export type SurveyInput = z.infer<typeof surveySchema>;
 
@@ -179,6 +182,18 @@ export const finalDraftSchema = surveySchema.extend({
     )
     .min(1, "Add at least one question"),
   reward_etb: z.number({ required_error: "Set a reward amount per response" }).min(1, "Reward per response must be at least 1 ETB"),
+  compliance_required: z.boolean({ required_error: "Please complete the Research Legal & Ethical Compliance step" }),
+}).refine((data) => {
+  if (data.compliance_required === true) {
+    return Boolean(data.compliance_document_url && data.compliance_document_url.trim().length > 0);
+  }
+  if (data.compliance_required === false) {
+    return Boolean(data.compliance_attested_at && data.compliance_attested_at.trim().length > 0);
+  }
+  return false;
+}, {
+  message: "Upload a valid clearance document or confirm the ethical research attestation",
+  path: ["compliance_required"],
 });
 export type FinalDraftInput = z.infer<typeof finalDraftSchema>;
 

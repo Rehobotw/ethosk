@@ -208,6 +208,10 @@ export interface SurveyRecord {
   reward_etb: number | null;
   /** Funds still committed to this survey's remaining responses. */
   escrow_etb: number;
+  /** Legal & Ethical Compliance fields (REH-69) */
+  compliance_required: boolean | null;
+  compliance_document_url: string | null;
+  compliance_attested_at: string | null;
   created_at: string;
   sent_at: string | null;
 }

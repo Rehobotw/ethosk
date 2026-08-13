@@ -1,5 +1,6 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Router } from "express";
+import multer from "multer";
 import {
   aiDraftRequestSchema,
   chatTurnSchema,
@@ -41,6 +42,11 @@ import { admin, userClient } from "../lib/supabase.js";
 import { payForResponse, readResearcherWallet, roundEtb } from "../lib/wallet.js";
 
 export const surveysRouter = Router();
+
+const complianceUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+});
 
 // ---------------------------------------------------------------------------
 // Survey CRUD
@@ -87,6 +93,49 @@ surveysRouter.get(
 );
 
 surveysRouter.post(
+  "/compliance-document",
+  requireAuth("researcher"),
+  complianceUpload.single("file"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const file = req.file;
+    if (!file) throw new ApiError(400, "FILE_MISSING", "Choose a compliance clearance document to upload.");
+
+    const allowedMimeTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/msword",
+    ];
+
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      throw new ApiError(
+        400,
+        "UNSUPPORTED_FILE_TYPE",
+        "Upload a JPEG, PNG, WebP, PDF, or DOCX document.",
+      );
+    }
+
+    const sanitized = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const storagePath = `compliance/${context.userId}/${randomUUID()}-${sanitized}`;
+
+    const { error: uploadError } = await admin.storage
+      .from(env.documentsBucket)
+      .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
+
+    if (uploadError) throw new ApiError(500, "UPLOAD_FAILED", uploadError.message);
+
+    res.status(201).json({
+      url: storagePath,
+      fileName: file.originalname,
+      sizeBytes: file.size,
+    });
+  }),
+);
+
+surveysRouter.post(
   "/",
   requireAuth("researcher"),
   asyncRoute(async (req, res) => {
@@ -105,9 +154,13 @@ surveysRouter.post(
       .insert({
         researcher_id: context.userId,
         title: input.title,
+        description: input.description ?? null,
         questions: input.questions,
         reward_etb: input.reward_etb ?? null,
         status: input.status ?? "draft",
+        compliance_required: input.compliance_required ?? null,
+        compliance_document_url: input.compliance_document_url ?? null,
+        compliance_attested_at: input.compliance_attested_at ?? null,
       })
       .select()
       .single();
@@ -171,6 +224,9 @@ surveysRouter.patch(
         questions: input.questions ?? survey.questions,
         reward_etb: input.reward_etb ?? survey.reward_etb,
         description: input.description !== undefined ? input.description : survey.description,
+        compliance_required: input.compliance_required !== undefined ? input.compliance_required : survey.compliance_required,
+        compliance_document_url: input.compliance_document_url !== undefined ? input.compliance_document_url : survey.compliance_document_url,
+        compliance_attested_at: input.compliance_attested_at !== undefined ? input.compliance_attested_at : survey.compliance_attested_at,
       });
     }
 
@@ -184,9 +240,13 @@ surveysRouter.patch(
       .from("surveys")
       .update({
         ...(input.title !== undefined && { title: input.title }),
+        ...(input.description !== undefined && { description: input.description }),
         ...(input.questions !== undefined && { questions: input.questions }),
         ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
         ...(input.status !== undefined && { status: input.status }),
+        ...(input.compliance_required !== undefined && { compliance_required: input.compliance_required }),
+        ...(input.compliance_document_url !== undefined && { compliance_document_url: input.compliance_document_url }),
+        ...(input.compliance_attested_at !== undefined && { compliance_attested_at: input.compliance_attested_at }),
         translations,
       })
       .eq("id", survey.id)

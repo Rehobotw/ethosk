@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Question, SurveyRecord, TargetLanguage } from "@shared/types";
 import { finalDraftSchema, surveySchema, type MatchFiltersInput } from "@shared/validation/schemas";
 import { AudiencePanel } from "@/components/filter-builder/AudiencePanel";
+import { ComplianceSection } from "@/components/survey-builder/ComplianceSection";
 import {
   QuestionEditor,
   type ImproveResult,
@@ -50,6 +51,9 @@ export function SurveyBuilderPage() {
     Partial<Record<TargetLanguage, string[]>>
   >({});
   const [filters, setFilters] = useState<MatchFiltersInput>(DEFAULT_FILTERS);
+  const [complianceRequired, setComplianceRequired] = useState<boolean | null>(null);
+  const [complianceDocumentUrl, setComplianceDocumentUrl] = useState<string | null>(null);
+  const [complianceAttestedAt, setComplianceAttestedAt] = useState<string | null>(null);
   const [banner, setBanner] = useState<{ tone: "success" | "error" | "warning"; text: string } | null>(
     null,
   );
@@ -68,6 +72,9 @@ export function SurveyBuilderPage() {
     setRewardEtb(existing.reward_etb);
     setQuestions(existing.questions.length ? existing.questions : [blankQuestion()]);
     setTranslations(existing.translations ?? {});
+    setComplianceRequired(existing.compliance_required ?? null);
+    setComplianceDocumentUrl(existing.compliance_document_url ?? null);
+    setComplianceAttestedAt(existing.compliance_attested_at ?? null);
   }, [existing]);
 
   const isSent = existing?.status !== undefined && existing.status !== "draft";
@@ -81,6 +88,9 @@ export function SurveyBuilderPage() {
         questions,
         reward_etb: rewardEtb,
         status: "draft",
+        compliance_required: complianceRequired,
+        compliance_document_url: complianceDocumentUrl,
+        compliance_attested_at: complianceAttestedAt,
       });
       if (surveyId) {
         return api<SurveyRecord>(`/surveys/${surveyId}`, { method: "PATCH", body: payload });
@@ -106,6 +116,9 @@ export function SurveyBuilderPage() {
         questions,
         reward_etb: rewardEtb,
         status: "final_draft",
+        compliance_required: complianceRequired,
+        compliance_document_url: complianceDocumentUrl,
+        compliance_attested_at: complianceAttestedAt,
       });
       if (surveyId) {
         return api<SurveyRecord>(`/surveys/${surveyId}`, { method: "PATCH", body: payload });
@@ -392,6 +405,19 @@ export function SurveyBuilderPage() {
               </Field>
             </div>
           </div>
+
+          {/* Step 3: Research Legal & Ethical Compliance (REH-69) */}
+          <ComplianceSection
+            complianceAttestedAt={complianceAttestedAt}
+            complianceDocumentUrl={complianceDocumentUrl}
+            complianceRequired={complianceRequired}
+            disabled={isSent}
+            onChange={({ complianceRequired, complianceDocumentUrl, complianceAttestedAt }) => {
+              setComplianceRequired(complianceRequired);
+              setComplianceDocumentUrl(complianceDocumentUrl);
+              setComplianceAttestedAt(complianceAttestedAt);
+            }}
+          />
 
           <div className="space-y-stack-md">
             {questions.map((question, index) => (
