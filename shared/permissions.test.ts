@@ -5,6 +5,8 @@ import {
   hasAnyPermission,
   roleSatisfies,
   roleSatisfiesAny,
+  canResearcherSend,
+  canResearcherExport,
 } from "./permissions.js";
 
 describe("permissions module", () => {
@@ -53,4 +55,17 @@ describe("permissions module", () => {
     // super_admin inheritance applies here too
     expect(roleSatisfiesAny("super_admin", ["respondent", "admin"])).toBe(true);
   });
+
+  it("canResearcherSend enforces ID verification", () => {
+    expect(canResearcherSend("unverified")).toBe(false);
+    expect(canResearcherSend("id_verified")).toBe(true);
+  });
+
+  it("canResearcherExport requires BOTH ID verification AND active subscription", () => {
+    expect(canResearcherExport("unverified", "free")).toBe(false);
+    expect(canResearcherExport("unverified", "subscribed")).toBe(false);
+    expect(canResearcherExport("id_verified", "free")).toBe(false);
+    expect(canResearcherExport("id_verified", "subscribed")).toBe(true);
+  });
 });
+

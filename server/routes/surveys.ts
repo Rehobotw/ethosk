@@ -12,6 +12,7 @@ import {
   translateSchema,
 } from "@shared/validation/schemas.js";
 import type { Question, SurveyRecord, TargetLanguage } from "@shared/types.js";
+import { canResearcherExport } from "@shared/permissions.js";
 import { aggregateResponses, shouldGenerateSummary } from "@shared/analytics/aggregate.js";
 import {
   buildConsistencyQuestion,
@@ -727,6 +728,75 @@ surveysRouter.get(
 
     if (error) throw new ApiError(500, "RESPONSES_READ_FAILED", error.message);
     res.json({ responses: data ?? [] });
+  }),
+);
+
+surveysRouter.get(
+  "/:id/export",
+  requireAuth("researcher"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
+
+    // Fetch researcher verification status and subscription tier
+    const { data: researcherProfile } = await admin
+      .from("researcher_profiles")
+      .select("verification_status, subscription_tier")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    const verificationLevel =
+      researcherProfile?.verification_status === "passed" ? "id_verified" : "unverified";
+    const subscriptionTier =
+      researcherProfile?.subscription_tier === "subscribed" ? "subscribed" : "free";
+
+    if (!canResearcherExport(verificationLevel, subscriptionTier)) {
+      throw new ApiError(
+        403,
+        "EXPORT_UNAUTHORIZED",
+        "Raw data export (.csv) requires both ID verification and an active subscription.",
+      );
+    }
+
+    const { data: responses, error } = await admin
+      .from("survey_responses")
+      .select("id, answers, total_time_seconds, fraud_flag, completed_at")
+      .eq("survey_id", survey.id)
+      .order("completed_at", { ascending: false });
+
+    if (error) throw new ApiError(500, "RESPONSES_EXPORT_FAILED", error.message);
+
+    // Generate CSV format with PII removed (REH-8 compliance)
+    const headers = [
+      "Response ID",
+      "Completed At",
+      "Time (Seconds)",
+      "Integrity Status",
+      ...survey.questions.map((q, i) => `Q${i + 1}: ${q.text.replace(/"/g, '""')}`),
+    ];
+
+    const rows = (responses ?? []).map((resp) => {
+      const answersObj = (resp.answers ?? {}) as Record<string, unknown>;
+      const questionAnswers = survey.questions.map((q) => {
+        const val = answersObj[q.id];
+        const strVal = Array.isArray(val) ? val.join("; ") : val != null ? String(val) : "";
+        return `"${strVal.replace(/"/g, '""')}"`;
+      });
+
+      return [
+        resp.id,
+        resp.completed_at ? new Date(resp.completed_at).toISOString() : "",
+        resp.total_time_seconds ?? 0,
+        resp.fraud_flag === "clean" ? "Clean" : "Flagged",
+        ...questionAnswers,
+      ].join(",");
+    });
+
+    const csvContent = [`"${headers.join('","')}"`, ...rows].join("\n");
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="survey_${survey.id}_raw_export.csv"`);
+    res.status(200).send(csvContent);
   }),
 );
 

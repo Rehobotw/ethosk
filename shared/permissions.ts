@@ -153,3 +153,15 @@ export function canResearcherSend(
 ): boolean {
   return verificationLevel === "id_verified";
 }
+
+/**
+ * Raw data export (.xlsx/.csv) requires BOTH ID verification AND an active subscription.
+ * An unverified or free-tier researcher receives an upgrade/verification prompt instead.
+ */
+export function canResearcherExport(
+  verificationLevel: ResearcherVerificationLevel,
+  subscriptionTier: SubscriptionTier,
+): boolean {
+  return verificationLevel === "id_verified" && subscriptionTier === "subscribed";
+}
+

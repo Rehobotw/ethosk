@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -14,17 +15,20 @@ import {
   YAxis,
 } from "recharts";
 import type { ResearcherWallet, SurveyRecord } from "@shared/types";
+import { canResearcherExport } from "@shared/permissions";
 import {
   Button,
   Card,
   EmptyState,
   Icon,
   LoadingBlock,
+  Modal,
   Notice,
   SectionHeading,
   StatBlock,
 } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useLanguage } from "@/lib/language";
 
 interface SurveyWithStats extends SurveyRecord {
@@ -86,6 +90,50 @@ export function DashboardPage() {
       ].filter((d) => d.value > 0)
     : [];
 
+  const { user } = useAuth();
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportingSurveyId, setExportingSurveyId] = useState<string | null>(null);
+
+  const verificationLevel = user?.researcher_verification_level ?? "unverified";
+  const subscriptionTier = user?.subscription_tier ?? "free";
+  const isExportAllowed = canResearcherExport(verificationLevel, subscriptionTier);
+
+  const completedSurveys = surveysData?.surveys.filter((s) => s.status === "closed") ?? [];
+
+  const handleExportClick = async (surveyId: string) => {
+    if (!isExportAllowed) {
+      setExportModalOpen(true);
+      return;
+    }
+
+    try {
+      setExportingSurveyId(surveyId);
+      const token = getToken();
+      const res = await fetch(`/api/surveys/${surveyId}/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (!res.ok) {
+        setExportModalOpen(true);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `survey_${surveyId}_raw_export.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setExportModalOpen(true);
+    } finally {
+      setExportingSurveyId(null);
+    }
+  };
+
   return (
     <div className="space-y-stack-lg">
       <SectionHeading
@@ -104,6 +152,64 @@ export function DashboardPage() {
         subtitle="Real-time analytics, response quality verification, and active studies."
         title={t("researcher.dashboard_title")}
       />
+
+      {/* Dual Soft Gate Status Banner (REH-21) */}
+      <Card className="p-stack-md bg-surface-container-low border-outline-variant">
+        <div className="flex flex-wrap items-center justify-between gap-stack-md">
+          <div className="space-y-1">
+            <h3 className="font-title-sm text-title-sm font-semibold text-on-surface">
+              Researcher Access & Verification Status
+            </h3>
+            <p className="font-body-sm text-[12px] text-on-surface-variant">
+              Ethiosk enforces two independent access gates: ID Verification (publishing) and Paid Subscription (AI & Raw Data Export).
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-stack-md">
+            {/* Gate 1: Verification */}
+            <div className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface px-3 py-2">
+              <Icon
+                className={verificationLevel === "id_verified" ? "text-status-passed" : "text-on-surface-variant"}
+                name={verificationLevel === "id_verified" ? "verified" : "shield"}
+              />
+              <div>
+                <p className="font-label-caps text-[10px] uppercase text-on-surface-variant">Identity Gate</p>
+                <p className="font-title-sm text-xs font-semibold text-on-surface">
+                  {verificationLevel === "id_verified" ? "ID Verified" : "Unverified"}
+                </p>
+              </div>
+            </div>
+
+            {/* Gate 2: Subscription */}
+            <div className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface px-3 py-2">
+              <Icon
+                className={subscriptionTier === "subscribed" ? "text-primary" : "text-on-surface-variant"}
+                name={subscriptionTier === "subscribed" ? "workspace_premium" : "card_membership"}
+              />
+              <div>
+                <p className="font-label-caps text-[10px] uppercase text-on-surface-variant">Plan Gate</p>
+                <p className="font-title-sm text-xs font-semibold text-on-surface">
+                  {subscriptionTier === "subscribed" ? "Subscribed Pro" : "Free Plan"}
+                </p>
+              </div>
+            </div>
+
+            {/* Raw Export Capability */}
+            <div className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface px-3 py-2">
+              <Icon
+                className={isExportAllowed ? "text-status-passed" : "text-error"}
+                name={isExportAllowed ? "download_done" : "lock"}
+              />
+              <div>
+                <p className="font-label-caps text-[10px] uppercase text-on-surface-variant">Raw Export</p>
+                <p className="font-title-sm text-xs font-semibold text-on-surface">
+                  {isExportAllowed ? "Unlocked" : "Gated (Pro + ID)"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* Top Metric Cards */}
       <div className="grid gap-stack-md sm:grid-cols-2 lg:grid-cols-4">
@@ -243,7 +349,12 @@ export function DashboardPage() {
         {activeSurveys.length > 0 ? (
           <div className="space-y-stack-md">
             {activeSurveys.map((survey) => (
-              <SurveyCard key={survey.id} survey={survey} />
+              <SurveyCard
+                exportingId={exportingSurveyId}
+                key={survey.id}
+                onExportClick={() => handleExportClick(survey.id)}
+                survey={survey}
+              />
             ))}
           </div>
         ) : (
@@ -252,6 +363,27 @@ export function DashboardPage() {
           </Card>
         )}
       </section>
+
+      {/* Completed Studies Tab / Section (REH-41) */}
+      {completedSurveys.length > 0 ? (
+        <section>
+          <div className="mb-stack-md flex items-center justify-between">
+            <h2 className="flex items-center gap-stack-sm font-title-sm text-title-sm text-on-surface">
+              <Icon className="text-status-passed" name="task_alt" /> Completed Studies ({completedSurveys.length})
+            </h2>
+          </div>
+          <div className="space-y-stack-md">
+            {completedSurveys.map((survey) => (
+              <SurveyCard
+                exportingId={exportingSurveyId}
+                key={survey.id}
+                onExportClick={() => handleExportClick(survey.id)}
+                survey={survey}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {/* Final Drafts Section */}
       {finalDraftSurveys.length > 0 ? (
@@ -264,7 +396,12 @@ export function DashboardPage() {
           </p>
           <div className="space-y-stack-md">
             {finalDraftSurveys.map((survey) => (
-              <SurveyCard key={survey.id} survey={survey} />
+              <SurveyCard
+                exportingId={exportingSurveyId}
+                key={survey.id}
+                onExportClick={() => handleExportClick(survey.id)}
+                survey={survey}
+              />
             ))}
           </div>
         </section>
@@ -278,21 +415,94 @@ export function DashboardPage() {
           </h2>
           <div className="space-y-stack-md">
             {wipDraftSurveys.map((survey) => (
-              <SurveyCard key={survey.id} survey={survey} />
+              <SurveyCard
+                exportingId={exportingSurveyId}
+                key={survey.id}
+                onExportClick={() => handleExportClick(survey.id)}
+                survey={survey}
+              />
             ))}
           </div>
         </section>
       ) : null}
+
+      {/* Upgrade & Verification Gate Modal */}
+      <Modal
+        isOpen={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        title="Raw Data Export Requirements"
+      >
+        <div className="space-y-4 text-sm text-on-surface-variant">
+          <p>
+            Per Ethiosk access rules, downloading raw survey datasets (<code className="rounded bg-surface-container-high px-1 text-xs">.csv</code> / <code className="rounded bg-surface-container-high px-1 text-xs">.xlsx</code>) requires both an <strong>ID-verified account</strong> and an <strong>active Pro Subscription</strong>.
+          </p>
+
+          <div className="space-y-2 rounded-lg border border-outline-variant bg-surface-container-low p-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1.5">
+                <Icon
+                  className={verificationLevel === "id_verified" ? "text-status-passed" : "text-error"}
+                  name={verificationLevel === "id_verified" ? "check_circle" : "cancel"}
+                />
+                Identity Verification
+              </span>
+              <span className="font-semibold text-on-surface">
+                {verificationLevel === "id_verified" ? "Verified" : "Pending"}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1.5">
+                <Icon
+                  className={subscriptionTier === "subscribed" ? "text-status-passed" : "text-error"}
+                  name={subscriptionTier === "subscribed" ? "check_circle" : "cancel"}
+                />
+                Pro Subscription
+              </span>
+              <span className="font-semibold text-on-surface">
+                {subscriptionTier === "subscribed" ? "Subscribed" : "Free Plan"}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            {verificationLevel !== "id_verified" && (
+              <Link className="flex-1" to="/researcher/profile">
+                <Button className="w-full text-xs" icon="shield" variant="outline">
+                  Verify Identity
+                </Button>
+              </Link>
+            )}
+            {subscriptionTier !== "subscribed" && (
+              <Link className="flex-1" to="/researcher/subscription">
+                <Button className="w-full text-xs" icon="workspace_premium">
+                  Upgrade Plan
+                </Button>
+              </Link>
+            )}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
 
-function SurveyCard({ survey }: { survey: SurveyWithStats }) {
+function SurveyCard({
+  survey,
+  onExportClick,
+  exportingId,
+}: {
+  survey: SurveyWithStats;
+  onExportClick?: () => void;
+  exportingId?: string | null;
+}) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   const isWip = survey.status === "draft";
   const isFinalDraft = survey.status === "final_draft";
+  const isClosed = survey.status === "closed";
+  const isExporting = exportingId === survey.id;
 
   const deleteMutation = useMutation({
     mutationFn: () => api(`/surveys/${survey.id}`, { method: "DELETE" }),
@@ -318,12 +528,16 @@ function SurveyCard({ survey }: { survey: SurveyWithStats }) {
     ? "Draft (WIP)"
     : isFinalDraft
     ? "Final Draft"
+    : isClosed
+    ? "Completed Study"
     : `Sent ${survey.sent_at ? new Date(survey.sent_at).toLocaleDateString() : ""}`;
 
   const dotColor = isWip
     ? "bg-on-surface-variant"
     : isFinalDraft
     ? "bg-primary"
+    : isClosed
+    ? "bg-status-passed"
     : "bg-status-passed";
 
   return (
@@ -450,13 +664,17 @@ function SurveyCard({ survey }: { survey: SurveyWithStats }) {
                 </Button>
               </Link>
               <div className="flex gap-2">
-                <Link className="flex-1" to={`/researcher/surveys/${survey.id}/edit`}>
-                  <Button className="w-full text-xs" icon="visibility" variant="outline">
-                    View Questions
-                  </Button>
-                </Link>
                 <Button
                   className="flex-1 text-xs"
+                  icon="download"
+                  loading={isExporting}
+                  onClick={onExportClick}
+                  variant="outline"
+                >
+                  Export Raw CSV
+                </Button>
+                <Button
+                  className="text-xs"
                   icon="content_copy"
                   loading={duplicateMutation.isPending}
                   onClick={() => duplicateMutation.mutate()}

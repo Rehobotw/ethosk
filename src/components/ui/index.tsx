@@ -401,3 +401,36 @@ export function Toggle({
     </button>
   );
 }
+
+export function Modal({
+  isOpen,
+  onClose,
+  title,
+  children,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-xl border border-outline-variant bg-surface p-6 shadow-xl">
+        <div className="mb-4 flex items-center justify-between border-b border-outline-variant pb-3">
+          <h3 className="font-title-sm text-title-sm font-semibold text-on-surface">{title}</h3>
+          <button
+            className="rounded p-1 text-on-surface-variant hover:bg-surface-container-highest"
+            onClick={onClose}
+            type="button"
+          >
+            <Icon name="close" />
+          </button>
+        </div>
+        <div>{children}</div>
+      </div>
+    </div>
+  );
+}
+
