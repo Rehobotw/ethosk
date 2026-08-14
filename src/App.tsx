@@ -59,6 +59,9 @@ const SubscriptionPage = lazy(() =>
 const TelebirrDemoPage = lazy(() =>
   import("./pages/researcher/TelebirrDemoPage").then((m) => ({ default: m.TelebirrDemoPage })),
 );
+const AdminDashboardPage = lazy(() =>
+  import("./pages/admin/AdminDashboardPage").then((m) => ({ default: m.AdminDashboardPage })),
+);
 const AdminReviewQueuePage = lazy(() =>
   import("./pages/admin/ReviewQueuePage").then((m) => ({ default: m.AdminReviewQueuePage })),
 );
@@ -174,6 +177,7 @@ export default function App() {
           </RequireRole>
         }
       >
+        <Route element={<AdminDashboardPage />} path="/admin" />
         <Route element={<AdminReviewQueuePage />} path="/admin/review-queue" />
         <Route element={<ResearcherQueuePage />} path="/admin/researcher-approvals" />
       </Route>

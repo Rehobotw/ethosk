@@ -29,7 +29,7 @@ export function AdminLoginPage() {
     try {
       // Force admin role during login submission
       await login({ ...values, role: "admin" });
-      navigate("/admin/review-queue", { replace: true });
+      navigate("/admin", { replace: true });
     } catch (error) {
       setFormError(
         error instanceof ApiRequestError ? error.message : "Authentication failed.",

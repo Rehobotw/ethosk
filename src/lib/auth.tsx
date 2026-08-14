@@ -183,7 +183,7 @@ export function homePathForRole(role: UserRole): string {
       return "/researcher";
     case "admin":
     case "super_admin":
-      return "/admin/review-queue";
+      return "/admin";
     case "respondent":
     default:
       return "/inbox";

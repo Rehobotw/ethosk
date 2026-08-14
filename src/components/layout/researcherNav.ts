@@ -26,6 +26,7 @@ export const NAV_PATHS = [...PRIMARY_NAV, ...SECONDARY_NAV].map((item) => item.t
 export function isNavActive(pathname: string, to: string): boolean {
   // The dashboard is the portal root, so a prefix match would claim every page.
   if (to === "/researcher") return pathname === "/researcher";
+  if (to === "/admin") return pathname === "/admin";
 
   if (to === "/researcher/surveys") {
     // Editing or reviewing a survey belongs to the list; creating one has its own entry.

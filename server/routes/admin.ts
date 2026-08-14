@@ -14,6 +14,100 @@ export const adminRouter = Router();
 // (requireAuth("admin") now passes super_admin too via roleSatisfies)
 // ============================================================================
 
+/**
+ * Overview Metrics Endpoint for Admin Dashboard (REH-58).
+ * Provides aggregate system-wide stats on users, verification tiers, surveys, responses, and queues.
+ */
+adminRouter.get(
+  "/metrics",
+  requireAuth("admin"),
+  asyncRoute(async (_req, res) => {
+    // 1. Fetch Users
+    const { data: users, error: userError } = await admin
+      .from("users")
+      .select("id, role, verification_tier, email_verified, created_at");
+    if (userError) throw new ApiError(500, "METRICS_FAILED", userError.message);
+
+    // 2. Fetch Surveys
+    const { data: surveys, error: surveyError } = await admin
+      .from("surveys")
+      .select("id, status, reward_etb, escrow_etb, created_at");
+    if (surveyError) throw new ApiError(500, "METRICS_FAILED", surveyError.message);
+
+    // 3. Fetch Responses
+    const { data: responses, error: responseError } = await admin
+      .from("survey_responses")
+      .select("id, fraud_flag, created_at");
+    if (responseError) throw new ApiError(500, "METRICS_FAILED", responseError.message);
+
+    // 4. Fetch Queues
+    const { count: pendingDocumentsCount, error: docError } = await admin
+      .from("documents")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "needs_review");
+    if (docError) throw new ApiError(500, "METRICS_FAILED", docError.message);
+
+    const { count: pendingResearchersCount, error: resError } = await admin
+      .from("researcher_profiles")
+      .select("user_id", { count: "exact", head: true })
+      .eq("verification_status", "pending");
+    if (resError) throw new ApiError(500, "METRICS_FAILED", resError.message);
+
+    const allUsers = users ?? [];
+    const allSurveys = surveys ?? [];
+    const allResponses = responses ?? [];
+
+    const userStats = {
+      total: allUsers.length,
+      respondents: allUsers.filter((u) => u.role === "respondent").length,
+      researchers: allUsers.filter((u) => u.role === "researcher").length,
+      admins: allUsers.filter((u) => u.role === "admin" || u.role === "super_admin").length,
+      tierBreakdown: {
+        registered_tier0: allUsers.filter((u) => u.verification_tier === "0_registered").length,
+        id_verified_tier1: allUsers.filter((u) => u.verification_tier === "1_id_verified").length,
+        attribute_verified_tier2: allUsers.filter((u) => u.verification_tier === "2_attribute_verified").length,
+        institution_attested_tier3: allUsers.filter((u) => u.verification_tier === "3_institution_attested").length,
+      },
+    };
+
+    const surveyStats = {
+      total: allSurveys.length,
+      draft: allSurveys.filter((s) => s.status === "draft" || s.status === "final_draft").length,
+      pendingReview: allSurveys.filter((s) => s.status === "pending_review").length,
+      needsCorrection: allSurveys.filter((s) => s.status === "needs_correction").length,
+      active: allSurveys.filter((s) => s.status === "active").length,
+      closed: allSurveys.filter((s) => s.status === "closed").length,
+      rejected: allSurveys.filter((s) => s.status === "rejected").length,
+    };
+
+    const responseStats = {
+      total: allResponses.length,
+      clean: allResponses.filter((r) => r.fraud_flag === "clean" || !r.fraud_flag).length,
+      flagged: allResponses.filter((r) => r.fraud_flag === "flagged").length,
+    };
+
+    const financialStats = {
+      totalEscrowEtb: allSurveys.reduce((sum, s) => sum + (Number(s.escrow_etb) || 0), 0),
+    };
+
+    const queueStats = {
+      pendingDocuments: pendingDocumentsCount ?? 0,
+      pendingResearchers: pendingResearchersCount ?? 0,
+      pendingSurveys: surveyStats.pendingReview,
+      totalPendingApproval:
+        (pendingDocumentsCount ?? 0) + (pendingResearchersCount ?? 0) + surveyStats.pendingReview,
+    };
+
+    res.json({
+      users: userStats,
+      surveys: surveyStats,
+      responses: responseStats,
+      financials: financialStats,
+      queues: queueStats,
+    });
+  }),
+);
+
 /** FR-ADM-1: documents awaiting a human decision, oldest first. */
 adminRouter.get(
   "/review-queue",

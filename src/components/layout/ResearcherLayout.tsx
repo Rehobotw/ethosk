@@ -9,8 +9,10 @@ import { ProfileDropdown } from "./ProfileDropdown";
 import { isNavActive, PRIMARY_NAV, SECONDARY_NAV } from "./researcherNav";
 
 const ADMIN_PRIMARY_NAV = [
-  { label: "Review Queue", to: "/admin/review-queue", icon: "rule" },
+  { label: "Overview", to: "/admin", icon: "dashboard" },
+  { label: "Survey Approvals", to: "/admin/survey-approvals", icon: "assignment_turned_in" },
   { label: "Researcher Approvals", to: "/admin/researcher-approvals", icon: "how_to_reg" },
+  { label: "Document Review", to: "/admin/review-queue", icon: "rule" },
 ];
 
 const SUPER_ADMIN_PRIMARY_NAV = [
