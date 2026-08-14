@@ -14,6 +14,7 @@ import {
 } from "@shared/validation/schemas.js";
 import type { Question, SurveyRecord, TargetLanguage } from "@shared/types.js";
 import { canResearcherExport } from "@shared/permissions.js";
+import { parseSurveyText } from "@shared/import/parseSurveyDocument.js";
 import { generateAnonymizedCsv } from "@shared/analytics/anonymizeExport.js";
 import { aggregateResponses, shouldGenerateSummary } from "@shared/analytics/aggregate.js";
 import {
@@ -132,6 +133,57 @@ surveysRouter.post(
       url: storagePath,
       fileName: file.originalname,
       sizeBytes: file.size,
+    });
+  }),
+);
+
+const importUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+surveysRouter.post(
+  "/import",
+  requireAuth("researcher"),
+  importUpload.single("file"),
+  asyncRoute(async (req, res) => {
+    const file = req.file;
+    if (!file) throw new ApiError(400, "FILE_MISSING", "Choose a .txt, .docx, or .pdf file to import.");
+
+    const allowedExtensions = [".txt", ".docx", ".pdf", ".doc"];
+    const ext = file.originalname.toLowerCase().slice(file.originalname.lastIndexOf("."));
+    if (!allowedExtensions.includes(ext) && file.mimetype !== "text/plain") {
+      throw new ApiError(
+        400,
+        "UNSUPPORTED_FILE_TYPE",
+        "Please upload a .txt, .docx, or .pdf questionnaire document.",
+      );
+    }
+
+    let textContent = "";
+    if (ext === ".txt" || file.mimetype === "text/plain") {
+      textContent = file.buffer.toString("utf-8");
+    } else {
+      // Extract printable text from document buffer
+      const raw = file.buffer.toString("binary");
+      const extracted = raw
+        .replace(/<[^>]+>/g, " ") // strip xml/html tags if docx
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, "\n");
+      textContent = extracted;
+    }
+
+    const parsed = parseSurveyText(textContent);
+    if (!parsed.questions || parsed.questions.length === 0) {
+      throw new ApiError(
+        422,
+        "NO_QUESTIONS_FOUND",
+        "Could not detect any numbered survey questions. Please ensure questions are numbered (e.g. 1. Question text) with options listed underneath.",
+      );
+    }
+
+    res.json({
+      title: parsed.title || file.originalname.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " "),
+      questions: parsed.questions,
     });
   }),
 );

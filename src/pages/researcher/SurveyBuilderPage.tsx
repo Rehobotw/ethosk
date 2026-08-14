@@ -57,6 +57,7 @@ export function SurveyBuilderPage() {
   const [banner, setBanner] = useState<{ tone: "success" | "error" | "warning"; text: string } | null>(
     null,
   );
+  const [isImporting, setIsImporting] = useState(false);
 
   const { data: existing, isLoading } = useQuery({
     queryKey: ["survey", id],
@@ -201,6 +202,47 @@ export function SurveyBuilderPage() {
     onError: (error) => setBanner({ tone: "error", text: describeError(error) }),
   });
 
+  const handleFileUpload = async (file: File) => {
+    setIsImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const token = localStorage.getItem("ethosk_auth_token");
+      const response = await fetch("/api/surveys/import", {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to parse survey document.");
+      }
+
+      const result = (await response.json()) as { title?: string; questions: Question[] };
+      if (result.title && !title.trim()) {
+        setTitle(result.title);
+      }
+      if (result.questions && result.questions.length > 0) {
+        setQuestions(result.questions);
+        setBanner({
+          tone: "success",
+          text: `Successfully imported ${result.questions.length} questions from ${file.name}!`,
+        });
+      }
+    } catch (err: unknown) {
+      setBanner({
+        tone: "error",
+        text: err instanceof Error ? err.message : "Could not import file.",
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   // The rewrite runs against the stored question, so there has to be a stored
   // survey to run it against.
   const improveDisabledReason = surveyId ? undefined : "Save the draft to enable AI rewrites.";
@@ -325,30 +367,63 @@ export function SurveyBuilderPage() {
       <div className="grid gap-gutter lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-stack-md">
           
-          {/* AI Drafter (Only show if new blank survey) */}
+          {/* Quick Start Options (AI Drafter and Document Import) */}
           {!surveyId && !isLocked && questions.length === 1 && !questions[0]?.text && !title && (
-            <div className="rounded-xl border border-primary/20 bg-primary-container/20 p-stack-md">
-              <h2 className="flex items-center gap-2 font-title-sm text-title-sm text-primary-fixed mb-2">
-                <Icon filled name="auto_awesome" /> AI Survey Drafter
-              </h2>
-              <p className="text-body-sm text-on-surface-variant mb-4">
-                Have a topic but need help designing the survey? Describe your research goal below, and Ethosk AI will draft a title, description, and a set of rigorous questions for you.
-              </p>
-              <div className="flex gap-2">
-                <Input
-                  className="flex-1 bg-surface-container-lowest"
-                  placeholder="e.g., Digital banking adoption in rural areas"
-                  value={aiTopic}
-                  onChange={(e) => setAiTopic(e.target.value)}
-                  disabled={draftAi.isPending}
-                />
-                <Button 
-                  loading={draftAi.isPending} 
-                  disabled={!aiTopic.trim() || aiTopic.length < 5} 
-                  onClick={() => draftAi.mutate()}
-                >
-                  Generate Draft
-                </Button>
+            <div className="grid gap-stack-md md:grid-cols-2">
+              {/* AI Survey Drafter */}
+              <div className="flex flex-col justify-between rounded-xl border border-primary/20 bg-primary-container/20 p-stack-md">
+                <div>
+                  <h2 className="mb-2 flex items-center gap-2 font-title-sm text-title-sm text-primary-fixed">
+                    <Icon filled name="auto_awesome" /> AI Survey Drafter
+                  </h2>
+                  <p className="mb-4 text-body-sm text-on-surface-variant">
+                    Describe your research topic, and Ethosk AI will draft questions with options.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    className="flex-1 bg-surface-container-lowest"
+                    placeholder="e.g., Mobile banking adoption"
+                    value={aiTopic}
+                    onChange={(e) => setAiTopic(e.target.value)}
+                    disabled={draftAi.isPending}
+                  />
+                  <Button
+                    loading={draftAi.isPending}
+                    disabled={!aiTopic.trim() || aiTopic.length < 5}
+                    onClick={() => draftAi.mutate()}
+                  >
+                    Draft
+                  </Button>
+                </div>
+              </div>
+
+              {/* Import Survey Document */}
+              <div className="flex flex-col justify-between rounded-xl border border-secondary/20 bg-secondary-container/20 p-stack-md">
+                <div>
+                  <h2 className="mb-2 flex items-center gap-2 font-title-sm text-title-sm text-secondary-fixed">
+                    <Icon name="upload_file" /> Import Document
+                  </h2>
+                  <p className="mb-4 text-body-sm text-on-surface-variant">
+                    Upload an existing questionnaire in <strong>.docx</strong>, <strong>.pdf</strong>, or <strong>.txt</strong> format.
+                  </p>
+                </div>
+                <div>
+                  <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-secondary px-4 py-2.5 font-label text-sm font-semibold text-secondary hover:bg-secondary/10">
+                    <Icon name="file_upload" />
+                    {isImporting ? "Parsing Document…" : "Choose .docx / .pdf / .txt"}
+                    <input
+                      type="file"
+                      accept=".docx,.pdf,.txt,.doc"
+                      className="hidden"
+                      disabled={isImporting}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileUpload(file);
+                      }}
+                    />
+                  </label>
+                </div>
               </div>
             </div>
           )}
