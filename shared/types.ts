@@ -22,7 +22,15 @@ export type DocReviewStatus = (typeof DOC_REVIEW_STATUSES)[number];
 export const FRAUD_FLAGS = ["clean", "flagged"] as const;
 export type FraudFlag = (typeof FRAUD_FLAGS)[number];
 
-export const SURVEY_STATUSES = ["draft", "final_draft", "active", "closed"] as const;
+export const SURVEY_STATUSES = [
+  "wip",
+  "draft",
+  "final_draft",
+  "pending_review",
+  "active",
+  "rejected",
+  "closed",
+] as const;
 export type SurveyStatus = (typeof SURVEY_STATUSES)[number];
 
 export const DOC_TYPES = ["student_id", "degree", "employer_id"] as const;
@@ -163,6 +171,17 @@ export const DEPOSIT_STATUS_LABEL: Record<DepositStatus, string> = {
   failed: "Not completed",
 };
 
+export const WITHDRAWAL_METHODS = ["telebirr", "cbe_birr"] as const;
+export type WithdrawalMethod = (typeof WITHDRAWAL_METHODS)[number];
+
+export const WITHDRAWAL_METHOD_LABEL: Record<WithdrawalMethod, string> = {
+  telebirr: "Telebirr",
+  cbe_birr: "CBE Birr",
+};
+
+export const WITHDRAWAL_STATUSES = ["pending", "completed", "failed"] as const;
+export type WithdrawalStatus = (typeof WITHDRAWAL_STATUSES)[number];
+
 /** Tier ordering, used for `min_verification_tier` comparisons. */
 export const TIER_RANK: Record<VerificationTier, number> = {
   "0_registered": 0,
@@ -210,6 +229,11 @@ export interface SurveyRecord {
   escrow_etb: number;
   created_at: string;
   sent_at: string | null;
+  compliance_answer?: boolean | null;
+  compliance_document_path?: string | null;
+  review_notes?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
 }
 
 export interface ResearcherProfileRecord {
@@ -240,6 +264,9 @@ export interface ResearcherProfileRecord {
 
 export interface RespondentProfileRecord {
   user_id: string;
+  full_name?: string | null;
+  phone?: string | null;
+  dob?: string | null;
   university: string | null;
   department: string | null;
   year: number | null;
@@ -287,16 +314,29 @@ export interface DepositRecord {
 
 export interface RespondentWallet {
   available_etb: number;
+  pending_etb?: number;
   withdrawn_etb: number;
   lifetime_etb: number;
   paid_response_count: number;
+}
+
+export interface WithdrawalRecord {
+  id: string;
+  respondent_id: string;
+  amount_etb: number;
+  method: WithdrawalMethod;
+  account_number: string;
+  status: WithdrawalStatus;
+  created_at: string;
 }
 
 export interface PayoutRecord {
   id: string;
   survey_id: string;
   amount_etb: number;
-  status: "pending" | "available" | "withdrawn";
+  net_amount_etb?: number;
+  platform_fee_etb?: number;
+  status: "available" | "withdrawn" | "pending" | "completed" | "paid";
   created_at: string;
   survey_title: string | null;
 }

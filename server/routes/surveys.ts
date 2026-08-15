@@ -30,7 +30,7 @@ import {
   rephraseQuestion,
   summarizeAnalytics,
 } from "../lib/ai/features.js";
-import { claudeConversation, MODELS } from "../lib/ai/index.js";
+import { claudeConversation, extractJson, MODELS } from "../lib/ai/index.js";
 import { chatModeSystem } from "../lib/ai/prompts.js";
 import { auth, requireAuth, checkFreeTierSurveyLimit, checkFreeTierResponseLimit } from "../lib/auth.js";
 import { recordConsentEvent } from "../lib/consent.js";
@@ -104,8 +104,11 @@ surveysRouter.post(
       .insert({
         researcher_id: context.userId,
         title: input.title,
+        description: input.description ?? null,
         questions: input.questions,
         reward_etb: input.reward_etb ?? null,
+        compliance_answer: input.compliance_answer ?? null,
+        compliance_document_path: input.compliance_document_path ?? null,
         status: input.status ?? "draft",
       })
       .select()
@@ -116,14 +119,54 @@ surveysRouter.post(
   }),
 );
 
+surveysRouter.delete(
+  "/:id",
+  requireAuth("researcher"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
+
+    const deletableStatuses = ["wip", "draft", "final_draft", "rejected"];
+    if (!deletableStatuses.includes(survey.status)) {
+      throw new ApiError(
+        409,
+        "SURVEY_NOT_DELETABLE",
+        "Active or sent surveys cannot be deleted as responses may be linked.",
+      );
+    }
+
+    const client = userClient(context.accessToken);
+    const { error } = await client.from("surveys").delete().eq("id", survey.id);
+
+    if (error) throw new ApiError(500, "SURVEY_DELETE_FAILED", error.message);
+    res.json({ success: true, message: "Survey deleted successfully." });
+  }),
+);
+
 surveysRouter.post(
   "/draft-ai",
   requireAuth("researcher"),
-  rateLimit({ key: "ai-draft", max: 5, windowMs: 60_000 }),
+  rateLimit({ key: "ai-draft", max: 10, windowMs: 60_000 }),
   asyncRoute(async (req, res) => {
-    const { topic } = parseBody(aiDraftRequestSchema, req.body);
+    const context = auth(req);
+
+    // Subscription gate enforcement: AI Survey Drafting is a Pro feature
+    if (context.subscriptionTier !== "subscribed") {
+      throw new ApiError(
+        403,
+        "FEATURE_REQUIRES_SUBSCRIPTION",
+        "AI Survey Generation is a Pro feature. Upgrade your subscription to unlock automated survey drafting.",
+      );
+    }
+
+    const input = parseBody(aiDraftRequestSchema, req.body);
     
-    const draft = await generateSurveyDraft(topic);
+    const draft = await generateSurveyDraft({
+      topic: input.topic,
+      description: input.description,
+      targetQuestionCount: input.target_question_count,
+    });
+
     if (!draft) {
       throw new ApiError(503, "AI_DRAFT_FAILED", "Failed to generate survey draft from AI.");
     }
@@ -150,6 +193,25 @@ surveysRouter.get(
   }),
 );
 
+surveysRouter.get(
+  "/:id/export",
+  requireAuth("researcher"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    await loadOwnedSurvey(routeParam(req, "id"), context.userId);
+
+    // Subscription gate enforcement
+    if (context.subscriptionTier !== "subscribed") {
+      throw new ApiError(403, "EXPORT_REQUIRES_SUBSCRIPTION", "Raw data export requires a Pro subscription.");
+    }
+
+    // MVP placeholder for actual CSV generation
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="survey_${req.params.id}_export.csv"`);
+    res.send("respondent_id,completed_at,fraud_flag\n123,2026-08-14,clean");
+  }),
+);
+
 surveysRouter.patch(
   "/:id",
   requireAuth("researcher"),
@@ -158,7 +220,8 @@ surveysRouter.patch(
     const input = parseBody(surveySchema.partial(), req.body);
     const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
 
-    if (survey.status === "active" || survey.status === "closed") {
+    const editableStatuses = ["wip", "draft", "final_draft", "rejected"];
+    if (!editableStatuses.includes(survey.status)) {
       throw new ApiError(409, "SURVEY_NOT_EDITABLE", "A sent survey can no longer be edited.");
     }
 
@@ -183,8 +246,11 @@ surveysRouter.patch(
       .from("surveys")
       .update({
         ...(input.title !== undefined && { title: input.title }),
+        ...(input.description !== undefined && { description: input.description }),
         ...(input.questions !== undefined && { questions: input.questions }),
         ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
+        ...(input.compliance_answer !== undefined && { compliance_answer: input.compliance_answer }),
+        ...(input.compliance_document_path !== undefined && { compliance_document_path: input.compliance_document_path }),
         ...(input.status !== undefined && { status: input.status }),
         translations,
       })
@@ -415,7 +481,7 @@ surveysRouter.post(
     const { error: statusError } = await admin
       .from("surveys")
       .update({
-        status: "active",
+        status: "pending_review",
         sent_at: new Date().toISOString(),
         target_filters: input.filters,
         escrow_etb: requiredEtb,
@@ -427,7 +493,7 @@ surveysRouter.post(
 
     res.json({
       targeted_count: respondentIds.length,
-      status: "active",
+      status: "pending_review",
       reserved_etb: requiredEtb,
     });
   }),
@@ -544,6 +610,8 @@ surveysRouter.get(
       questions.splice(pickInsertIndex(survey.questions.length), 0, check);
     }
 
+    const minVerificationTier = (survey.target_filters as any)?.minVerificationTier ?? "0_registered";
+
     res.json({
       id: survey.id,
       title: survey.title,
@@ -551,6 +619,7 @@ surveysRouter.get(
       reward_etb: survey.reward_etb,
       questions,
       translations: survey.translations,
+      min_verification_tier: minVerificationTier,
     });
   }),
 );
@@ -661,49 +730,117 @@ surveysRouter.post(
   rateLimit({ key: "chat", max: 60, windowMs: 60_000 }),
   asyncRoute(async (req, res) => {
     const context = auth(req);
-    const { messages } = parseBody(chatTurnSchema, req.body);
+    const { messages, language = "en" } = parseBody(chatTurnSchema, req.body);
     const survey = await loadSurvey(routeParam(req, "id"));
     await assertTargeted(survey.id, context.userId);
 
+    let turnData = {
+      reply: "",
+      question_index: null as number | null,
+      question_type: null as "single_choice" | "multi_choice" | "text" | null,
+      options: null as string[] | null,
+      is_followup: false,
+      is_complete: false,
+      fallback_to_form: false,
+      total_questions: survey.questions.length,
+    };
+
     try {
-      const reply = await claudeConversation({
+      const raw = await claudeConversation({
         model: MODELS.sonnet,
-        system: chatModeSystem(survey.questions.map((question) => question.text)),
+        system: chatModeSystem(
+          survey.questions.map((q) => ({
+            text: q.text,
+            type: q.type,
+            options: q.options,
+          })),
+        ),
         messages: messages.length ? messages : [{ role: "user", content: "Let's begin." }],
         maxTokens: 500,
         temperature: 0.6,
         timeoutMs: 8_000,
       });
-      res.json({ reply, fallback_to_form: false });
-    } catch (error) {
-      console.warn("[surveys] Conversational chat error, falling back to local simulation:", (error as Error).message);
-      // In local demo mode when ANTHROPIC_API_KEY is not set, simulate conversational question turns.
-      const userMessageCount = messages.filter((m) => m.role === "user").length;
-      const currentQuestion = survey.questions[userMessageCount];
 
-      if (userMessageCount === 0 && currentQuestion) {
-        const optionText = currentQuestion.options?.length
-          ? ` Options: ${currentQuestion.options.join(" | ")}`
-          : "";
-        res.json({
-          reply: `Welcome! Let's begin the survey. Question 1 of ${survey.questions.length}: ${currentQuestion.text}${optionText}`,
-          fallback_to_form: false,
-        });
-      } else if (currentQuestion) {
-        const optionText = currentQuestion.options?.length
-          ? ` Options: ${currentQuestion.options.join(" | ")}`
-          : "";
-        res.json({
-          reply: `Got it! Next question (${userMessageCount + 1} of ${survey.questions.length}): ${currentQuestion.text}${optionText}`,
-          fallback_to_form: false,
-        });
+      const parsed = extractJson(raw) as any;
+      if (parsed && typeof parsed.reply === "string") {
+        turnData.reply = parsed.reply;
+        turnData.question_index = typeof parsed.question_index === "number" ? parsed.question_index : null;
+        turnData.question_type = parsed.question_type ?? null;
+        turnData.options = Array.isArray(parsed.options) ? parsed.options : null;
+        turnData.is_followup = Boolean(parsed.is_followup);
+        turnData.is_complete = Boolean(parsed.is_complete);
       } else {
-        res.json({
-          reply: "Thank you! All questions in this study have been answered. Click 'Review and submit' below to record your response.",
-          fallback_to_form: false,
-        });
+        turnData.reply = raw;
+      }
+    } catch (_error) {
+      // Demo / offline fallback when ANTHROPIC_API_KEY is not configured
+      const userMessages = messages.filter((m) => m.role === "user");
+      const userMessageCount = userMessages.length;
+      const lastUserMsg = userMessages[userMessages.length - 1]?.content.trim().toLowerCase() || "";
+
+      // Check if last user answer was too short (< 4 characters or 1 word) on a text question for follow-up simulation
+      const prevQuestion = userMessageCount > 0 ? survey.questions[userMessageCount - 1] : null;
+      const isShortText = prevQuestion?.type === "text" && lastUserMsg.split(/\s+/).length < 2 && lastUserMsg.length < 5;
+      const isAlreadyFollowedUp = messages.slice(-2)[0]?.content?.includes("elaborate") || false;
+
+      if (isShortText && !isAlreadyFollowedUp && userMessageCount > 0) {
+        turnData.reply = `Could you elaborate a bit more on that? Please share a few more details.`;
+        turnData.question_index = userMessageCount - 1;
+        turnData.question_type = "text";
+        turnData.options = null;
+        turnData.is_followup = true;
+        turnData.is_complete = false;
+      } else if (userMessageCount === 0 && survey.questions[0]) {
+        const firstQ = survey.questions[0];
+        turnData.reply = `Welcome! Let's begin the survey. Question 1 of ${survey.questions.length}: ${firstQ.text}`;
+        turnData.question_index = 0;
+        turnData.question_type = firstQ.type as any;
+        turnData.options = firstQ.options ?? null;
+        turnData.is_followup = false;
+        turnData.is_complete = false;
+      } else if (userMessageCount < survey.questions.length && survey.questions[userMessageCount]) {
+        const currentQuestion = survey.questions[userMessageCount];
+        turnData.reply = `Got it! Next question (${userMessageCount + 1} of ${survey.questions.length}): ${currentQuestion.text}`;
+        turnData.question_index = userMessageCount;
+        turnData.question_type = currentQuestion.type as any;
+        turnData.options = currentQuestion.options ?? null;
+        turnData.is_followup = false;
+        turnData.is_complete = false;
+      } else {
+        turnData.reply = "Thank you! All questions in this study have been answered. Click 'Review and submit' below to record your response.";
+        turnData.question_index = null;
+        turnData.question_type = null;
+        turnData.options = null;
+        turnData.is_followup = false;
+        turnData.is_complete = true;
       }
     }
+
+    // Adaptive language translation via Addis AI
+    if (language === "am" || language === "om") {
+      try {
+        const translated = await translateText(turnData.reply, language);
+        turnData.reply = translated.text;
+
+        // Also translate options if present
+        if (turnData.options?.length) {
+          turnData.options = await Promise.all(
+            turnData.options.map(async (opt) => {
+              try {
+                const res = await translateText(opt, language);
+                return res.text;
+              } catch {
+                return opt;
+              }
+            }),
+          );
+        }
+      } catch (err) {
+        console.warn(`[chat] language translation to ${language} failed:`, err);
+      }
+    }
+
+    res.json(turnData);
   }),
 );
 

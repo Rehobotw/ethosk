@@ -18,10 +18,23 @@ interface SurveyWithStats extends SurveyRecord {
 }
 
 const STATUS_STYLES: Record<SurveyStatus, string> = {
+  wip: "bg-amber-100 text-amber-800",
   draft: "bg-surface-container-high text-on-surface-variant",
-  final_draft: "bg-primary/15 text-primary font-semibold",
+  final_draft: "bg-blue-100 text-blue-800",
+  pending_review: "bg-status-pending/15 text-flag-amber",
   active: "bg-status-passed/15 text-flag-clean",
+  rejected: "bg-status-failed/15 text-flag-red",
   closed: "bg-surface-variant text-on-surface-variant",
+};
+
+const STATUS_LABELS: Record<SurveyStatus, string> = {
+  wip: "Work in Progress",
+  draft: "Draft",
+  final_draft: "Final Draft",
+  pending_review: "Pending Review",
+  active: "Active",
+  rejected: "Rejected",
+  closed: "Closed",
 };
 
 export function SurveyListPage() {
@@ -53,18 +66,18 @@ export function SurveyListPage() {
 
       <div className="space-y-stack-md">
         {data?.surveys.map((survey) => {
-          const isDraft = survey.status === "draft";
+          const isEditable = ["wip", "draft", "final_draft", "rejected"].includes(survey.status);
           return (
             <Card className="p-stack-md" key={survey.id}>
               <div className="flex flex-wrap items-center justify-between gap-stack-md">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-stack-sm">
                     <span
-                      className={`rounded-full px-3 py-1 font-status-badge text-status-badge capitalize ${
+                      className={`rounded-full px-3 py-1 font-status-badge text-status-badge ${
                         STATUS_STYLES[survey.status]
                       }`}
                     >
-                      {survey.status}
+                      {STATUS_LABELS[survey.status]}
                     </span>
                     <span className="font-body-sm text-[12px] text-on-surface-variant">
                       {new Date(survey.created_at).toLocaleDateString()}
@@ -81,10 +94,10 @@ export function SurveyListPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-stack-sm">
-                  {isDraft ? (
+                  {isEditable ? (
                     <Link to={`/researcher/surveys/${survey.id}/edit`}>
                       <Button icon="edit" variant="outline">
-                        Continue Editing
+                        {survey.status === "wip" ? "Resume Editing" : "Continue Editing"}
                       </Button>
                     </Link>
                   ) : (

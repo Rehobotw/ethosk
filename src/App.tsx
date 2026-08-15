@@ -5,13 +5,13 @@ import { RespondentLayout } from "./components/layout/RespondentLayout";
 import { RequireRole } from "./components/RequireRole";
 import { RequireOnboarding } from "./components/RequireOnboarding";
 import { LoadingBlock } from "./components/ui";
+import { AuthCallbackPage } from "./pages/auth/AuthCallbackPage";
 import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage";
 import { LoginPage } from "./pages/auth/LoginPage";
+
 import { SignupPage } from "./pages/auth/SignupPage";
 import { VerifyEmailPage } from "./pages/auth/VerifyEmailPage";
 import { HomePage } from "./pages/HomePage";
-import { LearnRespondentsPage } from "./pages/LearnRespondentsPage";
-import { LearnResearchersPage } from "./pages/LearnResearchersPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { DocumentsPage } from "./pages/respondent/DocumentsPage";
 import { HistoryPage } from "./pages/respondent/HistoryPage";
@@ -19,6 +19,7 @@ import { InboxPage } from "./pages/respondent/InboxPage";
 import { ProfilePage } from "./pages/respondent/ProfilePage";
 import { SurveyFillPage } from "./pages/respondent/SurveyFillPage";
 import { VerificationPage } from "./pages/respondent/VerificationPage";
+import { RespondentOnboardingPage } from "./pages/respondent/RespondentOnboardingPage";
 import { WalletPage } from "./pages/respondent/WalletPage";
 
 /**
@@ -28,6 +29,9 @@ import { WalletPage } from "./pages/respondent/WalletPage";
  */
 const ResearcherLayout = lazy(() =>
   import("./components/layout/ResearcherLayout").then((m) => ({ default: m.ResearcherLayout })),
+);
+const AdminLayout = lazy(() =>
+  import("./components/layout/AdminLayout").then((m) => ({ default: m.AdminLayout })),
 );
 const DashboardPage = lazy(() =>
   import("./pages/researcher/DashboardPage").then((m) => ({ default: m.DashboardPage })),
@@ -58,8 +62,19 @@ const SubscriptionPage = lazy(() =>
 const TelebirrDemoPage = lazy(() =>
   import("./pages/researcher/TelebirrDemoPage").then((m) => ({ default: m.TelebirrDemoPage })),
 );
+const AdminDashboardOverviewPage = lazy(() =>
+  import("./pages/admin/AdminDashboardOverviewPage").then((m) => ({
+    default: m.AdminDashboardOverviewPage,
+  })),
+);
 const AdminReviewQueuePage = lazy(() =>
   import("./pages/admin/ReviewQueuePage").then((m) => ({ default: m.AdminReviewQueuePage })),
+);
+const SurveyQueuePage = lazy(() =>
+  import("./pages/admin/SurveyQueuePage").then((m) => ({ default: m.SurveyQueuePage })),
+);
+const RevenueDashboardPage = lazy(() =>
+  import("./pages/admin/RevenueDashboardPage").then((m) => ({ default: m.RevenueDashboardPage })),
 );
 const ResearcherQueuePage = lazy(() =>
   import("./pages/admin/ResearcherQueuePage").then((m) => ({ default: m.AdminResearcherQueuePage })),
@@ -79,11 +94,14 @@ export default function App() {
     <Routes>
       <Route element={<MarketingLayout />} path="/">
         <Route element={<HomePage />} index />
-        <Route element={<LearnResearchersPage />} path="learn/researchers" />
-        <Route element={<LearnRespondentsPage />} path="learn/respondents" />
+        <Route element={<Navigate replace to="/#how" />} path="learn/researchers" />
+        <Route element={<Navigate replace to="/#verification" />} path="learn/respondents" />
       </Route>
 
       <Route element={<LoginPage />} path="/login" />
+      <Route element={<LoginPage role="respondent" />} path="/login/respondent" />
+      <Route element={<LoginPage role="researcher" />} path="/login/researcher" />
+
       <Route
         element={
           <Suspense fallback={<LoadingBlock />}>
@@ -92,9 +110,16 @@ export default function App() {
         }
         path="/admin/login"
       />
+
       <Route element={<SignupPage />} path="/signup" />
+      <Route element={<SignupPage role="respondent" />} path="/signup/respondent" />
+      <Route element={<SignupPage role="researcher" />} path="/signup/researcher" />
+
+      <Route element={<AuthCallbackPage />} path="/auth/callback" />
       <Route element={<VerifyEmailPage />} path="/verify-email" />
       <Route element={<ForgotPasswordPage />} path="/forgot-password" />
+      <Route element={<RespondentOnboardingPage />} path="/onboarding" />
+      <Route element={<RespondentOnboardingPage />} path="/respondent/onboarding" />
 
       {/* Respondent */}
       <Route
@@ -151,6 +176,7 @@ export default function App() {
         <Route element={<SurveyListPage />} path="/researcher/surveys" />
         <Route element={<SurveyBuilderPage />} path="/researcher/surveys/new" />
         <Route element={<SurveyBuilderPage />} path="/researcher/surveys/:id/edit" />
+        <Route element={<SurveyAnalyticsPage />} path="/researcher/analytics" />
         <Route element={<SurveyAnalyticsPage />} path="/researcher/surveys/:id/dashboard" />
         <Route element={<ResearcherWalletPage />} path="/researcher/wallet" />
         <Route element={<TelebirrDemoPage />} path="/researcher/wallet/telebirr-demo" />
@@ -162,14 +188,18 @@ export default function App() {
       {/* Admin */}
       <Route
         element={
-          <RequireRole roles={["admin"]}>
+          <RequireRole roles={["admin", "super_admin"]}>
             <Suspense fallback={<LoadingBlock />}>
-              <ResearcherLayout />
+              <AdminLayout />
             </Suspense>
           </RequireRole>
         }
       >
+        <Route element={<AdminDashboardOverviewPage />} path="/admin" />
+        <Route element={<AdminDashboardOverviewPage />} path="/admin/overview" />
         <Route element={<AdminReviewQueuePage />} path="/admin/review-queue" />
+        <Route element={<SurveyQueuePage />} path="/admin/survey-approvals" />
+        <Route element={<RevenueDashboardPage />} path="/admin/revenue" />
         <Route element={<ResearcherQueuePage />} path="/admin/researcher-approvals" />
       </Route>
 
@@ -178,7 +208,7 @@ export default function App() {
         element={
           <RequireRole roles={["super_admin"]}>
             <Suspense fallback={<LoadingBlock />}>
-              <ResearcherLayout />
+              <AdminLayout />
             </Suspense>
           </RequireRole>
         }

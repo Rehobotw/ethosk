@@ -1,49 +1,22 @@
-import { Link, useNavigate } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import type { ResearcherWallet, SurveyRecord } from "@shared/types";
-import {
-  Button,
-  Card,
-  EmptyState,
-  Icon,
-  LoadingBlock,
-  Notice,
-  SectionHeading,
-  StatBlock,
-} from "@/components/ui";
+import { Icon, LoadingBlock, Notice } from "@/components/ui";
 import { api } from "@/lib/api";
-import { useLanguage } from "@/lib/language";
 
 interface SurveyWithStats extends SurveyRecord {
-  response_count: number;
-  targeted_count: number;
+  response_count?: number;
+  targeted_count?: number;
+  velocity_per_hr?: number;
+  flagged_count?: number;
 }
 
-interface AnalyticsPayload {
-  response_count: number;
-  targeted_count: number;
-  completion_rate: number;
-  flagged_count: number;
-  clean_count: number;
-  distributions: Record<string, Record<string, number>>;
-  questions: Array<{ id: string; text: string; options?: string[] }>;
-}
+type TabKey = "ongoing" | "drafts" | "completed";
 
 export function DashboardPage() {
-  const { t } = useLanguage();
+  const [activeTab, setActiveTab] = useState<TabKey>("ongoing");
+
   const { data: surveysData, isLoading: surveysLoading, error: surveysError } = useQuery({
     queryKey: ["surveys"],
     queryFn: () => api<{ surveys: SurveyWithStats[] }>("/surveys"),
@@ -54,421 +27,297 @@ export function DashboardPage() {
     queryFn: () => api<{ wallet: ResearcherWallet }>("/wallet/researcher"),
   });
 
-  const activeSurveys = surveysData?.surveys.filter((s) => s.status === "active") ?? [];
-  const finalDraftSurveys = surveysData?.surveys.filter((s) => s.status === "final_draft") ?? [];
-  const wipDraftSurveys = surveysData?.surveys.filter((s) => s.status === "draft") ?? [];
-  const firstActiveSurvey = activeSurveys[0];
+  if (surveysLoading) return <LoadingBlock label="Loading research operations monitor…" />;
+  if (surveysError) return <Notice tone="error">Could not load operations dashboard.</Notice>;
 
-  const { data: analyticsData } = useQuery({
-    queryKey: ["analytics", firstActiveSurvey?.id],
-    queryFn: () => api<AnalyticsPayload>(`/surveys/${firstActiveSurvey!.id}/analytics`),
-    enabled: Boolean(firstActiveSurvey?.id),
-  });
-
-  if (surveysLoading) return <LoadingBlock label="Loading researcher dashboard & analytics…" />;
-  if (surveysError) return <Notice tone="error">Could not load dashboard data.</Notice>;
-
-  const totalResponses = surveysData?.surveys.reduce((sum, s) => sum + (s.response_count || 0), 0) ?? 0;
-  const totalTargeted = surveysData?.surveys.reduce((sum, s) => sum + (s.targeted_count || 0), 0) ?? 0;
+  const surveys = surveysData?.surveys ?? [];
   const wallet = walletData?.wallet;
 
-  // Prepare chart data for active survey distributions
-  const primaryQuestion = analyticsData?.questions?.find((q) => q.options && q.options.length > 0);
-  const chartDist = primaryQuestion ? analyticsData?.distributions[primaryQuestion.id] : undefined;
-  const barChartData = chartDist
-    ? Object.entries(chartDist).map(([option, count]) => ({ option, count }))
-    : [];
+  const ongoingSurveys = surveys.filter((s) => s.status === "active");
+  const draftSurveys = surveys.filter(
+    (s) => s.status === "wip" || s.status === "draft" || s.status === "final_draft",
+  );
+  const completedSurveys = surveys.filter(
+    (s) => (s.status as string) === "completed" || s.status === "closed",
+  );
 
-  const qualityPieData = analyticsData
-    ? [
-        { name: "Clean", value: analyticsData.clean_count, color: "#10b981" },
-        { name: "Flagged", value: analyticsData.flagged_count, color: "#ef4444" },
-      ].filter((d) => d.value > 0)
-    : [];
+  const totalResponses = surveys.reduce((sum, s) => sum + (s.response_count || 0), 0);
+  const availableEtb = wallet?.available_etb ?? 0;
+
+  const currentTabSurveys =
+    activeTab === "ongoing"
+      ? ongoingSurveys
+      : activeTab === "drafts"
+      ? draftSurveys
+      : completedSurveys;
 
   return (
-    <div className="space-y-stack-lg">
-      <SectionHeading
-        actions={
-          <div className="flex gap-stack-sm">
-            <Link to="/researcher/wallet">
-              <Button icon="account_balance_wallet" variant="outline">
-                {wallet ? `${wallet.available_etb.toLocaleString()} ETB` : t("nav.wallet")}
-              </Button>
-            </Link>
-            <Link to="/researcher/surveys/new">
-              <Button icon="add">{t("researcher.create_new")}</Button>
-            </Link>
-          </div>
-        }
-        subtitle="Real-time analytics, response quality verification, and active studies."
-        title={t("researcher.dashboard_title")}
-      />
+    <div className="space-y-8 font-body-md text-on-surface pb-16">
+      {/* ── Header Section ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-headline-lg font-bold text-[#0D253A] tracking-tight">
+            Research Operations Monitor
+          </h1>
+          <p className="text-base text-on-surface-variant max-w-2xl mt-1">
+            Real-time oversight of active studies, respondent acquisition, and operational metrics.
+          </p>
+        </div>
 
-      {/* Top Metric Cards */}
-      <div className="grid gap-stack-md sm:grid-cols-2 lg:grid-cols-4">
-        <StatBlock
-          label={t("researcher.completed_responses")}
-          value={totalResponses > 0 ? totalResponses.toLocaleString() : "0"}
-        />
-        <StatBlock
-          label="Targeted Audience"
-          value={totalTargeted > 0 ? totalTargeted.toLocaleString() : "0"}
-        />
-        <StatBlock
-          label={t("researcher.wallet_balance")}
-          value={wallet ? `${wallet.available_etb.toLocaleString()} ETB` : "—"}
-        />
-        <StatBlock
-          label="Quality Pass Rate"
-          tone={analyticsData && analyticsData.flagged_count > 0 ? "danger" : "default"}
-          value={
-            analyticsData && analyticsData.response_count > 0
-              ? `${Math.round((analyticsData.clean_count / analyticsData.response_count) * 100)}%`
-              : "100%"
-          }
-        />
+        <Link to="/researcher/surveys/new">
+          <button
+            className="bg-primary hover:bg-primary-container text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer active:scale-95 whitespace-nowrap"
+            type="button"
+          >
+            <Icon className="text-[18px]" name="add" />
+            <span>New Research</span>
+          </button>
+        </Link>
       </div>
 
-      {/* Analytics Visual Graphs Section */}
-      {firstActiveSurvey && analyticsData ? (
-        <div className="grid gap-stack-md lg:grid-cols-3">
-          {/* Main Distribution Bar Chart */}
-          <Card className="p-stack-md lg:col-span-2">
-            <div className="mb-stack-md flex flex-wrap items-center justify-between gap-stack-sm border-b border-outline-variant pb-stack-sm">
-              <div>
-                <span className="font-label-caps text-[11px] uppercase text-primary font-semibold">
-                  Live Active Study Analytics
-                </span>
-                <h2 className="font-title-sm text-title-sm text-on-surface">
-                  {firstActiveSurvey.title}
-                </h2>
-              </div>
-              <Link to={`/researcher/surveys/${firstActiveSurvey.id}/dashboard`}>
-                <Button icon="insights" variant="ghost">
-                  Full Analytics
-                </Button>
+      {/* ── Metrics Overview (4 Bento Cards) ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Card 1: Active Studies */}
+        <div className="bg-white rounded-xl border border-outline-variant/40 p-6 hover:border-primary transition-all shadow-[0_4px_20px_rgba(0,89,133,0.04)] group">
+          <div className="flex justify-between items-start mb-4">
+            <p className="font-label-md text-xs font-semibold text-[#5A6E7F] uppercase tracking-wider">
+              Active Studies
+            </p>
+            <span className="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg text-lg">
+              assignment
+            </span>
+          </div>
+          <p className="text-3xl font-headline-lg font-bold text-[#0D253A]">
+            {ongoingSurveys.length}
+          </p>
+          <div className="mt-2 flex items-center gap-1 text-on-surface-variant text-xs font-medium">
+            <span className="material-symbols-outlined text-[14px] text-emerald-600 font-bold">
+              trending_up
+            </span>
+            <span>{ongoingSurveys.length > 0 ? "+1 since last week" : "No active studies"}</span>
+          </div>
+        </div>
+
+        {/* Card 2: Respondents Reached */}
+        <div className="bg-white rounded-xl border border-outline-variant/40 p-6 hover:border-primary transition-all shadow-[0_4px_20px_rgba(0,89,133,0.04)] group">
+          <div className="flex justify-between items-start mb-4">
+            <p className="font-label-md text-xs font-semibold text-[#5A6E7F] uppercase tracking-wider">
+              Respondents Reached
+            </p>
+            <span className="material-symbols-outlined text-secondary bg-secondary/10 p-1.5 rounded-lg text-lg">
+              groups
+            </span>
+          </div>
+          <p className="text-3xl font-headline-lg font-bold text-[#0D253A]">
+            {totalResponses.toLocaleString()}
+          </p>
+          <div className="mt-2 flex items-center gap-1 text-on-surface-variant text-xs font-medium">
+            <span className="material-symbols-outlined text-[14px] text-emerald-600 font-bold">
+              trending_up
+            </span>
+            <span>{totalResponses > 0 ? `+${totalResponses} collected` : "0 in last 24h"}</span>
+          </div>
+        </div>
+
+        {/* Card 3: Wallet Balance */}
+        <div className="bg-white rounded-xl border border-outline-variant/40 p-6 hover:border-primary transition-all shadow-[0_4px_20px_rgba(0,89,133,0.04)] group">
+          <div className="flex justify-between items-start mb-4">
+            <p className="font-label-md text-xs font-semibold text-[#5A6E7F] uppercase tracking-wider">
+              Wallet Balance
+            </p>
+            <span className="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg text-lg">
+              account_balance_wallet
+            </span>
+          </div>
+          <p className="text-3xl font-headline-lg font-bold text-[#0D253A]">
+            {availableEtb.toLocaleString()}{" "}
+            <span className="text-sm font-normal text-on-surface-variant">ETB</span>
+          </p>
+          <div className="mt-2 flex items-center gap-1 text-on-surface-variant text-xs">
+            <span className="material-symbols-outlined text-[14px]">history</span>
+            <span>Automated escrow holds enabled</span>
+          </div>
+        </div>
+
+        {/* Card 4: Active Drafts */}
+        <div className="bg-white rounded-xl border border-outline-variant/40 p-6 hover:border-primary transition-all shadow-[0_4px_20px_rgba(0,89,133,0.04)] group">
+          <div className="flex justify-between items-start mb-4">
+            <p className="font-label-md text-xs font-semibold text-[#5A6E7F] uppercase tracking-wider">
+              Active Drafts
+            </p>
+            <span className="material-symbols-outlined text-secondary bg-secondary/10 p-1.5 rounded-lg text-lg">
+              draft
+            </span>
+          </div>
+          <p className="text-3xl font-headline-lg font-bold text-[#0D253A]">
+            {draftSurveys.length}
+          </p>
+          <div className="mt-2 flex items-center gap-1 text-on-surface-variant text-xs">
+            <span>{draftSurveys.length > 0 ? "Awaiting compliance review" : "No drafts in progress"}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Studies Workspace ── */}
+      <div className="bg-white rounded-xl border border-outline-variant/40 overflow-hidden shadow-[0_4px_20px_rgba(0,89,133,0.04)]">
+        {/* Tabs */}
+        <div className="flex border-b border-outline-variant/40 px-6 pt-4 gap-6 bg-[#f8f9ff]">
+          <button
+            className={`text-xs font-bold pb-3 px-2 transition-colors cursor-pointer ${
+              activeTab === "ongoing"
+                ? "text-primary border-b-2 border-primary"
+                : "text-[#5A6E7F] hover:text-on-surface"
+            }`}
+            onClick={() => setActiveTab("ongoing")}
+            type="button"
+          >
+            Ongoing Studies ({ongoingSurveys.length})
+          </button>
+          <button
+            className={`text-xs font-bold pb-3 px-2 transition-colors cursor-pointer ${
+              activeTab === "drafts"
+                ? "text-primary border-b-2 border-primary"
+                : "text-[#5A6E7F] hover:text-on-surface"
+            }`}
+            onClick={() => setActiveTab("drafts")}
+            type="button"
+          >
+            Drafts ({draftSurveys.length})
+          </button>
+          <button
+            className={`text-xs font-bold pb-3 px-2 transition-colors cursor-pointer ${
+              activeTab === "completed"
+                ? "text-primary border-b-2 border-primary"
+                : "text-[#5A6E7F] hover:text-on-surface"
+            }`}
+            onClick={() => setActiveTab("completed")}
+            type="button"
+          >
+            Completed ({completedSurveys.length})
+          </button>
+        </div>
+
+        {/* Study Rows or Empty State */}
+        {currentTabSurveys.length === 0 ? (
+          <div className="py-16 px-6 text-center flex flex-col items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-surface-container-low flex items-center justify-center text-on-surface-variant mb-3 border border-outline-variant/40">
+              <span className="material-symbols-outlined text-[24px]">assignment</span>
+            </div>
+            <h3 className="text-base font-headline-md font-bold text-[#0D253A] mb-1">
+              No studies in this view
+            </h3>
+            <p className="text-xs text-on-surface-variant max-w-sm mb-5">
+              {activeTab === "ongoing"
+                ? "Create a new study or check ongoing operations."
+                : activeTab === "drafts"
+                ? "No draft studies currently awaiting review."
+                : "Completed research studies will appear here."}
+            </p>
+            {activeTab !== "completed" && (
+              <Link to="/researcher/surveys/new">
+                <button
+                  className="bg-[#002446] hover:bg-[#00386c] text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 mx-auto"
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-[16px]">add</span>
+                  <span>Create New Study</span>
+                </button>
               </Link>
-            </div>
-
-            {primaryQuestion && barChartData.length > 0 ? (
-              <div>
-                <p className="mb-stack-sm font-body-sm text-body-sm font-semibold text-on-surface">
-                  {primaryQuestion.text}
-                </p>
-                <div className="h-64 w-full">
-                  <ResponsiveContainer height="100%" width="100%">
-                    <BarChart data={barChartData}>
-                      <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="option"
-                        stroke="#475569"
-                        style={{ fontSize: 11 }}
-                        tickLine={false}
-                      />
-                      <YAxis allowDecimals={false} stroke="#475569" style={{ fontSize: 11 }} />
-                      <Tooltip />
-                      <Bar dataKey="count" fill="#0284c7" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            ) : (
-              <EmptyState icon="bar_chart" title="Collecting response distribution data..." />
             )}
-          </Card>
-
-          {/* Quality & Fraud Pie Chart */}
-          <Card className="p-stack-md flex flex-col justify-between">
-            <div>
-              <div className="mb-stack-sm border-b border-outline-variant pb-stack-sm">
-                <span className="font-label-caps text-[11px] uppercase text-primary font-semibold">
-                  Fraud & Quality Filter
-                </span>
-                <h2 className="font-title-sm text-title-sm text-on-surface">
-                  Response Integrity
-                </h2>
-              </div>
-
-              {qualityPieData.length > 0 ? (
-                <div className="h-52 w-full">
-                  <ResponsiveContainer height="100%" width="100%">
-                    <PieChart>
-                      <Pie
-                        cx="50%"
-                        cy="50%"
-                        data={qualityPieData}
-                        dataKey="value"
-                        innerRadius={45}
-                        outerRadius={70}
-                        paddingAngle={3}
-                      >
-                        {qualityPieData.map((entry) => (
-                          <Cell fill={entry.color} key={entry.name} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <EmptyState icon="verified" title="100% Clean Responses" />
-              )}
-            </div>
-
-            <div className="mt-stack-sm rounded-xl border border-outline-variant bg-surface-container-low p-3 text-[12px] text-on-surface-variant">
-              <p className="font-semibold text-on-surface">Deterministic Quality Checks:</p>
-              <ul className="mt-1 space-y-0.5 text-[11px]">
-                <li>✓ Speed-run timing verification</li>
-                <li>✓ Straight-line answer detection</li>
-                <li>✓ Reworded question consistency</li>
-              </ul>
-            </div>
-          </Card>
-        </div>
-      ) : null}
-
-      {/* Active Surveys Section */}
-      <section>
-        <div className="mb-stack-md flex items-center justify-between">
-          <h2 className="flex items-center gap-stack-sm font-title-sm text-title-sm text-on-surface">
-            <Icon className="text-secondary" name="bolt" /> Active Surveys ({activeSurveys.length})
-          </h2>
-          <Link className="font-body-sm text-body-sm text-primary hover:underline" to="/researcher/surveys">
-            View All
-          </Link>
-        </div>
-
-        {activeSurveys.length > 0 ? (
-          <div className="space-y-stack-md">
-            {activeSurveys.map((survey) => (
-              <SurveyCard key={survey.id} survey={survey} />
-            ))}
           </div>
         ) : (
-          <Card className="p-stack-md text-center">
-            <p className="font-body-sm text-on-surface-variant">No active surveys running right now.</p>
-          </Card>
+          <div className="divide-y divide-outline-variant/20">
+            {currentTabSurveys.map((survey) => {
+              const target = survey.targeted_count || 100;
+              const completed = survey.response_count || 0;
+              const percent = Math.min(100, Math.round((completed / target) * 100));
+
+              return (
+                <div
+                  className="flex flex-col lg:flex-row lg:items-center justify-between p-6 gap-6 hover:bg-[#f8f9ff] transition-colors"
+                  key={survey.id}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-lg font-headline-md font-bold text-[#0D253A] truncate">
+                        {survey.title}
+                      </h3>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                          survey.status === "active"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {survey.status === "active" ? "Live" : survey.status.toUpperCase()}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-4 text-on-surface-variant text-xs">
+                      <div className="flex items-center gap-1">
+                        <Icon className="text-[16px] text-primary" name="groups" />
+                        <span>
+                          {completed}/{target} Respondents
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Icon className="text-[16px] text-primary" name="speed" />
+                        <span>+{survey.velocity_per_hr ?? 0}/hr velocity</span>
+                      </div>
+                      <div
+                        className={`flex items-center gap-1 font-medium ${
+                          (survey.flagged_count ?? 0) > 0 ? "text-error" : "text-on-surface-variant"
+                        }`}
+                      >
+                        <Icon className="text-[16px]" name="flag" />
+                        <span>
+                          {(survey.flagged_count ?? 0) > 0
+                            ? `${survey.flagged_count} flagged for review`
+                            : "0 flagged"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="w-full lg:w-48 flex flex-col gap-1.5 shrink-0">
+                    <div className="flex justify-between text-[11px] font-semibold text-[#5A6E7F]">
+                      <span>Progress</span>
+                      <span>{percent}%</span>
+                    </div>
+                    <div className="w-full bg-surface-container-highest rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="bg-primary h-1.5 rounded-full transition-all duration-500"
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 lg:ml-4 shrink-0">
+                    <Link
+                      aria-label="View Analytics"
+                      className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
+                      title="View Analytics"
+                      to={`/researcher/surveys/${survey.id}/dashboard`}
+                    >
+                      <Icon className="text-[20px]" name="analytics" />
+                    </Link>
+                    <Link
+                      aria-label="Edit Survey"
+                      className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
+                      title="Edit Survey"
+                      to={`/researcher/surveys/${survey.id}/edit`}
+                    >
+                      <Icon className="text-[20px]" name="edit" />
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
-      </section>
-
-      {/* Final Drafts Section */}
-      {finalDraftSurveys.length > 0 ? (
-        <section>
-          <h2 className="mb-stack-md flex items-center gap-stack-sm font-title-sm text-title-sm text-on-surface">
-            <Icon className="text-primary" name="verified_user" /> Final Drafts ({finalDraftSurveys.length})
-          </h2>
-          <p className="mb-stack-sm font-body-sm text-[12px] text-on-surface-variant">
-            Validated studies awaiting audience allocation, budget reservation, and launching.
-          </p>
-          <div className="space-y-stack-md">
-            {finalDraftSurveys.map((survey) => (
-              <SurveyCard key={survey.id} survey={survey} />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {/* Work-in-Progress Draft Surveys Section */}
-      {wipDraftSurveys.length > 0 ? (
-        <section>
-          <h2 className="mb-stack-md flex items-center gap-stack-sm font-title-sm text-title-sm text-on-surface">
-            <Icon className="text-on-surface-variant" name="edit_note" /> Work-in-Progress Drafts ({wipDraftSurveys.length})
-          </h2>
-          <div className="space-y-stack-md">
-            {wipDraftSurveys.map((survey) => (
-              <SurveyCard key={survey.id} survey={survey} />
-            ))}
-          </div>
-        </section>
-      ) : null}
-    </div>
-  );
-}
-
-function SurveyCard({ survey }: { survey: SurveyWithStats }) {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-
-  const isWip = survey.status === "draft";
-  const isFinalDraft = survey.status === "final_draft";
-
-  const deleteMutation = useMutation({
-    mutationFn: () => api(`/surveys/${survey.id}`, { method: "DELETE" }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["surveys"] });
-    },
-  });
-
-  const duplicateMutation = useMutation({
-    mutationFn: () => api<SurveyRecord>(`/surveys/${survey.id}/duplicate`, { method: "POST" }),
-    onSuccess: async (newSurvey) => {
-      await queryClient.invalidateQueries({ queryKey: ["surveys"] });
-      navigate(`/researcher/surveys/${newSurvey.id}/edit`);
-    },
-  });
-
-  const completion =
-    survey.targeted_count > 0
-      ? Math.round((survey.response_count / survey.targeted_count) * 100)
-      : 0;
-
-  const statusLabel = isWip
-    ? "Draft (WIP)"
-    : isFinalDraft
-    ? "Final Draft"
-    : `Sent ${survey.sent_at ? new Date(survey.sent_at).toLocaleDateString() : ""}`;
-
-  const dotColor = isWip
-    ? "bg-on-surface-variant"
-    : isFinalDraft
-    ? "bg-primary"
-    : "bg-status-passed";
-
-  return (
-    <Card className="overflow-hidden">
-      <div className="grid gap-stack-md p-stack-md md:grid-cols-[minmax(0,1fr)_240px]">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className={`inline-block h-2 w-2 rounded-full ${dotColor}`} />
-            <p className="font-label-caps text-label-caps uppercase text-on-surface-variant">
-              {statusLabel}
-            </p>
-          </div>
-          <h3 className="mt-base font-title-sm text-title-sm text-on-surface">{survey.title}</h3>
-
-          <div className="mt-stack-md flex flex-wrap gap-stack-lg">
-            <div>
-              <p className="font-label-caps text-[11px] uppercase text-on-surface-variant">
-                Responses
-              </p>
-              <p className="mt-base font-headline-md text-title-sm text-on-surface">
-                {survey.response_count}
-                {survey.targeted_count > 0 ? (
-                  <span className="font-body-sm text-body-sm text-on-surface-variant">
-                    {" "}
-                    / {survey.targeted_count}
-                  </span>
-                ) : null}
-              </p>
-            </div>
-            <div>
-              <p className="font-label-caps text-[11px] uppercase text-on-surface-variant">
-                Completion Rate
-              </p>
-              <p className="mt-base font-headline-md text-title-sm text-on-surface">
-                {completion}%
-              </p>
-            </div>
-            <div>
-              <p className="font-label-caps text-[11px] uppercase text-on-surface-variant">
-                Questions
-              </p>
-              <p className="mt-base font-headline-md text-title-sm text-on-surface">
-                {survey.questions.length}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col justify-center gap-stack-sm">
-          {isFinalDraft ? (
-            <>
-              <Link to={`/researcher/surveys/${survey.id}/edit`}>
-                <Button className="w-full" icon="rocket_launch">
-                  Launch / Post
-                </Button>
-              </Link>
-              <div className="flex gap-2">
-                <Link className="flex-1" to={`/researcher/surveys/${survey.id}/edit`}>
-                  <Button className="w-full text-xs" icon="edit" variant="outline">
-                    Edit
-                  </Button>
-                </Link>
-                <Button
-                  className="flex-1 text-xs"
-                  icon="content_copy"
-                  loading={duplicateMutation.isPending}
-                  onClick={() => duplicateMutation.mutate()}
-                  variant="outline"
-                >
-                  Duplicate
-                </Button>
-                <Button
-                  className="text-xs"
-                  icon="delete"
-                  loading={deleteMutation.isPending}
-                  onClick={() => {
-                    if (confirm(`Delete "${survey.title}"?`)) {
-                      deleteMutation.mutate();
-                    }
-                  }}
-                  variant="outline"
-                >
-                  Delete
-                </Button>
-              </div>
-            </>
-          ) : isWip ? (
-            <>
-              <Link to={`/researcher/surveys/${survey.id}/edit`}>
-                <Button className="w-full" icon="edit">
-                  Continue Editing
-                </Button>
-              </Link>
-              <div className="flex gap-2">
-                <Button
-                  className="flex-1 text-xs"
-                  icon="content_copy"
-                  loading={duplicateMutation.isPending}
-                  onClick={() => duplicateMutation.mutate()}
-                  variant="outline"
-                >
-                  Duplicate
-                </Button>
-                <Button
-                  className="text-xs"
-                  icon="delete"
-                  loading={deleteMutation.isPending}
-                  onClick={() => {
-                    if (confirm(`Delete "${survey.title}"?`)) {
-                      deleteMutation.mutate();
-                    }
-                  }}
-                  variant="outline"
-                >
-                  Delete
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <Link to={`/researcher/surveys/${survey.id}/dashboard`}>
-                <Button className="w-full" icon="insights">
-                  View Data & Graphs
-                </Button>
-              </Link>
-              <div className="flex gap-2">
-                <Link className="flex-1" to={`/researcher/surveys/${survey.id}/edit`}>
-                  <Button className="w-full text-xs" icon="visibility" variant="outline">
-                    View Questions
-                  </Button>
-                </Link>
-                <Button
-                  className="flex-1 text-xs"
-                  icon="content_copy"
-                  loading={duplicateMutation.isPending}
-                  onClick={() => duplicateMutation.mutate()}
-                  variant="outline"
-                >
-                  Duplicate
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
       </div>
-    </Card>
+    </div>
   );
 }

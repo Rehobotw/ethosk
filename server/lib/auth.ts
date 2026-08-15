@@ -81,7 +81,7 @@ export async function resolveAuth(req: Request): Promise<AuthContext | null> {
   try {
     const { data: dbUser, error: dbErr } = await admin
       .from("users")
-      .select("id, role, verification_tier, full_name, email, email_verified")
+      .select("id, role, verification_tier, full_name, email, email_verified, is_banned")
       .eq("id", userId)
       .maybeSingle();
 
@@ -96,7 +96,7 @@ export async function resolveAuth(req: Request): Promise<AuthContext | null> {
     try {
       const { data: fallbackDbUser } = await admin
         .from("users")
-        .select("id, role, verification_tier, full_name")
+        .select("id, role, verification_tier, full_name, is_banned")
         .eq("id", userId)
         .maybeSingle();
       if (fallbackDbUser) {
@@ -116,6 +116,10 @@ export async function resolveAuth(req: Request): Promise<AuthContext | null> {
       email: userEmail,
       email_verified: true,
     };
+  }
+
+  if (row.is_banned) {
+    throw new ApiError(403, "USER_BANNED", "Your account has been suspended by an administrator.");
   }
 
   const context: AuthContext = {

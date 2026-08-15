@@ -1,21 +1,22 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 
 @layer base {
   body {
-    background-color: #e4eefb;
+    background-color: #f8f9ff;
     color: #004162;
     font-family: 'Inter', sans-serif;
     margin: 0;
     padding: 0;
     overflow-x: hidden;
-    line-height: 1.7;
+    line-height: 1.6;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Plus Jakarta Sans', sans-serif;
     letter-spacing: -0.02em;
+    color: #004162;
   }
 
   /* Material Symbols for iconography */
@@ -38,48 +39,58 @@
   }
 }
 
-/* Glassmorphism Aesthetic */
+/* Glassmorphic Aesthetic from Stitch */
 .glass-silk {
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 8px 32px 0 rgba(0, 65, 98, 0.05);
-  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 8px 32px 0 rgba(0, 65, 98, 0.06);
+  transform: translateZ(0);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
 .glass-silk:hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 40px 0 rgba(0, 65, 98, 0.1);
-  border-color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.9);
+}
+
+.glass-silk-recommended {
+  border: 2px solid #004162 !important;
+}
+
+.glass-silk-recommended:hover {
+  border-color: #004162 !important;
 }
 
 .glass-pressed {
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: inset 0 2px 8px rgba(0, 65, 98, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 2px 8px rgba(0, 65, 98, 0.04);
 }
 
 .gradient-text {
   background: linear-gradient(135deg, #004162, #196490);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .primary-gradient-btn {
-  background: linear-gradient(135deg, #004162, #196490);
-  color: #ffffff;
+  background: linear-gradient(135deg, #004162, #196490) !important;
+  color: #ffffff !important;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 14px 0 rgba(0, 65, 98, 0.2);
+  box-shadow: 0 4px 14px 0 rgba(0, 65, 98, 0.25);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .primary-gradient-btn:hover {
-  background: linear-gradient(135deg, #196490, #004162);
+  background: linear-gradient(135deg, #196490, #004162) !important;
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px 0 rgba(0, 65, 98, 0.3);
+  box-shadow: 0 6px 20px 0 rgba(0, 65, 98, 0.35);
 }
 
 .magnetic-btn {
@@ -92,38 +103,6 @@
 
 /* Animations */
 .reveal {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
-}
-
-.reveal.active {
   opacity: 1;
   transform: translateY(0);
-}
-
-.delay-100 { transition-delay: 100ms; }
-.delay-200 { transition-delay: 200ms; }
-.delay-300 { transition-delay: 300ms; }
-
-/* Floating Parallax */
-.float-subtle {
-  animation: float 6s ease-in-out infinite;
-}
-
-@keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
-  100% { transform: translateY(0px); }
-}
-
-@keyframes dropdown-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95) translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
 }

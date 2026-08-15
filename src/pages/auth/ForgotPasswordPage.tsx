@@ -8,7 +8,7 @@ import {
   type ForgotPasswordInput,
   type ResetPasswordInput,
 } from "@shared/validation/schemas";
-import { Button, Field, Icon, Input, Notice } from "@/components/ui";
+import { Notice } from "@/components/ui";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useAutofillSafeSubmit } from "@/lib/forms";
@@ -124,7 +124,7 @@ export function ForgotPasswordPage() {
         step === "success" ? null : (
           <>
             Remember your password?{" "}
-            <Link className="font-bold text-primary hover:underline" to="/login">
+            <Link className="font-semibold text-primary hover:underline" to="/login">
               {t("auth.signIn")}
             </Link>
           </>
@@ -146,13 +146,13 @@ export function ForgotPasswordPage() {
       }
     >
       {formError && (
-        <div className="mb-stack-md">
+        <div className="mb-4">
           <Notice tone="error">{formError}</Notice>
         </div>
       )}
 
       {infoMessage && step !== "success" && (
-        <div className="mb-stack-md">
+        <div className="mb-4">
           <Notice tone="success">{infoMessage}</Notice>
         </div>
       )}
@@ -160,112 +160,150 @@ export function ForgotPasswordPage() {
       {step === "request" && (
         <form
           ref={requestFormRef}
-          className="space-y-stack-md"
+          className="space-y-4"
           noValidate
           onSubmit={handleRequestSubmit}
         >
-          <Field
-            error={requestForm.formState.errors.email?.message}
-            label={t("auth.email")}
-          >
-            <Input
-              autoComplete="email"
-              autoFocus
-              inputMode="email"
-              placeholder="name@example.com"
-              type="email"
-              {...requestForm.register("email")}
-            />
-          </Field>
+          <div className="space-y-1.5">
+            <label className="font-label-md text-label-md text-on-surface block" htmlFor="email">
+              Email Address
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-on-surface-variant">
+                <span className="material-symbols-outlined text-[20px]">mail</span>
+              </span>
+              <input
+                autoComplete="email"
+                autoFocus
+                className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant/60 rounded-lg font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50 focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
+                id="email"
+                inputMode="email"
+                placeholder="name@example.com"
+                type="email"
+                {...requestForm.register("email")}
+              />
+            </div>
+            {requestForm.formState.errors.email && (
+              <p className="text-xs text-error mt-1">{requestForm.formState.errors.email.message}</p>
+            )}
+          </div>
 
-          <Button
-            className="w-full"
-            loading={requestForm.formState.isSubmitting}
+          <button
+            className="w-full primary-gradient-btn text-white font-title-lg text-base py-3.5 px-4 rounded-full flex items-center justify-center gap-2 hover:shadow-lg active:scale-95 transition-all shadow-md disabled:opacity-50 mt-2"
+            disabled={requestForm.formState.isSubmitting}
             type="submit"
-            variant="primary"
           >
-            Send Reset Code
-          </Button>
+            {requestForm.formState.isSubmitting ? (
+              <span className="material-symbols-outlined animate-spin text-white text-lg">progress_activity</span>
+            ) : null}
+            <span>Send Reset Code</span>
+            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+          </button>
         </form>
       )}
 
       {step === "reset" && (
         <form
           ref={resetFormRef}
-          className="space-y-stack-md"
+          className="space-y-4"
           noValidate
           onSubmit={handleResetSubmit}
         >
-          <Field
-            error={resetForm.formState.errors.code?.message}
-            label="6-Digit Reset Code"
-          >
-            <Input
+          <div className="space-y-1.5">
+            <label className="font-label-md text-label-md text-on-surface block" htmlFor="code">
+              6-Digit Reset Code
+            </label>
+            <input
               autoComplete="one-time-code"
               autoFocus
-              className="text-center font-mono text-xl tracking-[0.25em]"
+              className="w-full py-3 bg-surface-container-low border border-outline-variant/60 rounded-lg font-mono text-center text-xl tracking-[0.25em] text-on-surface focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none font-bold"
+              id="code"
               maxLength={8}
               placeholder="123456"
               {...resetForm.register("code")}
             />
-          </Field>
+            {resetForm.formState.errors.code && (
+              <p className="text-xs text-error mt-1">{resetForm.formState.errors.code.message}</p>
+            )}
+          </div>
 
-          <Field
-            error={resetForm.formState.errors.new_password?.message}
-            label="New Password"
-          >
+          <div className="space-y-1.5">
+            <label className="font-label-md text-label-md text-on-surface block" htmlFor="new_password">
+              New Password
+            </label>
             <div className="relative">
-              <Input
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-on-surface-variant">
+                <span className="material-symbols-outlined text-[20px]">lock</span>
+              </span>
+              <input
                 autoComplete="new-password"
-                className="pr-11"
+                className="w-full pl-10 pr-10 py-3 bg-surface-container-low border border-outline-variant/60 rounded-lg font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50 focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
+                id="new_password"
                 placeholder="At least 8 characters"
                 type={showPassword ? "text" : "password"}
                 {...resetForm.register("new_password")}
               />
               <button
                 aria-label={showPassword ? "Hide password" : "Show password"}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant hover:text-primary transition-colors"
                 onClick={() => setShowPassword((prev) => !prev)}
                 type="button"
               >
-                <Icon name={showPassword ? "visibility_off" : "visibility"} />
+                <span className="material-symbols-outlined text-[20px]">
+                  {showPassword ? "visibility_off" : "visibility"}
+                </span>
               </button>
             </div>
-          </Field>
+            {resetForm.formState.errors.new_password && (
+              <p className="text-xs text-error mt-1">{resetForm.formState.errors.new_password.message}</p>
+            )}
+          </div>
 
-          <Field
-            error={resetForm.formState.errors.confirm_password?.message}
-            label="Confirm New Password"
-          >
+          <div className="space-y-1.5">
+            <label className="font-label-md text-label-md text-on-surface block" htmlFor="confirm_password">
+              Confirm New Password
+            </label>
             <div className="relative">
-              <Input
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-on-surface-variant">
+                <span className="material-symbols-outlined text-[20px]">lock</span>
+              </span>
+              <input
                 autoComplete="new-password"
-                className="pr-11"
+                className="w-full pl-10 pr-10 py-3 bg-surface-container-low border border-outline-variant/60 rounded-lg font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50 focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
+                id="confirm_password"
                 placeholder="Re-type your new password"
                 type={showConfirmPassword ? "text" : "password"}
                 {...resetForm.register("confirm_password")}
               />
               <button
                 aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant hover:text-primary transition-colors"
                 onClick={() => setShowConfirmPassword((prev) => !prev)}
                 type="button"
               >
-                <Icon name={showConfirmPassword ? "visibility_off" : "visibility"} />
+                <span className="material-symbols-outlined text-[20px]">
+                  {showConfirmPassword ? "visibility_off" : "visibility"}
+                </span>
               </button>
             </div>
-          </Field>
+            {resetForm.formState.errors.confirm_password && (
+              <p className="text-xs text-error mt-1">{resetForm.formState.errors.confirm_password.message}</p>
+            )}
+          </div>
 
-          <Button
-            className="w-full"
-            loading={resetForm.formState.isSubmitting}
+          <button
+            className="w-full primary-gradient-btn text-white font-title-lg text-base py-3.5 px-4 rounded-full flex items-center justify-center gap-2 hover:shadow-lg active:scale-95 transition-all shadow-md disabled:opacity-50 mt-2"
+            disabled={resetForm.formState.isSubmitting}
             type="submit"
-            variant="primary"
           >
-            Reset Password
-          </Button>
+            {resetForm.formState.isSubmitting ? (
+              <span className="material-symbols-outlined animate-spin text-white text-lg">progress_activity</span>
+            ) : null}
+            <span>Reset Password</span>
+            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+          </button>
 
-          <div className="flex items-center justify-between pt-stack-xs text-xs text-on-surface-variant">
+          <div className="flex items-center justify-between pt-2 text-xs text-on-surface-variant">
             <button
               className="text-primary hover:underline"
               onClick={() => setStep("request")}
@@ -286,27 +324,28 @@ export function ForgotPasswordPage() {
       )}
 
       {step === "success" && (
-        <div className="space-y-stack-lg text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
-            <Icon className="text-3xl" name="check_circle" />
+        <div className="space-y-6 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <span className="material-symbols-outlined text-4xl" data-filled="true">check_circle</span>
           </div>
 
           <div className="space-y-2">
-            <h3 className="font-title-md text-lg font-bold text-on-surface">
+            <h3 className="font-headline-lg text-xl text-on-surface">
               Password Reset Successfully
             </h3>
-            <p className="text-sm text-on-surface-variant">
+            <p className="font-body-md text-sm text-on-surface-variant">
               You can now sign in with your newly updated password.
             </p>
           </div>
 
-          <Button
-            className="w-full"
+          <button
+            className="w-full primary-gradient-btn text-white font-title-lg text-base py-3.5 px-4 rounded-full flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all"
             onClick={() => navigate("/login")}
-            variant="primary"
+            type="button"
           >
-            Sign In Now
-          </Button>
+            <span>Sign In Now</span>
+            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+          </button>
         </div>
       )}
     </AuthShell>

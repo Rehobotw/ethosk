@@ -3,7 +3,7 @@ import { claudeImage, claudeText, extractJson, isClaudeConfigured, MODELS } from
 import {
   ANALYTICS_SUMMARY_SYSTEM,
   DOCUMENT_CHECK_SYSTEM,
-  FULL_DRAFT_SYSTEM,
+  fullDraftSystem,
   QUESTION_IMPROVE_SYSTEM,
   QUESTION_REPHRASE_SYSTEM,
 } from "./prompts.js";
@@ -107,46 +107,116 @@ export async function checkDocument(input: {
   }
 }
 
+export interface GenerateSurveyDraftInput {
+  topic: string;
+  description?: string | null;
+  targetQuestionCount?: number;
+}
+
 export interface GeneratedSurveyDraft {
   title: string;
   description: string;
   questions: {
     text: string;
-    type: "single_choice" | "multiple_choice" | "text";
-    options: string[];
+    type: "single_choice" | "multi_choice" | "text";
+    options?: string[];
   }[];
 }
 
 /**
- * Generates a full survey draft based on a topic string.
- * Uses the Sonnet model to ensure higher quality output.
+ * Generates a full survey draft based on topic, optional description, and target question count.
+ * Uses the Sonnet model for high-rigor Ethiopian academic/consumer research drafting,
+ * with graceful fallback if the AI provider is unavailable.
  */
-export async function generateSurveyDraft(topic: string): Promise<GeneratedSurveyDraft | null> {
-  if (!isClaudeConfigured()) return null;
+export async function generateSurveyDraft(
+  input: GenerateSurveyDraftInput | string,
+): Promise<GeneratedSurveyDraft | null> {
+  const topic = typeof input === "string" ? input : input.topic;
+  const description = typeof input === "string" ? undefined : input.description;
+  const targetCount = typeof input === "string" ? 5 : (input.targetQuestionCount ?? 5);
+
+  if (!isClaudeConfigured()) {
+    return generateFallbackDraft(topic, targetCount);
+  }
 
   try {
+    const userPrompt = `Research Topic/Goal: ${topic}${
+      description ? `\nAdditional Context/Scope: ${description}` : ""
+    }\nTarget Question Count: ${targetCount}`;
+
     const raw = await claudeText({
       model: MODELS.sonnet,
-      system: FULL_DRAFT_SYSTEM,
-      user: topic,
-      maxTokens: 1500,
+      system: fullDraftSystem(targetCount),
+      user: userPrompt,
+      maxTokens: 2000,
       temperature: 0.7,
-      timeoutMs: 15_000,
+      timeoutMs: 25_000,
     });
 
     const parsed = extractJson(raw) as any;
-    if (!parsed) return null;
-    
-    // Basic structural validation
-    if (typeof parsed.title !== "string" || !Array.isArray(parsed.questions)) {
-      return null;
+    if (!parsed || typeof parsed.title !== "string" || !Array.isArray(parsed.questions)) {
+      return generateFallbackDraft(topic, targetCount);
     }
 
-    return parsed as GeneratedSurveyDraft;
+    const sanitizedQuestions = parsed.questions.map((q: any) => ({
+      text: String(q.text || "Untitled question"),
+      type: (q.type === "multiple_choice" || q.type === "multi_choice"
+        ? "multi_choice"
+        : q.type === "text"
+        ? "text"
+        : "single_choice") as "single_choice" | "multi_choice" | "text",
+      options: Array.isArray(q.options) ? q.options.map(String) : [],
+    }));
+
+    return {
+      title: String(parsed.title || topic).slice(0, 100),
+      description: String(parsed.description || `Survey exploring ${topic}.`),
+      questions: sanitizedQuestions,
+    };
   } catch (error) {
     console.warn("[ai] generateSurveyDraft failed:", describe(error));
-    return null;
+    return generateFallbackDraft(topic, targetCount);
   }
+}
+
+function generateFallbackDraft(topic: string, count: number): GeneratedSurveyDraft {
+  const title = `Study: ${topic.slice(0, 50)}`;
+  const description = `This research survey investigates perspectives, habits, and key factors regarding ${topic}.`;
+  const questions: GeneratedSurveyDraft["questions"] = [
+    {
+      text: `How familiar are you with ${topic}?`,
+      type: "single_choice",
+      options: ["Very familiar", "Somewhat familiar", "Slightly familiar", "Not at all familiar"],
+    },
+    {
+      text: `Which of the following best describes your primary interest in this area?`,
+      type: "single_choice",
+      options: ["Professional work", "Academic research", "Personal interest", "General curiosity"],
+    },
+    {
+      text: `What are the biggest challenges or opportunities you observe in relation to ${topic}?`,
+      type: "text",
+      options: [],
+    },
+  ];
+
+  if (count > 3) {
+    questions.push({
+      text: `Which factors influence your decisions most significantly?`,
+      type: "multi_choice",
+      options: ["Cost and affordability", "Accessibility / Availability", "Reliability and trust", "Recommendation by peers"],
+    });
+  }
+
+  if (count > 4) {
+    questions.push({
+      text: `How often do you engage with related services or topics on a monthly basis?`,
+      type: "single_choice",
+      options: ["Daily", "Several times a week", "Once a week", "Rarely or never"],
+    });
+  }
+
+  return { title, description, questions };
 }
 
 /**
