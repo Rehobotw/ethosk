@@ -50,6 +50,7 @@ interface DbUserRow {
   full_name: string;
   email?: string;
   email_verified?: boolean;
+  is_banned?: boolean;
 }
 
 export async function resolveAuth(req: Request): Promise<AuthContext | null> {
