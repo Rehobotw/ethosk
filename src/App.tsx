@@ -19,6 +19,7 @@ import { InboxPage } from "./pages/respondent/InboxPage";
 import { ProfilePage } from "./pages/respondent/ProfilePage";
 import { SurveyFillPage } from "./pages/respondent/SurveyFillPage";
 import { VerificationPage } from "./pages/respondent/VerificationPage";
+import { RespondentOnboardingPage } from "./pages/respondent/RespondentOnboardingPage";
 import { WalletPage } from "./pages/respondent/WalletPage";
 
 /**
@@ -117,6 +118,8 @@ export default function App() {
       <Route element={<AuthCallbackPage />} path="/auth/callback" />
       <Route element={<VerifyEmailPage />} path="/verify-email" />
       <Route element={<ForgotPasswordPage />} path="/forgot-password" />
+      <Route element={<RespondentOnboardingPage />} path="/onboarding" />
+      <Route element={<RespondentOnboardingPage />} path="/respondent/onboarding" />
 
       {/* Respondent */}
       <Route

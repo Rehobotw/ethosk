@@ -24,18 +24,10 @@ export function SignupPage({ role: initialRole }: SignupPageProps) {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const queryRole = searchParams.get("role") as "respondent" | "researcher" | null;
-  const [role, setRole] = useState<"respondent" | "researcher">(initialRole || queryRole || "respondent");
+  const role: "respondent" | "researcher" = initialRole || queryRole || "respondent";
 
   const prefilledEmail = searchParams.get("email") || "";
   const prefilledName = searchParams.get("name") || "";
-
-  useEffect(() => {
-    if (initialRole) {
-      setRole(initialRole);
-    } else if (queryRole) {
-      setRole(queryRole);
-    }
-  }, [initialRole, queryRole]);
 
   const form = useForm<SignupInput>({
     resolver: zodResolver(signupSchema),
@@ -47,17 +39,16 @@ export function SignupPage({ role: initialRole }: SignupPageProps) {
     watch,
     formState: { errors, isSubmitting },
     reset,
-    setValue,
   } = form;
 
   const passwordVal = watch("password") || "";
 
   // Password strength calculation
   const getPasswordStrength = (pwd: string) => {
-    if (!pwd) return { label: "", width: "0%", color: "bg-surface-variant", textClass: "" };
-    if (pwd.length < 6) return { label: "Weak", width: "33%", color: "bg-error/70", textClass: "text-error" };
-    if (pwd.length < 10) return { label: "Fair", width: "66%", color: "bg-secondary-fixed-dim", textClass: "text-on-surface-variant" };
-    return { label: "Strong", width: "100%", color: "bg-primary", textClass: "text-primary font-semibold" };
+    if (!pwd) return { label: "", width: "0%", color: "bg-slate-200", textClass: "" };
+    if (pwd.length < 6) return { label: "Weak", width: "33%", color: "bg-red-500", textClass: "text-red-600" };
+    if (pwd.length < 10) return { label: "Fair", width: "66%", color: "bg-amber-500", textClass: "text-amber-600" };
+    return { label: "Strong", width: "100%", color: "bg-[#00456d]", textClass: "text-[#00456d] font-semibold" };
   };
 
   const strength = getPasswordStrength(passwordVal);
@@ -65,12 +56,6 @@ export function SignupPage({ role: initialRole }: SignupPageProps) {
   useEffect(() => {
     reset({ full_name: prefilledName, email: prefilledEmail, password: "", role });
   }, [role, reset, prefilledName, prefilledEmail]);
-
-  // When role changes via the toggle, also update the form's hidden role field
-  const handleRoleSwitch = (newRole: "respondent" | "researcher") => {
-    setRole(newRole);
-    setValue("role", newRole);
-  };
 
   const onSubmit = async (values: SignupInput) => {
     setFormError(null);
@@ -80,7 +65,7 @@ export function SignupPage({ role: initialRole }: SignupPageProps) {
         navigate(`/verify-email?email=${encodeURIComponent(result.email)}`);
       } else {
         navigate(
-          role === "respondent" ? "/profile?complete_profile=true" : homePathForRole(role as UserRole),
+          role === "respondent" ? "/respondent/onboarding" : homePathForRole(role as UserRole),
           { replace: true },
         );
       }
@@ -143,45 +128,42 @@ export function SignupPage({ role: initialRole }: SignupPageProps) {
   const isAm = language === "am";
 
   return (
-    <div className="min-h-screen flex flex-col justify-between bg-[#F4F7FA] text-on-background relative overflow-x-hidden">
+    <div className="min-h-screen flex flex-col justify-between bg-[#F7FAFD] text-[#181c1e] relative overflow-x-hidden font-['Inter',sans-serif]">
       {/* ── Top Navigation Header ── */}
-      <header className="w-full h-16 flex items-center justify-between px-6 md:px-12 bg-white border-b border-slate-200/60 fixed top-0 left-0 right-0 z-50">
+      <header className="w-full h-16 flex items-center justify-between px-6 md:px-12 bg-white/80 backdrop-blur-md border-b border-slate-200/60 fixed top-0 left-0 right-0 z-50">
         <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
           <Link className="flex items-center gap-2" to="/">
-            <span className="font-['Newsreader',serif] text-xl text-[#00456d] font-bold">Ethosk</span>
+            <span className="font-['Newsreader',serif] text-2xl text-[#00456d] font-bold">Ethosk</span>
           </Link>
 
-          <div className="flex items-center gap-3">
-            {/* ── Role Toggle (top right) ── */}
-            <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200/60">
-              <button
-                type="button"
-                onClick={() => handleRoleSwitch("respondent")}
-                className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                  role === "respondent"
-                    ? "bg-white text-[#00456d] shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                {isAm ? "ተሳታፊ" : "Respondent"}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleRoleSwitch("researcher")}
-                className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                  role === "researcher"
-                    ? "bg-white text-[#00456d] shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                {isAm ? "ተመራማሪ" : "Researcher"}
-              </button>
-            </div>
+          <div className="flex items-center gap-4">
+            {/* Top Right Endpoint Link without toggles */}
+            {isResearcher ? (
+              <div className="text-xs text-slate-600 hidden sm:flex items-center gap-1.5">
+                <span>{isAm ? "ጥናቶችን መመለስ ይፈልጋሉ?" : "Want to participate & earn?"}</span>
+                <Link
+                  to="/signup/respondent"
+                  className="font-semibold text-[#00456d] hover:text-[#1d5d8a] hover:underline transition-colors"
+                >
+                  {isAm ? "እንደ ተሳታፊ ይመዝገቡ →" : "Sign up as Respondent →"}
+                </Link>
+              </div>
+            ) : (
+              <div className="text-xs text-slate-600 hidden sm:flex items-center gap-1.5">
+                <span>{isAm ? "የምርምር መረጃ ይፈልጋሉ?" : "Looking for research data?"}</span>
+                <Link
+                  to="/signup/researcher"
+                  className="font-semibold text-[#00456d] hover:text-[#1d5d8a] hover:underline transition-colors"
+                >
+                  {isAm ? "እንደ ተመራማሪ ይመዝገቡ →" : "Sign up as Researcher →"}
+                </Link>
+              </div>
+            )}
 
             {/* Language Switcher */}
             <button
               aria-label={language === "en" ? "Switch to Amharic" : "Switch to English"}
-              className="flex items-center gap-1.5 bg-slate-100 rounded-lg px-3 py-1.5 text-xs border border-slate-200/60 cursor-pointer hover:bg-slate-50 transition-colors"
+              className="flex items-center gap-1.5 bg-slate-100/80 rounded-lg px-3 py-1.5 text-xs border border-slate-200/60 cursor-pointer hover:bg-slate-100 transition-colors"
               onClick={toggleLanguage}
               type="button"
             >
@@ -196,93 +178,209 @@ export function SignupPage({ role: initialRole }: SignupPageProps) {
         </div>
       </header>
 
-      {/* ── Main Content Container ── */}
+      {/* ── Main Content Container (Exact Split Layout) ── */}
       <main className="flex-grow flex items-center justify-center pt-24 pb-16 px-4 md:px-8 relative z-10">
-        <div className={`w-full ${isResearcher ? "max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-8 items-center" : "max-w-[480px]"}`}>
+        <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
 
-          {/* Left Panel: Trust & Brand Narrative (Stitch Screen ecdae819c560416e9ba237d5e0a28018) */}
+          {/* ══════════════════════════════════════════════════
+              LEFT SIDE: Split Layout Narrative
+             ══════════════════════════════════════════════════ */}
           {isResearcher ? (
-            <div className="hidden lg:flex lg:col-span-6 flex-col justify-between p-8 bg-[#cbe6ff]/30 rounded-2xl border border-[#c0c7d0]/30 shadow-sm">
+            /* Researcher Left Side (Stitch Screen ecdae819c560416e9ba237d5e0a28018) */
+            <div className="hidden lg:flex lg:col-span-6 flex-col justify-between p-8 md:p-10 bg-[#cde5ff]/35 rounded-2xl border border-[#c1c7d0]/40 shadow-xs backdrop-blur-sm min-h-[520px]">
               <div className="flex flex-col gap-4">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#004162]/10 w-fit text-xs font-bold text-[#004162]">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#00456d]/10 w-fit text-xs font-bold text-[#00456d]">
                   <span className="material-symbols-outlined text-[16px]">verified</span>
-                  <span>Researcher Infrastructure</span>
+                  <span>{isAm ? "የተመራማሪ መሠረተ ልማት" : "Researcher Infrastructure"}</span>
                 </div>
-                <h2 className="font-['Newsreader',serif] text-3xl font-bold text-[#001e30] leading-tight tracking-tight">
-                  Access verified respondents you can trust
+                <h2 className="font-['Newsreader',serif] text-3xl md:text-4xl font-bold text-[#001d32] leading-tight tracking-tight">
+                  {isAm ? "የተረጋገጡ እና አስተማማኝ ተሳታፊዎችን ያግኙ" : "Access verified respondents you can trust"}
                 </h2>
+                <p className="text-xs text-[#4b6078] leading-relaxed">
+                  {isAm
+                    ? "ከፍተኛ ጥራት ያላቸውን ግንዛቤዎች ለመሰብሰብ የተረጋገጠውን መድረክ ይቀላቀሉ።"
+                    : "Deploy targeted surveys to Ethiopia's premier identity-verified research panel."}
+                </p>
               </div>
 
-              <div className="flex flex-col gap-6 mt-8 mb-4">
+              <div className="flex flex-col gap-5 mt-6 mb-4">
                 {/* Trust Indicator 1 */}
                 <div className="flex items-start gap-3.5">
-                  <div className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-xl bg-white shadow-xs text-[#004162]">
-                    <span className="material-symbols-outlined text-[22px]">fingerprint</span>
+                  <div className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-xl bg-white shadow-xs text-[#00456d] border border-slate-200/60">
+                    <span className="material-symbols-outlined text-[22px]">badge</span>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-sm text-[#001e30]">ID-verified panel</h3>
-                    <p className="text-xs text-[#41484e] mt-0.5 leading-relaxed">
-                      Every respondent undergoes rigorous identity verification before entering the marketplace.
+                    <h3 className="font-semibold text-sm text-[#001d32]">
+                      {isAm ? "በመታወቂያ የተረጋገጡ ተሳታፊዎች" : "ID-verified panel"}
+                    </h3>
+                    <p className="text-xs text-[#4b6078] mt-0.5 leading-relaxed">
+                      {isAm
+                        ? "እያንዳንዱ ተሳታፊ ከመመዝገቡ በፊት ትክክለኛ ማንነቱ በጥብቅ ይረጋገጣል።"
+                        : "Every respondent undergoes rigorous identity verification before entering the marketplace."}
                     </p>
                   </div>
                 </div>
 
                 {/* Trust Indicator 2 */}
                 <div className="flex items-start gap-3.5">
-                  <div className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-xl bg-white shadow-xs text-[#004162]">
+                  <div className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-xl bg-white shadow-xs text-[#00456d] border border-slate-200/60">
                     <span className="material-symbols-outlined text-[22px]">security</span>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-sm text-[#001e30]">Deterministic fraud checks</h3>
-                    <p className="text-xs text-[#41484e] mt-0.5 leading-relaxed">
-                      Real-time behavioral analysis and programmatic screening filters out low-quality data.
+                    <h3 className="font-semibold text-sm text-[#001d32]">
+                      {isAm ? "ራስ-ሰር የማጭበርበር መቆጣጠሪያ" : "Deterministic fraud checks"}
+                    </h3>
+                    <p className="text-xs text-[#4b6078] mt-0.5 leading-relaxed">
+                      {isAm
+                        ? "የቀጥታ ስነ-ምግባር ትንተና እና የማጣሪያ ቴክኖሎጂ ዝቅተኛ ጥራት ያላቸውን መረጃዎች ያጣራል።"
+                        : "Real-time behavioral analysis and programmatic screening filters out low-quality data."}
                     </p>
                   </div>
                 </div>
 
                 {/* Trust Indicator 3 */}
                 <div className="flex items-start gap-3.5">
-                  <div className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-xl bg-white shadow-xs text-[#004162]">
+                  <div className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-xl bg-white shadow-xs text-[#00456d] border border-slate-200/60">
                     <span className="material-symbols-outlined text-[22px]">account_balance_wallet</span>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-sm text-[#001e30]">Reserved budgets</h3>
-                    <p className="text-xs text-[#41484e] mt-0.5 leading-relaxed">
-                      Transparent pricing with no surprise costs. You control exactly what you spend.
+                    <h3 className="font-semibold text-sm text-[#001d32]">
+                      {isAm ? "ግልጽ እና የተጠበቀ በጀት" : "Reserved budgets"}
+                    </h3>
+                    <p className="text-xs text-[#4b6078] mt-0.5 leading-relaxed">
+                      {isAm
+                        ? "ግልጽ የዋጋ አሰጣጥ ያለምንም ድብቅ ወጪ። ወጪዎትን ሙሉ በሙሉ ይቆጣጠራሉ።"
+                        : "Transparent pricing with no surprise costs. You control exactly what you spend."}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-[#004162]/10">
-                <p className="text-xs text-[#41484e]/70">
+              <div className="pt-4 border-t border-[#00456d]/10">
+                <p className="text-[11px] text-[#4b6078]">
                   &copy; {new Date().getFullYear()} Ethosk Research Systems. All rights reserved.
                 </p>
               </div>
             </div>
-          ) : null}
+          ) : (
+            /* Respondent Left Side (Stitch Screen e86088af4b2d4d288308c15f020cb9ed) */
+            <div className="hidden lg:flex lg:col-span-6 flex-col justify-between p-8 md:p-10 bg-[#cde5ff]/35 rounded-2xl border border-[#c1c7d0]/40 shadow-xs backdrop-blur-sm min-h-[520px]">
+              <div className="flex flex-col gap-3">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#00456d]/10 w-fit text-xs font-bold text-[#00456d]">
+                  <span className="material-symbols-outlined text-[16px]">verified</span>
+                  <span>{isAm ? "የተረጋገጠ የተሳታፊ ገበያ" : "Verified Research Marketplace"}</span>
+                </div>
+                <h2 className="font-['Newsreader',serif] text-3xl md:text-4xl font-bold text-[#001d32] leading-tight tracking-tight">
+                  {isAm ? "ሀሳብዎን በማጋራት ገቢ ያግኙ" : "Earn by sharing your unique perspective."}
+                </h2>
+                <p className="text-xs text-[#4b6078] leading-relaxed">
+                  {isAm
+                    ? "ከፍተኛ ዋጋ ባላቸው የኢንተርፕራይዝ ጥናቶች ውስጥ የሚሳተፉ በሺዎች የሚቆጠሩ የተረጋገጡ ተሳታፊዎችን ይቀላቀሉ።"
+                    : "Join thousands of verified respondents participating in high-value enterprise research."}
+                </p>
+              </div>
 
-          {/* Right Card / Main Signup Card */}
-          <div className={`w-full ${isResearcher ? "lg:col-span-6" : ""} bg-white rounded-2xl border border-slate-200/60 p-6 sm:p-8 md:p-10 relative overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.06)]`}>
+              {/* 3-Step Journey */}
+              <div className="space-y-6 relative my-6">
+                {/* Connecting line */}
+                <div className="absolute left-5 top-6 bottom-6 w-0.5 bg-[#cde5ff] -z-0"></div>
+
+                {/* Step 1 */}
+                <div className="flex items-start gap-4 relative z-10">
+                  <div className="w-10 h-10 rounded-full bg-[#1d5d8a] text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <span className="material-symbols-outlined text-[20px]">badge</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-sm text-[#001d32]">
+                      {isAm ? "1. ማንነትዎን ያረጋግጡ" : "1. Verify Identity"}
+                    </h3>
+                    <p className="text-xs text-[#4b6078] mt-0.5 leading-relaxed">
+                      {isAm
+                        ? "መድረኩን ፍትሃዊ ለማድረግ መታወቂያዎን እናረጋግጣለን።"
+                        : "We check your ID for consistency to keep the platform fair — not to judge you."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 2 */}
+                <div className="flex items-start gap-4 relative z-10">
+                  <div className="w-10 h-10 rounded-full bg-white border border-[#c1c7d0] text-[#00456d] flex items-center justify-center shrink-0 shadow-xs">
+                    <span className="material-symbols-outlined text-[20px]">manage_search</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-sm text-[#001d32]">
+                      {isAm ? "2. ጥናቶችን ያግኙ" : "2. Find Surveys"}
+                    </h3>
+                    <p className="text-xs text-[#4b6078] mt-0.5 leading-relaxed">
+                      {isAm
+                        ? "ከመገለጫዎ ጋር የሚዛመዱ የታለሙ ጥናቶችን ያግኙ።"
+                        : "Match with targeted enterprise research studies that fit your profile."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 3 */}
+                <div className="flex items-start gap-4 relative z-10">
+                  <div className="w-10 h-10 rounded-full bg-white border border-[#c1c7d0] text-[#00456d] flex items-center justify-center shrink-0 shadow-xs">
+                    <span className="material-symbols-outlined text-[20px]">payments</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-sm text-[#001d32]">
+                      {isAm ? "3. ሽልማት ያግኙ" : "3. Earn Rewards"}
+                    </h3>
+                    <p className="text-xs text-[#4b6078] mt-0.5 leading-relaxed">
+                      {isAm
+                        ? "በመረጡት የክፍያ መንገድ በቀጥታ ተገቢውን ክፍያ ይቀበሉ።"
+                        : "Receive fair compensation directly to your preferred payment method."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-[#00456d]/10">
+                <p className="text-[11px] text-[#4b6078]">
+                  &copy; {new Date().getFullYear()} Ethosk Research Systems. All rights reserved.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════
+              RIGHT SIDE: Signup Form Card
+             ══════════════════════════════════════════════════ */}
+          <div className="lg:col-span-6 w-full max-w-[480px] mx-auto bg-white rounded-2xl border border-slate-200/70 p-6 sm:p-8 md:p-10 relative overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.06)]">
+
+            {/* Mobile switch to other role */}
+            <div className="sm:hidden mb-6 pb-4 border-b border-slate-100 text-center">
+              {isResearcher ? (
+                <Link to="/signup/respondent" className="text-xs font-semibold text-[#00456d]">
+                  {isAm ? "እንደ ተሳታፊ መመዝገብ ይፈልጋሉ? እዚህ ይጫኑ →" : "Want to participate & earn? Switch to Respondent →"}
+                </Link>
+              ) : (
+                <Link to="/signup/researcher" className="text-xs font-semibold text-[#00456d]">
+                  {isAm ? "እንደ ተመራማሪ መመዝገብ ይፈልጋሉ? እዚህ ይጫኑ →" : "Looking for research data? Switch to Researcher →"}
+                </Link>
+              )}
+            </div>
 
             {/* Heading */}
-            <div className="mb-8 text-center">
-              <h1 className="font-['Newsreader',serif] text-2xl font-bold text-[#0D253A] tracking-tight mb-2">
+            <div className="mb-6 text-center">
+              <h1 className="font-['Newsreader',serif] text-2xl md:text-3xl font-bold text-[#0D253A] tracking-tight mb-2">
                 {isResearcher
                   ? (isAm ? "የተመራማሪ መለያ ይክፈቱ" : "Create a Researcher Account")
-                  : (isAm ? "መለያዎን ይክፈቱ" : "Create your account")}
+                  : (isAm ? "የተሳታፊ መለያ ይክፈቱ" : "Create a Respondent Account")}
               </h1>
-              <p className="text-sm text-slate-500">
+              <p className="text-xs text-slate-500">
                 {isResearcher
                   ? (isAm ? "ከፍተኛ ጥራት ያላቸውን ግንዛቤዎች ለመሰብሰብ የተረጋገጠውን መድረክ ይቀላቀሉ።" : "Join the verified marketplace to gather high-quality insights.")
-                  : (isAm ? "በአስተማማኝ የብሔራዊ መታወቂያ ምዝገባ ጉዞዎን ይጀምሩ።" : "Start your journey with secure national ID registration.")}
+                  : (isAm ? "ጥናቶችን በመመለስ ገቢ ለማግኘት አሁኑኑ ይመዝገቡ።" : "Sign up to participate in research and earn rewards.")}
               </p>
             </div>
 
             {/* Google Quick Button */}
             <div className="mb-6 space-y-4">
               <button
-                className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-slate-700 font-semibold text-sm"
+                className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-slate-700 font-semibold text-sm cursor-pointer shadow-xs"
                 disabled={isGoogleLoading || isSubmitting}
                 onClick={handleGoogleSignup}
                 type="button"
@@ -308,7 +406,7 @@ export function SignupPage({ role: initialRole }: SignupPageProps) {
             </div>
 
             {/* Sign-up Form */}
-            <form className="space-y-5" onSubmit={handleFormSubmit} ref={formRef}>
+            <form className="space-y-4" onSubmit={handleFormSubmit} ref={formRef}>
               {/* Full Name Input */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider" htmlFor="full_name">
@@ -319,43 +417,43 @@ export function SignupPage({ role: initialRole }: SignupPageProps) {
                     <span className="material-symbols-outlined text-[20px]">person</span>
                   </span>
                   <input
-                    autoComplete="name"
-                    className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-[#00456d]/20 focus:border-[#00456d]/40 transition-all outline-none"
-                    id="full_name"
-                    placeholder={isAm ? "አበበ ከበደ" : "Abebe Kebede"}
-                    type="text"
                     {...register("full_name")}
+                    autoComplete="name"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm focus:border-[#00456d] focus:ring-2 focus:ring-[#00456d]/10 outline-none transition-all placeholder:text-slate-400"
+                    id="full_name"
+                    placeholder={isAm ? "ለምሳሌ፡ ዮናስ ታደሰ" : "e.g. Abebe Kebede"}
+                    type="text"
                   />
                 </div>
-                {errors.full_name && (
-                  <p className="text-xs text-rose-600 mt-1">{errors.full_name.message}</p>
-                )}
+                {errors.full_name ? (
+                  <p className="text-xs text-red-500">{errors.full_name.message}</p>
+                ) : null}
               </div>
 
               {/* Email Input */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider" htmlFor="email">
-                  {isResearcher ? (isAm ? "የስራ ኢሜይል" : "Work email") : (isAm ? "የኢሜይል አድራሻ" : "Email address")}
+                  {isAm ? "ኢሜይል" : "Email Address"}
                 </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
                     <span className="material-symbols-outlined text-[20px]">mail</span>
                   </span>
                   <input
-                    autoComplete="email"
-                    className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-[#00456d]/20 focus:border-[#00456d]/40 transition-all outline-none"
-                    id="email"
-                    placeholder={isResearcher ? "name@institution.edu.et" : "name@example.com"}
-                    type="email"
                     {...register("email")}
+                    autoComplete="email"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm focus:border-[#00456d] focus:ring-2 focus:ring-[#00456d]/10 outline-none transition-all placeholder:text-slate-400"
+                    id="email"
+                    placeholder="name@example.com"
+                    type="email"
                   />
                 </div>
-                {errors.email && (
-                  <p className="text-xs text-rose-600 mt-1">{errors.email.message}</p>
-                )}
+                {errors.email ? (
+                  <p className="text-xs text-red-500">{errors.email.message}</p>
+                ) : null}
               </div>
 
-              {/* Password Input with Strength Indicator */}
+              {/* Password Input */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider" htmlFor="password">
                   {isAm ? "የይለፍ ቃል" : "Password"}
@@ -365,17 +463,16 @@ export function SignupPage({ role: initialRole }: SignupPageProps) {
                     <span className="material-symbols-outlined text-[20px]">lock</span>
                   </span>
                   <input
-                    autoComplete="new-password"
-                    className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-12 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-[#00456d]/20 focus:border-[#00456d]/40 transition-all outline-none"
-                    id="password"
-                    placeholder={isAm ? "ጠንካራ የይለፍ ቃል ያስገቡ" : "Enter a strong password"}
-                    type={showPassword ? "text" : "password"}
                     {...register("password")}
+                    autoComplete="new-password"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm focus:border-[#00456d] focus:ring-2 focus:ring-[#00456d]/10 outline-none transition-all placeholder:text-slate-400"
+                    id="password"
+                    placeholder="••••••••"
+                    type={showPassword ? "text" : "password"}
                   />
                   <button
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-[#00456d] transition-colors"
-                    onClick={() => setShowPassword((s) => !s)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 transition-colors"
+                    onClick={() => setShowPassword((prev) => !prev)}
                     type="button"
                   >
                     <span className="material-symbols-outlined text-[20px]">
@@ -386,77 +483,75 @@ export function SignupPage({ role: initialRole }: SignupPageProps) {
 
                 {/* Password Strength Indicator */}
                 {passwordVal.length > 0 && (
-                  <div className="mt-2.5 flex items-center gap-2.5">
-                    <div className="flex-1 h-1.5 rounded-full overflow-hidden bg-slate-100">
+                  <div className="pt-1 space-y-1">
+                    <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
                       <div
-                        className={`h-full ${strength.color} transition-all duration-300 rounded-full`}
+                        className={`h-full ${strength.color} transition-all duration-300`}
                         style={{ width: strength.width }}
                       />
                     </div>
-                    <span className={`text-xs ${strength.textClass}`}>
-                      {strength.label}
-                    </span>
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="text-slate-500">
+                        {isAm ? "የይለፍ ቃል ጥንካሬ" : "Password strength"}
+                      </span>
+                      <span className={strength.textClass}>{strength.label}</span>
+                    </div>
                   </div>
                 )}
 
-                {errors.password && (
-                  <p className="text-xs text-rose-600 mt-1">{errors.password.message}</p>
-                )}
+                {errors.password ? (
+                  <p className="text-xs text-red-500">{errors.password.message}</p>
+                ) : null}
               </div>
 
+              {/* Form Error Banner */}
               {formError ? (
-                <div className="rounded-lg bg-rose-50 border border-rose-200/60 px-4 py-3">
-                  <p className="text-sm text-rose-700 font-medium">{formError}</p>
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600">
+                  {formError}
                 </div>
               ) : null}
 
-              {/* Submit Button */}
-              <div className="pt-2">
-                <button
-                  className="w-full py-3.5 px-6 rounded-xl bg-[#00456d] text-white font-semibold text-sm shadow-sm hover:bg-[#003556] active:scale-[0.98] transition-all flex justify-center items-center gap-2 disabled:opacity-50"
-                  disabled={isSubmitting || isGoogleLoading}
-                  type="submit"
-                >
-                  {isSubmitting ? (
-                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  ) : null}
-                  <span>{isAm ? "መለያ ይክፈቱ" : "Create account"}</span>
-                  <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
-                </button>
-              </div>
+              {/* Submit CTA */}
+              <button
+                className="w-full mt-2 py-3 px-4 rounded-xl bg-[#00456d] hover:bg-[#1d5d8a] text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+                disabled={isSubmitting}
+                type="submit"
+              >
+                {isSubmitting ? (
+                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                ) : (
+                  <>
+                    <span>
+                      {isResearcher
+                        ? (isAm ? "የተመራማሪ መለያ ፍጠር" : "Create Researcher Account")
+                        : (isAm ? "ተመዝገብ እና ገቢ አግኝ" : "Sign Up to Earn")}
+                    </span>
+                    <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                  </>
+                )}
+              </button>
             </form>
 
-            {/* Footer Navigation */}
-            <div className="mt-8 text-center">
-              <p className="text-sm text-slate-500">
+            {/* Bottom Login Link */}
+            <div className="mt-6 text-center">
+              <p className="text-xs text-slate-500">
                 {isAm ? "መለያ አለዎት? " : "Already have an account? "}
-                <Link className="font-semibold text-[#00456d] hover:underline ml-1" to={`/login/${role}`}>
-                  {isAm ? "ግቡ" : "Log in"}
+                <Link
+                  className="font-semibold text-[#00456d] hover:underline"
+                  to={isResearcher ? "/login/researcher" : "/login/respondent"}
+                >
+                  {isAm ? "ይግቡ" : "Log in"}
                 </Link>
               </p>
             </div>
           </div>
+
         </div>
       </main>
 
       {/* ── Footer ── */}
-      <footer className="w-full bg-white border-t border-slate-200/60 mt-auto relative z-20">
-        <div className="w-full py-5 px-6 md:px-12 flex flex-col md:flex-row justify-between items-center gap-3 max-w-7xl mx-auto">
-          <div className="font-['Newsreader',serif] text-[#00456d] font-bold">
-            Ethosk
-          </div>
-          <div className="text-xs text-slate-400 text-center md:text-left">
-            &copy; {new Date().getFullYear()} Ethosk. {isAm ? "መብቱ በህግ የተጠበቀ ነው::" : "All rights reserved."}
-          </div>
-          <div className="flex gap-6 text-xs">
-            <Link className="text-slate-400 hover:text-[#00456d] transition-colors" to="/privacy">
-              {isAm ? "የግላዊነት ፖሊሲ" : "Privacy"}
-            </Link>
-            <Link className="text-slate-400 hover:text-[#00456d] transition-colors" to="/terms">
-              {isAm ? "የአገልግሎት ውሎች" : "Terms"}
-            </Link>
-          </div>
-        </div>
+      <footer className="w-full py-6 text-center text-xs text-slate-400 border-t border-slate-200/60 bg-white/50">
+        <p>&copy; {new Date().getFullYear()} Ethosk Inc. All rights reserved.</p>
       </footer>
     </div>
   );

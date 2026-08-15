@@ -12,12 +12,14 @@ export function AuthShell({
   children,
   footer,
   role,
+  topRightAction,
 }: {
   title: string;
   subtitle: string;
   children: ReactNode;
   footer: ReactNode;
   role?: UserRole | "respondent" | "researcher";
+  topRightAction?: ReactNode;
 }) {
   const { language, toggleLanguage } = useLanguage();
 
@@ -54,20 +56,22 @@ export function AuthShell({
             "radial-gradient(circle at 80% 20%, rgba(143,205,255,0.1) 0%, transparent 40%), radial-gradient(circle at 20% 80%, rgba(0,89,133,0.1) 0%, transparent 50%)",
         }}
       >
-        {/* Language switcher */}
-        <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
+        {/* Top Right Actions */}
+        <div className="absolute top-4 right-4 sm:top-6 sm:right-8 flex items-center gap-4 z-10">
+          {topRightAction}
+          {/* Language switcher */}
           <button
             aria-label={language === "en" ? "Switch to Amharic" : "Switch to English"}
-            className="flex items-center gap-2 bg-white/60 backdrop-blur-xl rounded-full px-3 py-1.5 text-sm border border-white/40 cursor-pointer hover:bg-white/80 transition-colors"
+            className="flex items-center gap-1.5 bg-slate-100/80 backdrop-blur-md rounded-lg px-3 py-1.5 text-xs border border-slate-200/60 cursor-pointer hover:bg-slate-100 transition-colors"
             onClick={toggleLanguage}
             title={language === "en" ? "Switch to Amharic (አማርኛ)" : "Switch to English"}
             type="button"
           >
-            <span className="w-5 h-5 rounded-full bg-primary-fixed text-primary flex items-center justify-center text-[10px] font-bold">
+            <span className="w-4 h-4 rounded-full bg-[#00456d]/10 text-[#00456d] flex items-center justify-center text-[9px] font-bold">
               {language.toUpperCase()}
             </span>
-            <span className="text-primary/80 text-sm font-medium">
-              {language === "en" ? "Amharic" : "English"}
+            <span className="text-slate-600 text-xs font-medium">
+              {language === "en" ? "አማርኛ" : "English"}
             </span>
           </button>
         </div>

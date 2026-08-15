@@ -143,7 +143,10 @@ export function LoginPage({ role: initialRole }: LoginPageProps) {
       footer={
         <>
           {isAm ? "መለያ የለዎትም? " : "Don't have an account? "}
-          <Link className="font-semibold text-primary hover:underline" to={`/signup?role=${role}`}>
+          <Link
+            className="font-semibold text-primary hover:underline"
+            to={role === "researcher" ? "/signup/researcher" : "/signup/respondent"}
+          >
             {t("nav.signup")}
           </Link>
         </>
@@ -151,40 +154,30 @@ export function LoginPage({ role: initialRole }: LoginPageProps) {
       role={role}
       subtitle={isAm ? "እንኳን ደህና መጡ። እባክዎ መረጃዎን ያስገቡ::" : "Welcome back. Please enter your details."}
       title={isAm ? `${roleTitle} መግቢያ` : `${roleTitle} Login`}
+      topRightAction={
+        role === "researcher" ? (
+          <div className="text-xs text-slate-600 flex items-center gap-1.5">
+            <span className="hidden sm:inline">{isAm ? "ተሳታፊ ነዎት?" : "Are you a Respondent?"}</span>
+            <Link
+              to="/login/respondent"
+              className="font-semibold text-primary hover:underline transition-colors"
+            >
+              {isAm ? "እንደ ተሳታፊ ይግቡ →" : "Log in as Respondent →"}
+            </Link>
+          </div>
+        ) : (
+          <div className="text-xs text-slate-600 flex items-center gap-1.5">
+            <span className="hidden sm:inline">{isAm ? "ተመራማሪ ነዎት?" : "Are you a Researcher?"}</span>
+            <Link
+              to="/login/researcher"
+              className="font-semibold text-primary hover:underline transition-colors"
+            >
+              {isAm ? "እንደ ተመራማሪ ይግቡ →" : "Log in as Researcher →"}
+            </Link>
+          </div>
+        )
+      }
     >
-      {/* ── Role Toggle ── */}
-      <div className="flex items-center justify-center mb-6">
-        <div className="flex items-center bg-surface-container-high/60 rounded-full p-1 border border-outline-variant/30">
-          <button
-            type="button"
-            onClick={() => setRole("respondent")}
-            className={`px-4 py-2 rounded-full text-sm font-semibold transition-all cursor-pointer ${
-              role === "respondent"
-                ? "bg-white text-primary shadow-sm"
-                : "text-on-surface-variant hover:text-primary"
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[16px]">groups</span>
-              {isAm ? "ተሳታፊ" : "Respondent"}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setRole("researcher")}
-            className={`px-4 py-2 rounded-full text-sm font-semibold transition-all cursor-pointer ${
-              role === "researcher"
-                ? "bg-white text-primary shadow-sm"
-                : "text-on-surface-variant hover:text-primary"
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[16px]">science</span>
-              {isAm ? "ተመራማሪ" : "Researcher"}
-            </span>
-          </button>
-        </div>
-      </div>
 
       <div className="space-y-4">
         <button
