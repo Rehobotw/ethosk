@@ -354,6 +354,7 @@ export interface UserRecord {
   researcher_verification_status?: ResearcherVerificationStatus;
   /** Researcher-specific: free or subscribed. */
   subscription_tier?: import("./permissions.js").SubscriptionTier;
+  is_banned?: boolean;
   created_at: string;
 }
 
