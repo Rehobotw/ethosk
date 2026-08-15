@@ -84,6 +84,7 @@ export default {
         "label-caps": ["Plus Jakarta Sans", "sans-serif"],
         "display-lg": ["Plus Jakarta Sans", "sans-serif"],
         "label-md": ["Inter", "sans-serif"],
+        "serif-display": ["Newsreader", "Playfair Display", "Georgia", "serif"],
       },
       fontSize: {
         "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],

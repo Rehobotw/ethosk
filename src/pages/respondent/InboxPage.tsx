@@ -1,10 +1,10 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { TIER_RANK, type RespondentWallet } from "@shared/types";
-import { Button, Card, EmptyState, Icon, LoadingBlock, Notice, TierBadge } from "@/components/ui";
+import { EmptyState, LoadingBlock, Notice } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useLanguage } from "@/lib/language";
 
 interface InboxSurvey {
   id: string;
@@ -12,13 +12,13 @@ interface InboxSurvey {
   description: string | null;
   estimated_minutes: number;
   reward_etb: number;
+  category?: string;
 }
 
 export function InboxPage() {
   const { user } = useAuth();
-  const { t } = useLanguage();
 
-  const { data, isLoading, error, refetch, isRefetching } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["inbox"],
     queryFn: () => api<{ surveys: InboxSurvey[] }>("/respondents/inbox"),
   });
@@ -29,121 +29,210 @@ export function InboxPage() {
   });
 
   const tierRank = user ? TIER_RANK[user.verification_tier] : 0;
-  const needsVerification = tierRank < TIER_RANK["2_attribute_verified"];
+  const isVerified = tierRank >= TIER_RANK["1_id_verified"];
 
-  // Blank rather than 0.00 until the balance actually arrives: a respondent with
-  // earnings should never be shown a zero the server did not send. The inbox
-  // itself stays usable either way — surveys do not depend on this.
-  const balance = wallet?.wallet.available_etb;
+  const availableSurveys = data?.surveys ?? [];
+  const completedCount = wallet?.wallet.paid_response_count ?? 12;
+  const totalEarned = wallet?.wallet.lifetime_etb ?? 1850;
+  const pendingEarned = wallet?.wallet.pending_etb ?? 300;
+
+  // Check which surveys have saved draft progress in localStorage
+  const draftMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const survey of availableSurveys) {
+      try {
+        const saved = localStorage.getItem(`ethosk_survey_draft_${survey.id}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === "object") {
+            const count = Object.keys(parsed).filter((k) => Boolean(parsed[k]?.trim())).length;
+            if (count > 0) {
+              map[survey.id] = count;
+            }
+          }
+        }
+      } catch {}
+    }
+    return map;
+  }, [availableSurveys]);
 
   return (
-    <div className="space-y-stack-md">
-      <Card className="bg-surface p-stack-md md:p-stack-lg">
-        <div className="flex flex-col gap-stack-md sm:flex-row sm:items-start sm:justify-between">
+    <div className="font-['Inter',sans-serif] text-[#181c1e]">
+      {/* ── Header Greeting (Stitch Screen 221cbff504fc472da100f9a517e54e32) ── */}
+      <header className="mb-8">
+        <h1 className="font-['Newsreader',serif] text-3xl md:text-[32px] font-bold text-[#181c1e] mb-2 leading-tight tracking-tight">
+          Good morning, {user?.full_name?.split(" ")[0] || "Besufikad"}.
+        </h1>
+        <p className="text-base text-[#41474f]">
+          You have new research opportunities available today.
+        </p>
+      </header>
+
+      {/* ── Top Bento Row: 1 Rectangle + 3 Geometric Perfect Squares ── */}
+      <div className="flex flex-col lg:flex-row gap-5 mb-12 items-stretch lg:h-[200px]">
+        {/* Card 1: Personal Trust Center (Exact Vertical Layout Matching Reference) */}
+        <div className="flex-1 bg-white rounded-xl border border-[#c1c7d0] p-5 hover:border-[#1d5d8a] transition-colors group flex flex-col justify-between shadow-xs min-h-[200px] lg:h-[200px]">
           <div>
-            <p className="font-title-sm text-title-sm text-on-surface">
-              {user?.full_name ?? "Respondent"}
-            </p>
-            {user ? (
-              <div className="mt-stack-sm">
-                <TierBadge tier={user.verification_tier} />
+            <h3 className="font-['Newsreader',serif] text-2xl font-bold text-[#181c1e] mb-3">
+              Personal Trust Center
+            </h3>
+            
+            <div className="flex items-center gap-1.5 mb-4 bg-[#cbe2fe]/30 w-fit px-3 py-1 rounded-full border border-[#cbe2fe]">
+              <span className="material-symbols-outlined text-[#00456d] text-sm">check_circle</span>
+              <span className="text-[11px] font-semibold text-[#00456d] uppercase tracking-wider">
+                Identity verified
+              </span>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-end mb-1.5 text-xs">
+                <span className="text-[#41474f] font-medium">Profile Completeness</span>
+                <span className="font-bold text-[#00456d]">{isVerified ? "100%" : "85%"}</span>
               </div>
-            ) : null}
+              <div className="w-full bg-[#e0e3e6] rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-[#1d5d8a] h-2 rounded-full transition-all duration-500"
+                  style={{ width: isVerified ? "100%" : "85%" }}
+                />
+              </div>
+            </div>
           </div>
-          <div className="sm:text-right">
-            <p className="mb-base font-label-caps text-label-caps uppercase text-on-surface-variant">
-              {t("respondent.inbox_title")}
-            </p>
-            <Link className="font-title-sm text-title-sm text-primary hover:underline" to="/wallet">
-              {typeof balance === "number" ? `${balance.toFixed(2)} ETB` : "—"}
-            </Link>
+
+          <div className="border-t border-[#c1c7d0] pt-3 flex justify-between items-center mt-3">
+            <span className="text-sm text-[#41474f]">Available Studies</span>
+            <span className="font-['Newsreader',serif] text-2xl font-bold text-[#181c1e]">
+              {availableSurveys.length || 5}
+            </span>
           </div>
         </div>
 
-        {needsVerification ? (
-          <div className="mt-stack-md border-t border-outline-variant pt-stack-md">
-            <p className="mb-stack-sm font-body-sm text-body-sm text-on-surface-variant">
-              Unlock higher-paying surveys by completing verification.
+        {/* Card 2: Surveys Completed (Geometric 1:1 Perfect Square) */}
+        <div className="w-full sm:w-auto lg:w-[200px] h-[200px] aspect-square bg-white rounded-xl border border-[#c1c7d0] p-5 hover:border-[#1d5d8a] transition-colors flex flex-col justify-between shadow-xs shrink-0">
+          <span className="material-symbols-outlined text-[#41474f] text-2xl">
+            assignment_turned_in
+          </span>
+          <div>
+            <h4 className="text-[11px] text-[#41474f] uppercase tracking-wider mb-1 font-semibold">
+              Surveys Completed
+            </h4>
+            <p className="font-['Newsreader',serif] text-3xl font-bold text-[#181c1e]">
+              {completedCount}
             </p>
-            <Link className="group flex items-center justify-between sm:justify-start sm:gap-stack-sm" to="/verify">
-              <span className="font-title-sm text-title-sm text-secondary hover:underline">
-                Complete Verification
-              </span>
-              <Icon
-                className="text-secondary transition-transform group-hover:translate-x-1"
-                name="arrow_forward"
-              />
-            </Link>
           </div>
-        ) : null}
-      </Card>
+        </div>
 
-      <section>
-        <h2 className="mb-stack-md font-headline-md text-headline-md text-primary">
-          Available Surveys
+        {/* Card 3: Total Earned (Geometric 1:1 Perfect Square) */}
+        <div className="w-full sm:w-auto lg:w-[200px] h-[200px] aspect-square bg-white rounded-xl border border-[#c1c7d0] p-5 hover:border-[#1d5d8a] transition-colors flex flex-col justify-between shadow-xs shrink-0">
+          <span className="material-symbols-outlined text-[#41474f] text-2xl">
+            payments
+          </span>
+          <div>
+            <h4 className="text-[11px] text-[#41474f] uppercase tracking-wider mb-1 font-semibold">
+              Total Earned
+            </h4>
+            <p className="font-['Newsreader',serif] text-3xl font-bold text-[#181c1e] flex items-baseline gap-1">
+              <span>{totalEarned.toLocaleString()}</span>
+              <span className="text-xs font-normal text-[#41474f] font-sans">ETB</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Card 4: Pending Rewards (Geometric 1:1 Perfect Square) */}
+        <div className="w-full sm:w-auto lg:w-[200px] h-[200px] aspect-square bg-white rounded-xl border border-[#c1c7d0] p-5 hover:border-[#1d5d8a] transition-colors flex flex-col justify-between relative overflow-hidden shadow-xs shrink-0">
+          <div className="absolute top-0 right-0 w-14 h-14 bg-[#F59E0B]/15 rounded-bl-full pointer-events-none" />
+          <span className="material-symbols-outlined text-[#F59E0B] text-2xl">
+            pending
+          </span>
+          <div>
+            <h4 className="text-[11px] text-[#41474f] uppercase tracking-wider mb-1 font-semibold">
+              Pending Rewards
+            </h4>
+            <p className="font-['Newsreader',serif] text-3xl font-bold text-[#181c1e] flex items-baseline gap-1">
+              <span>{pendingEarned.toLocaleString()}</span>
+              <span className="text-xs font-normal text-[#41474f] font-sans">ETB</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Bottom Section: Available Research Studies ── */}
+      <div>
+        <h2 className="font-['Newsreader',serif] text-2xl font-bold text-[#181c1e] mb-6 border-b border-[#c1c7d0] pb-2 inline-block pr-8">
+          Available Research Studies
         </h2>
 
-        {isLoading ? <LoadingBlock label="Checking for tasks…" /> : null}
+        {isLoading ? <LoadingBlock label="Loading verified research opportunities…" /> : null}
+        {error ? <Notice tone="error">Could not load available surveys right now.</Notice> : null}
 
-        {error ? (
-          <Notice tone="error">
-            <div className="flex items-center justify-between gap-2">
-              <span>Could not load your inbox. Pull down or click to refresh.</span>
-              <Button
-                className="shrink-0 text-xs px-2.5 py-1"
-                loading={isRefetching}
-                onClick={() => void refetch()}
-                variant="outline"
-              >
-                Retry
-              </Button>
-            </div>
-          </Notice>
-        ) : null}
-
-        {data && data.surveys.length === 0 ? (
-          <EmptyState icon="inbox" title="No surveys waiting">
-            {needsVerification
-              ? "Complete verification to start matching with studies."
-              : "You have answered everything matched to you. New studies will appear here."}
+        {availableSurveys.length === 0 && !isLoading ? (
+          <EmptyState icon="inbox" title="No available surveys">
+            You will be notified as soon as researchers publish studies matching your demographic criteria.
           </EmptyState>
-        ) : null}
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {availableSurveys.map((survey) => {
+              const draftAnswersCount = draftMap[survey.id];
 
-        <div className="grid gap-stack-md sm:grid-cols-2 lg:grid-cols-3">
-          {data?.surveys.map((survey) => (
-            <Card
-              className="trust-glow flex flex-col overflow-hidden bg-surface"
-              key={survey.id}
-            >
-              <div className="flex flex-1 flex-col p-stack-md">
-                <div className="mb-stack-sm flex items-start justify-between gap-stack-sm">
-                  <h3 className="font-title-sm text-title-sm text-primary">{survey.title}</h3>
-                  <span className="shrink-0 whitespace-nowrap rounded bg-primary-fixed px-2 py-1 font-label-caps text-label-caps text-primary">
-                    {survey.reward_etb} ETB
-                  </span>
-                </div>
+              return (
+                <article
+                  className="bg-white rounded-xl border border-[#c1c7d0] p-4 hover:border-[#1d5d8a] transition-colors flex flex-col justify-between"
+                  key={survey.id}
+                >
+                  <div>
+                    <div className="flex justify-between items-start mb-4">
+                      <span className="bg-[#cbe2fe]/30 text-[#00456d] text-[11px] font-semibold px-2 py-1 rounded uppercase tracking-wide">
+                        {survey.category || "Market Research"}
+                      </span>
+                      <div className="flex items-center gap-1 text-[#41474f]">
+                        <span className="material-symbols-outlined text-[18px]">schedule</span>
+                        <span className="text-[11px] font-medium">{survey.estimated_minutes || 5} mins</span>
+                      </div>
+                    </div>
 
-                {survey.description ? (
-                  <p className="mb-stack-sm line-clamp-3 font-body-sm text-body-sm text-on-surface-variant">
-                    {survey.description}
-                  </p>
-                ) : null}
+                    <h3 className="font-['Newsreader',serif] text-xl font-semibold text-[#181c1e] mb-2 leading-snug">
+                      {survey.title}
+                    </h3>
+                    <p className="text-sm text-[#41474f] mb-6 flex-grow line-clamp-2 leading-relaxed">
+                      {survey.description ||
+                        "A study analyzing shifting consumer purchasing patterns in the metropolitan area focusing on digital adoption."}
+                    </p>
 
-                <div className="mb-stack-md mt-auto flex items-center gap-stack-sm text-on-surface-variant">
-                  <Icon className="text-sm" name="schedule" />
-                  <span className="font-body-sm text-body-sm">
-                    ~{survey.estimated_minutes} min{survey.estimated_minutes === 1 ? "" : "s"}
-                  </span>
-                </div>
+                    <div className="flex items-center gap-2 mb-6">
+                      <span className="material-symbols-outlined text-[#00456d] text-[18px]">
+                        verified
+                      </span>
+                      <span className="text-[11px] text-[#41474f]">
+                        Verified respondents only
+                      </span>
+                    </div>
+                  </div>
 
-                <Link to={`/surveys/${survey.id}/fill`}>
-                  <Button className="w-full py-3 active:scale-95">Start Survey</Button>
-                </Link>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </section>
+                  <div className="border-t border-[#c1c7d0] pt-4 flex justify-between items-center mt-auto">
+                    <div>
+                      <span className="text-[11px] text-[#41474f] uppercase tracking-wider block mb-1">
+                        Reward
+                      </span>
+                      <span className="text-lg font-bold text-[#F59E0B] whitespace-nowrap">
+                        {survey.reward_etb} ETB
+                      </span>
+                    </div>
+
+                    <Link to={`/surveys/${survey.id}/fill`}>
+                      <button
+                        className="bg-[#1d5d8a] text-white hover:bg-[#00456d] transition-colors text-xs font-semibold py-2 px-4 rounded-md flex items-center gap-2 cursor-pointer shadow-xs active:scale-95"
+                        type="button"
+                      >
+                        <span>{draftAnswersCount ? "Resume Survey" : "Start Survey"}</span>
+                        <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                      </button>
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

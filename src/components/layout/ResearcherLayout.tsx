@@ -2,86 +2,81 @@ import { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth";
+import { useLanguage } from "@/lib/language";
 import { ThemeToggle } from "@/lib/theme";
-import { Icon, TierBadge } from "../ui";
+import { Icon } from "../ui";
 import { LanguageToggle } from "../ui/LanguageToggle";
 import { ProfileDropdown } from "./ProfileDropdown";
-import { isNavActive, PRIMARY_NAV, SECONDARY_NAV } from "./researcherNav";
-
-const ADMIN_PRIMARY_NAV = [
-  { label: "Review Queue", to: "/admin/review-queue", icon: "rule" },
-  { label: "Researcher Approvals", to: "/admin/researcher-approvals", icon: "how_to_reg" },
-];
-
-const SUPER_ADMIN_PRIMARY_NAV = [
-  ...ADMIN_PRIMARY_NAV,
-  { label: "User Management", to: "/admin/users", icon: "group" },
-];
+import { isNavActive } from "./researcherNav";
 
 export function ResearcherLayout() {
   const { user } = useAuth();
+  const { language } = useLanguage();
+  const isAm = language === "am";
   const { pathname } = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isBuilderPage =
+    pathname === "/researcher/surveys/new" ||
+    (pathname.startsWith("/researcher/surveys/") && pathname.endsWith("/edit"));
+
+  const primaryNav = [
+    { label: isAm ? "ዳሽቦርድ" : "Dashboard", to: "/researcher", icon: "dashboard" },
+    { label: isAm ? "የጥናት አዘጋጅ" : "Survey Builder", to: "/researcher/surveys/new", icon: "edit_note" },
+    { label: isAm ? "የእኔ ጥናቶች" : "My Surveys", to: "/researcher/surveys", icon: "send" },
+    { label: isAm ? "ትንታኔ" : "Analytics", to: "/researcher/analytics", icon: "analytics" },
+    { label: isAm ? "ቦርሳ" : "Wallet", to: "/researcher/wallet", icon: "account_balance_wallet" },
+  ];
+
+  const secondaryNav = [
+    { label: isAm ? "የደንበኝነት ምዝገባ" : "Subscription", to: "/researcher/subscription", icon: "star" },
+    { label: isAm ? "መገለጫ" : "Profile", to: "/researcher/profile", icon: "person" },
+    { label: isAm ? "ቅንብሮች" : "Settings", to: "/researcher/settings", icon: "settings" },
+  ];
+
+  const adminPrimaryNav = [
+    { label: isAm ? "አጠቃላይ እይታ" : "Overview", to: "/admin", icon: "dashboard" },
+    { label: isAm ? "የማረጋገጫ ወረፋ" : "Review Queue", to: "/admin/review-queue", icon: "rule" },
+    { label: isAm ? "የጥናት ማጽደቆች" : "Survey Approvals", to: "/admin/survey-approvals", icon: "task_alt" },
+    { label: isAm ? "የተመራማሪ ማጽደቆች" : "Researcher Approvals", to: "/admin/researcher-approvals", icon: "how_to_reg" },
+  ];
+
+  const superAdminPrimaryNav = [
+    { label: isAm ? "አጠቃላይ እይታ" : "Overview", to: "/admin", icon: "dashboard" },
+    { label: isAm ? "የፋይናንስ ሁኔታ" : "Financials & Escrow", to: "/admin/revenue", icon: "payments" },
+    { label: isAm ? "የማረጋገጫ ወረፋ" : "Review Queue", to: "/admin/review-queue", icon: "rule" },
+    { label: isAm ? "የጥናት ማጽደቆች" : "Survey Approvals", to: "/admin/survey-approvals", icon: "task_alt" },
+    { label: isAm ? "የተመራማሪ ማጽደቆች" : "Researcher Approvals", to: "/admin/researcher-approvals", icon: "how_to_reg" },
+    { label: isAm ? "የተጠቃሚዎች አስተዳደር" : "User Management", to: "/admin/users", icon: "group" },
+  ];
 
   return (
-    <div className="min-h-screen bg-background text-on-background">
-      <header className="fixed top-0 z-50 w-full border-b border-outline-variant bg-surface">
-        <div className="flex h-16 items-center justify-between px-margin-mobile md:px-gutter">
-          <div className="flex items-center gap-stack-md">
-            <button
-              aria-label="Toggle navigation"
-              className="md:hidden"
-              onClick={() => setSidebarOpen((open) => !open)}
-              type="button"
-            >
-              <Icon name={sidebarOpen ? "close" : "menu"} />
-            </button>
-            <Link className="font-headline-md text-headline-md font-bold text-primary" to="/researcher">
-              Ethosk
-            </Link>
-          </div>
-
-          <div className="flex items-center gap-stack-md">
-            <div className="hidden items-center gap-stack-sm rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-1.5 md:flex">
-              <Icon className="text-[18px] text-outline" name="search" />
-              <input
-                aria-label="Search surveys"
-                className="w-48 bg-transparent font-body-sm text-body-sm outline-none placeholder:text-outline"
-                placeholder="Search surveys…"
-                type="search"
-              />
-            </div>
-            <LanguageToggle />
-            <ThemeToggle />
-            <Icon className="text-on-surface-variant" name="notifications" />
-            <ProfileDropdown />
-          </div>
-        </div>
-      </header>
-
+    <div className="min-h-screen bg-[#F4F7FA] text-on-surface flex">
+      {/* ── Desktop & Mobile Sidebar (Stitch Screen 3b68c8dbda7342c6847547b652d3be48 & ce402508206046399e6c6f58c4cdcf6b) ── */}
       <aside
         className={clsx(
-          "fixed left-0 top-16 z-40 flex h-[calc(100vh-4rem)] w-64 flex-col border-r border-outline-variant bg-surface p-stack-md transition-transform md:translate-x-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+          "fixed md:sticky top-0 left-0 z-40 flex h-screen w-64 flex-col border-r border-slate-200/80 bg-[#F4F7FA] p-4 transition-transform shrink-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         )}
       >
-        <div className="mb-stack-md">
-          <p className="font-title-sm text-body-md font-bold text-on-surface">
-            {user?.role === "admin" || user?.role === "super_admin" ? "Admin Portal" : "Researcher Portal"}
-          </p>
-          {user && user.role === "researcher" ? (
-            <div className="mt-stack-sm">
-              <TierBadge tier={user.verification_tier} />
-            </div>
-          ) : null}
+        {/* Stitch Sidebar Header */}
+        <div className="px-2 mb-6 pt-2">
+          <Link to="/researcher">
+            <h1 className="font-headline-md text-xl font-bold text-primary tracking-tight">
+              {isAm ? "ኢቶስክ ምርምር" : "Ethosk Research"}
+            </h1>
+            <p className="text-xs text-on-surface-variant font-medium">
+              {isAm ? "የአሰራር ማዕከል" : "Operational Hub"}
+            </p>
+          </Link>
         </div>
 
-        <nav className="space-y-base">
+        {/* Navigation items */}
+        <nav className="space-y-1 flex-1 overflow-y-auto">
           {(user?.role === "super_admin"
-            ? SUPER_ADMIN_PRIMARY_NAV
+            ? superAdminPrimaryNav
             : user?.role === "admin"
-              ? ADMIN_PRIMARY_NAV
-              : PRIMARY_NAV
+              ? adminPrimaryNav
+              : primaryNav
           ).map((item) => (
             <SidebarLink
               active={isNavActive(pathname, item.to)}
@@ -94,8 +89,9 @@ export function ResearcherLayout() {
           ))}
         </nav>
 
-        <div className="mt-auto space-y-base border-t border-outline-variant pt-stack-md">
-          {(user?.role === "admin" || user?.role === "super_admin" ? [] : SECONDARY_NAV).map((item) => (
+        {/* Secondary items at bottom */}
+        <div className="mt-auto space-y-1 border-t border-slate-200/80 pt-4">
+          {(user?.role === "admin" || user?.role === "super_admin" ? [] : secondaryNav).map((item) => (
             <SidebarLink
               active={isNavActive(pathname, item.to)}
               icon={item.icon}
@@ -108,11 +104,63 @@ export function ResearcherLayout() {
         </div>
       </aside>
 
-      {/* No marketing footer in here: the sidebar is the navigation, and a second
-          set of sign-up and language links belongs on the public pages, not on a
-          working dashboard. */}
-      <div className="pt-16 md:pl-64">
-        <main className="mx-auto min-h-[calc(100vh-4rem)] w-full max-w-container-max p-margin-mobile md:p-gutter">
+      {/* ── Main Content Area ── */}
+      <div className="flex-1 flex flex-col min-w-0 bg-[#F4F7FA]">
+        {/* Top Header: Rendered for Dashboard and general pages, omitted on Builder (which has its own dedicated toolbar) */}
+        {!isBuilderPage ? (
+          <header className="sticky top-0 z-30 w-full h-16 md:h-20 bg-[#F4F7FA]/90 backdrop-blur-md flex items-center justify-between px-6 md:px-8">
+            {/* Mobile hamburger + Logo */}
+            <div className="flex items-center gap-3 md:hidden">
+              <button
+                aria-label="Toggle navigation"
+                className="p-1 rounded-lg hover:bg-slate-200/60 cursor-pointer"
+                onClick={() => setSidebarOpen((open) => !open)}
+                type="button"
+              >
+                <Icon name={sidebarOpen ? "close" : "menu"} />
+              </button>
+              <span className="font-headline-md text-lg font-bold text-primary">Ethosk</span>
+            </div>
+
+            {/* Search bar on desktop */}
+            <div className="hidden md:flex items-center w-full max-w-md">
+              <div className="relative w-full">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                  search
+                </span>
+                <input
+                  aria-label="Search surveys"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-[#5A6E7F] transition-all shadow-2xs"
+                  placeholder={isAm ? "ምርምር ፈልግ..." : "Search research…"}
+                  type="search"
+                />
+              </div>
+            </div>
+
+            {/* Right Header Actions */}
+            <div className="flex items-center gap-4">
+              <LanguageToggle />
+              <ThemeToggle />
+              <button
+                aria-label="Notifications"
+                className="p-2 text-on-surface-variant hover:text-primary hover:bg-white rounded-full transition-colors relative cursor-pointer"
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[22px]">notifications</span>
+              </button>
+              <ProfileDropdown />
+            </div>
+          </header>
+        ) : null}
+
+        {/* Page Outlet */}
+        <main
+          className={clsx(
+            isBuilderPage
+              ? "flex-1 flex flex-col h-screen overflow-hidden"
+              : "flex-1 px-6 pb-12 pt-2 md:px-8 max-w-7xl mx-auto w-full",
+          )}
+        >
           <Outlet />
         </main>
       </div>
@@ -137,18 +185,16 @@ function SidebarLink({
     <Link
       aria-current={active ? "page" : undefined}
       className={clsx(
-        "flex items-center gap-stack-sm rounded-xl p-stack-sm transition-all",
+        "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all text-sm duration-150",
         active
-          ? "bg-secondary-container font-semibold text-on-secondary-container"
-          : "text-on-surface-variant hover:bg-surface-container-highest",
+          ? "bg-primary/10 text-primary font-bold shadow-xs"
+          : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface font-medium",
       )}
       onClick={onNavigate}
       to={to}
     >
-      <Icon filled={active} name={icon} />
-      <span className="font-title-sm text-body-md">{label}</span>
+      <Icon className="text-[20px]" filled={active} name={icon} />
+      <span>{label}</span>
     </Link>
   );
 }
-
-

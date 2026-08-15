@@ -258,18 +258,28 @@ export function FlagBadge({ flag }: { flag: FraudFlag }) {
 // Feedback
 // ---------------------------------------------------------------------------
 
-type NoticeTone = "info" | "warning" | "error" | "success";
+export type NoticeTone = "info" | "warning" | "error" | "success";
 
-const NOTICE_TONES: Record<NoticeTone, { wrapper: string; icon: string }> = {
-  info: { wrapper: "bg-surface-container-low text-on-surface border-outline-variant", icon: "info" },
-  warning: {
-    wrapper: "bg-tertiary-fixed text-on-tertiary-fixed-variant border-tertiary/20",
-    icon: "warning",
+const NOTICE_TONES: Record<NoticeTone, { wrapper: string; icon: string; iconColor: string }> = {
+  info: {
+    wrapper: "bg-primary-fixed/20 text-primary border border-primary/20",
+    icon: "info",
+    iconColor: "text-primary",
   },
-  error: { wrapper: "bg-error-container text-on-error-container border-error/20", icon: "error" },
+  warning: {
+    wrapper: "bg-amber-50 text-amber-900 border border-amber-200/80 shadow-xs",
+    icon: "warning",
+    iconColor: "text-amber-600",
+  },
+  error: {
+    wrapper: "bg-rose-50 text-rose-900 border border-rose-200/80 shadow-xs",
+    icon: "error",
+    iconColor: "text-rose-600",
+  },
   success: {
-    wrapper: "bg-status-passed/10 text-flag-clean border-status-passed/30",
+    wrapper: "bg-emerald-50 text-emerald-900 border border-emerald-200/80 shadow-xs",
     icon: "check_circle",
+    iconColor: "text-emerald-600",
   },
 };
 
@@ -288,24 +298,29 @@ export function Notice({
 
   return (
     <div
-      className={clsx("flex gap-stack-sm rounded-xl border p-stack-md", config.wrapper)}
+      className={clsx(
+        "flex items-center gap-3 rounded-xl px-4 py-3 transition-all text-sm",
+        config.wrapper,
+      )}
       role={tone === "error" ? "alert" : "status"}
     >
-      <Icon className="shrink-0 text-[20px]" name={config.icon} />
-      <div className="flex-1">
-        {title ? <p className="font-title-sm text-body-md font-bold">{title}</p> : null}
+      <span className={clsx("material-symbols-outlined shrink-0 text-[20px]", config.iconColor)}>
+        {config.icon}
+      </span>
+      <div className="flex-1 min-w-0">
+        {title ? <p className="font-bold text-sm leading-tight mb-0.5">{title}</p> : null}
         {children ? (
-          <div className="mt-base font-body-sm text-body-sm leading-snug">{children}</div>
+          <div className="text-xs leading-relaxed font-medium">{children}</div>
         ) : null}
       </div>
       {onDismiss ? (
         <button
           aria-label="Dismiss"
-          className="shrink-0 self-start opacity-70 hover:opacity-100"
+          className="shrink-0 self-center opacity-60 hover:opacity-100 cursor-pointer p-1 rounded-md transition-opacity"
           onClick={onDismiss}
           type="button"
         >
-          <Icon className="text-[18px]" name="close" />
+          <span className="material-symbols-outlined text-[18px]">close</span>
         </button>
       ) : null}
     </div>
@@ -322,11 +337,13 @@ export function EmptyState({
   children?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-outline-variant px-stack-md py-stack-lg text-center">
-      <Icon className="text-[32px] text-outline" name={icon} />
-      <p className="mt-stack-sm font-title-sm text-title-sm text-on-surface">{title}</p>
+    <div className="flex flex-col items-center justify-center rounded-2xl bg-gradient-to-b from-slate-50/80 to-white px-8 py-14 text-center">
+      <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#00456d]/10 to-[#00456d]/5 ring-1 ring-[#00456d]/10">
+        <Icon className="text-[28px] text-[#00456d]/50" name={icon} />
+      </div>
+      <p className="font-['Newsreader',serif] text-lg font-semibold text-[#0D253A] tracking-tight">{title}</p>
       {children ? (
-        <p className="mt-base max-w-md font-body-sm text-body-sm text-on-surface-variant">
+        <p className="mt-2 max-w-sm text-[13px] leading-relaxed text-slate-500">
           {children}
         </p>
       ) : null}
@@ -334,11 +351,34 @@ export function EmptyState({
   );
 }
 
-export function LoadingBlock({ label = "Loading…" }: { label?: string }) {
+export function LoadingBlock({
+  label = "Loading…",
+  fullScreen = false,
+}: {
+  label?: string;
+  fullScreen?: boolean;
+}) {
   return (
-    <div className="flex items-center justify-center gap-stack-sm py-stack-lg text-on-surface-variant">
-      <Spinner />
-      <span className="font-body-sm text-body-sm">{label}</span>
+    <div
+      className={clsx(
+        "flex flex-col items-center justify-center gap-4 text-center select-none py-16 px-4",
+        fullScreen
+          ? "fixed inset-0 z-50 bg-[#F4F7FA]/90 backdrop-blur-sm"
+          : "min-h-[320px] w-full",
+      )}
+    >
+      <div className="relative flex items-center justify-center">
+        {/* Glow & double-ring animated pulse */}
+        <div className="absolute -inset-2 rounded-full bg-primary/10 blur-md animate-pulse" />
+        <div className="w-12 h-12 rounded-full border-[3px] border-primary/20 border-t-primary animate-spin" />
+        <div className="absolute w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
+          <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <p className="font-headline-md text-sm font-bold text-primary tracking-tight">{label}</p>
+        <p className="text-xs text-on-surface-variant font-medium">Please wait a moment…</p>
+      </div>
     </div>
   );
 }

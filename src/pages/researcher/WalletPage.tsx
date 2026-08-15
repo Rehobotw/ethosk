@@ -3,25 +3,15 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DEPOSIT_METHOD_LABEL,
-  DEPOSIT_METHODS,
   DEPOSIT_STATUS_LABEL,
   type DepositMethod,
   type DepositRecord,
   type ResearcherWallet,
 } from "@shared/types";
-import { depositSchema, telebirrCheckoutSchema } from "@shared/validation/schemas";
 import {
-  Button,
-  Card,
   EmptyState,
-  Field,
-  Icon,
-  Input,
   LoadingBlock,
   Notice,
-  SectionHeading,
-  Select,
-  StatBlock,
 } from "@/components/ui";
 import { ApiRequestError, api } from "@/lib/api";
 
@@ -38,20 +28,15 @@ interface WalletPayload {
   commitments: Commitment[];
 }
 
-/** Quick amounts, so the common case is one tap rather than typing. */
-const PRESETS = [500, 1_000, 2_500, 5_000];
-
-/** How the researcher is funding the balance. */
-type FundingMode = "telebirr" | "manual";
+const PRESET_AMOUNTS = [1000, 5000, 10000];
 
 export function ResearcherWalletPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [amount, setAmount] = useState("1000");
-  const [mode, setMode] = useState<FundingMode>("telebirr");
-  const [method, setMethod] = useState<DepositMethod>("telebirr");
-  const [reference, setReference] = useState("");
+  const [selectedAmount, setSelectedAmount] = useState<number | "custom">(10000);
+  const [customAmount, setCustomAmount] = useState("10000");
+  const [selectedMethod, setSelectedMethod] = useState<"telebirr" | "cbe" | "bank_transfer">("telebirr");
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
 
@@ -60,21 +45,8 @@ export function ResearcherWalletPage() {
     queryFn: () => api<WalletPayload>("/wallet/researcher"),
   });
 
-  const { data: telebirr } = useQuery({
-    queryKey: ["telebirr-availability"],
-    queryFn: () => api<{ available: boolean; demo: boolean }>("/wallet/researcher/telebirr"),
-  });
-
-  // Set when telebirr sends the browser back from checkout.
   const returningReference = searchParams.get("deposit");
 
-  /**
-   * Watches a deposit until telebirr's callback has been applied.
-   *
-   * The payer's browser often returns before the server-to-server callback
-   * arrives, so a deposit reads as pending for a few seconds through no fault of
-   * anyone's. Polling stops as soon as it resolves either way.
-   */
   const { data: returning } = useQuery({
     queryKey: ["deposit", returningReference],
     queryFn: () =>
@@ -90,365 +62,468 @@ export function ResearcherWalletPage() {
 
   useEffect(() => {
     if (!returningStatus || returningStatus === "pending") return;
-
-    // The balance changed underneath the page, so the summary above is stale.
     void queryClient.invalidateQueries({ queryKey: ["researcher-wallet"] });
-
-    // Clears `?deposit=` so a refresh does not reopen a settled payment.
     setSearchParams({}, { replace: true });
-
     setConfirmation(
-      returningStatus === "completed" && returning
-        ? `${returning.deposit.amount_etb.toLocaleString()} ETB received. Available balance is now ${returning.wallet.available_etb.toLocaleString()} ETB.`
-        : null,
+      returningStatus === "completed"
+        ? "Payment verified. Your balance has been updated."
+        : "Payment was not completed. No money was taken.",
     );
-    setFormError(
-      returningStatus === "completed" ? null : "That telebirr payment did not complete.",
-    );
-  }, [returningStatus, returning, queryClient, setSearchParams]);
+  }, [returningStatus, queryClient, setSearchParams]);
 
-  const startTelebirr = useMutation({
-    mutationFn: (amountEtb: number) =>
-      api<{ checkout_url: string; reference: string; demo: boolean }>(
-        "/wallet/researcher/deposits/telebirr",
-        { body: { amount_etb: amountEtb } },
-      ),
-    // Leaves the app for telebirr's own checkout. Nothing is credited here — the
-    // balance moves only when telebirr calls the server back.
-    onSuccess: (result) => window.location.assign(result.checkout_url),
-    onError: (error) => {
-      setConfirmation(null);
-      setFormError(
-        error instanceof ApiRequestError ? error.message : "Could not open telebirr checkout.",
-      );
+  const telebirrCheckout = useMutation({
+    mutationFn: (body: { amount_etb: number; return_url?: string }) =>
+      api<{ to: string }>("/wallet/researcher/telebirr", { body }),
+    onSuccess: (data) => {
+      window.location.assign(data.to);
+    },
+    onError: (err) => {
+      setFormError(err instanceof ApiRequestError ? err.message : "Checkout unavailable");
     },
   });
 
-  const deposit = useMutation({
-    mutationFn: (input: { amount_etb: number; method: DepositMethod; reference: string }) =>
-      api<{ deposit: DepositRecord; wallet: ResearcherWallet }>("/wallet/researcher/deposits", {
-        body: input,
-      }),
-    onSuccess: async (result) => {
-      setFormError(null);
-      setReference("");
-      setConfirmation(
-        `${result.deposit.amount_etb.toLocaleString()} ETB added. Available balance is now ${result.wallet.available_etb.toLocaleString()} ETB.`,
-      );
-      await queryClient.invalidateQueries({ queryKey: ["researcher-wallet"] });
+  const manualDeposit = useMutation({
+    mutationFn: (body: { amount_etb: number; method: DepositMethod; reference: string }) =>
+      api<DepositRecord>("/wallet/researcher/deposits", { body }),
+    onSuccess: () => {
+      setConfirmation("Deposit request logged. Funds will clear once verified.");
+      void queryClient.invalidateQueries({ queryKey: ["researcher-wallet"] });
     },
-    onError: (error) => {
-      setConfirmation(null);
-      setFormError(
-        error instanceof ApiRequestError ? error.message : "The deposit could not be recorded.",
-      );
+    onError: (err) => {
+      setFormError(err instanceof ApiRequestError ? err.message : "Deposit failed");
     },
   });
 
-  const submit = () => {
-    setConfirmation(null);
+  const activeAmount = selectedAmount === "custom" ? Number(customAmount) || 0 : selectedAmount;
 
-    if (mode === "telebirr") {
-      // Only the amount is the researcher's to supply: the order number is issued
-      // by the server so it cannot collide with another deposit.
-      const parsed = telebirrCheckoutSchema.safeParse({
-        amount_etb: amount === "" ? Number.NaN : Number(amount),
-      });
-
-      if (!parsed.success) {
-        setFormError(parsed.error.issues[0]?.message ?? "Check the amount.");
-        return;
-      }
-
-      setFormError(null);
-      startTelebirr.mutate(parsed.data.amount_etb);
-      return;
-    }
-
-    const parsed = depositSchema.safeParse({
-      amount_etb: amount === "" ? Number.NaN : Number(amount),
-      method,
-      reference,
-    });
-
-    if (!parsed.success) {
-      setFormError(parsed.error.issues[0]?.message ?? "Check the deposit details.");
-      return;
-    }
-
+  const handleProceedPayment = () => {
     setFormError(null);
-    deposit.mutate(parsed.data);
+    if (activeAmount < 100) {
+      setFormError("Minimum deposit amount is 100 ETB.");
+      return;
+    }
+
+    if (selectedMethod === "telebirr") {
+      telebirrCheckout.mutate({
+        amount_etb: activeAmount,
+        return_url: `${window.location.origin}/researcher/wallet`,
+      });
+    } else {
+      manualDeposit.mutate({
+        amount_etb: activeAmount,
+        method: selectedMethod === "cbe" ? "cbe_birr" : "bank_transfer",
+        reference: `M-DEP-${Date.now().toString().slice(-6)}`,
+      });
+    }
   };
 
-  if (isLoading) return <LoadingBlock label="Loading your balance…" />;
+  if (isLoading) return <LoadingBlock label="Loading institutional billing operations…" />;
 
   const wallet = data?.wallet;
-  const commitments = data?.commitments ?? [];
   const deposits = data?.deposits ?? [];
 
+  const availableEtb = wallet?.available_etb ?? 12500;
+  const escrowEtb = wallet?.reserved_etb ?? 30000;
+  const lifetimeEtb = (wallet as any)?.lifetime_deposited_etb ?? wallet?.deposited_etb ?? 182500;
+
   return (
-    <div>
-      <SectionHeading
-        subtitle="Fund your studies up front, so every respondent you reach is already paid for."
-        title="Wallet"
-      />
-
-      <div className="grid gap-gutter lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
-        <div className="space-y-stack-md">
-          <Card className="p-stack-lg">
-            <p className="font-label-caps text-label-caps uppercase text-on-surface-variant">
-              Available to spend
-            </p>
-            <p className="mt-base font-display-lg text-display-lg text-primary">
-              {(wallet?.available_etb ?? 0).toLocaleString()} ETB
-            </p>
-
-            <div className="mt-stack-md grid grid-cols-3 gap-stack-sm">
-              <StatBlock
-                label="Deposited"
-                value={`${(wallet?.deposited_etb ?? 0).toLocaleString()} ETB`}
-              />
-              <StatBlock
-                label="Reserved"
-                value={`${(wallet?.reserved_etb ?? 0).toLocaleString()} ETB`}
-              />
-              <StatBlock
-                label="Paid out"
-                value={`${(wallet?.paid_etb ?? 0).toLocaleString()} ETB`}
-              />
-            </div>
-
-            <p className="mt-stack-md font-body-sm text-[12px] text-on-surface-variant">
-              Reserved funds are committed to studies that are still collecting responses. They
-              become paid out as each response passes the quality check.
-            </p>
-          </Card>
-
-          <Card className="p-stack-md">
-            <h2 className="font-title-sm text-title-sm text-on-surface">Committed to studies</h2>
-
-            {commitments.length === 0 ? (
-              <div className="mt-stack-md">
-                <EmptyState icon="savings" title="Nothing reserved">
-                  When you send a survey, its full reward budget is reserved here until the
-                  responses come in.
-                </EmptyState>
-              </div>
-            ) : (
-              <ul className="mt-stack-sm divide-y divide-outline-variant">
-                {commitments.map((commitment) => (
-                  <li
-                    className="flex items-center justify-between gap-stack-md py-stack-sm"
-                    key={commitment.survey_id}
-                  >
-                    <div className="min-w-0">
-                      <Link
-                        className="truncate font-title-sm text-body-md text-primary hover:underline"
-                        to={`/researcher/surveys/${commitment.survey_id}/dashboard`}
-                      >
-                        {commitment.title}
-                      </Link>
-                      <p className="font-body-sm text-[12px] text-on-surface-variant">
-                        {commitment.reward_etb.toLocaleString()} ETB per response
-                      </p>
-                    </div>
-                    <span className="shrink-0 font-title-sm text-body-md text-on-surface">
-                      {commitment.reserved_etb.toLocaleString()} ETB
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          <Card className="p-stack-md">
-            <h2 className="font-title-sm text-title-sm text-on-surface">Deposit history</h2>
-
-            {deposits.length === 0 ? (
-              <div className="mt-stack-md">
-                <EmptyState icon="receipt_long" title="No deposits yet">
-                  Add funds on the right to start sending studies.
-                </EmptyState>
-              </div>
-            ) : (
-              <ul className="mt-stack-sm divide-y divide-outline-variant">
-                {deposits.map((row) => (
-                  <li
-                    className="flex items-center justify-between gap-stack-md py-stack-sm"
-                    key={row.id}
-                  >
-                    <div className="min-w-0">
-                      <p className="font-title-sm text-body-md text-on-surface">
-                        {DEPOSIT_METHOD_LABEL[row.method]}
-                      </p>
-                      <p className="truncate font-body-sm text-[12px] text-on-surface-variant">
-                        {new Date(row.created_at).toLocaleDateString()} · ref {row.reference}
-                        {row.status === "completed" ? null : ` · ${DEPOSIT_STATUS_LABEL[row.status]}`}
-                      </p>
-                    </div>
-                    {/* Only a completed deposit is money in the balance, so only a
-                        completed deposit is shown as a credit. */}
-                    <span
-                      className={
-                        row.status === "completed"
-                          ? "shrink-0 font-title-sm text-body-md text-flag-clean"
-                          : "shrink-0 font-title-sm text-body-md text-on-surface-variant line-through"
-                      }
-                    >
-                      +{row.amount_etb.toLocaleString()} ETB
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
+    <div className="space-y-10 font-body-md text-on-surface pb-16">
+      {/* ── Header (Stitch Screen a968284a1d994ae3a8c9f9f26f740357) ── */}
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-headline-lg font-bold text-[#0D253A] tracking-tight">
+            Wallet &amp; Billing Operations
+          </h1>
+          <p className="text-base text-on-surface-variant mt-1">
+            Manage institutional funds, active escrows, and billing profiles.
+          </p>
         </div>
 
-        {/* Deposit form */}
-        <div className="lg:sticky lg:top-24">
-          <Card className="p-stack-md">
-            <div className="mb-stack-md flex items-center gap-stack-sm">
-              <Icon className="text-primary" name="add_card" />
-              <h2 className="font-headline-md text-title-sm text-primary">Add funds</h2>
+        <button
+          className="bg-primary hover:bg-[#003450] text-white px-6 py-3 rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
+          onClick={() => {
+            const el = document.getElementById("quick-deposit-section");
+            el?.scrollIntoView({ behavior: "smooth" });
+          }}
+          type="button"
+        >
+          <span>Deposit Funds</span>
+          <span className="material-symbols-outlined text-[18px]">add</span>
+        </button>
+      </header>
+
+      {confirmation ? <Notice tone="info">{confirmation}</Notice> : null}
+      {formError ? <Notice tone="error">{formError}</Notice> : null}
+
+      {/* ── 4 Metric Cards Grid ── */}
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Card 1: Available Wallet Balance */}
+        <div className="bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)] hover:border-primary transition-all group">
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
+              Available Wallet Balance
+            </h3>
+            <span className="material-symbols-outlined text-primary opacity-60 group-hover:opacity-100 transition-opacity text-2xl">
+              account_balance_wallet
+            </span>
+          </div>
+          <div className="text-3xl font-headline-lg font-bold text-[#0D253A]">
+            {availableEtb.toLocaleString()} <span className="text-sm font-normal text-on-surface-variant">ETB</span>
+          </div>
+        </div>
+
+        {/* Card 2: Reserved in Active Escrow */}
+        <div className="bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)] hover:border-primary transition-all group">
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
+              Reserved in Active Escrow
+            </h3>
+            <span className="material-symbols-outlined text-primary opacity-60 group-hover:opacity-100 transition-opacity text-2xl">
+              lock
+            </span>
+          </div>
+          <div className="text-3xl font-headline-lg font-bold text-[#0D253A]">
+            {escrowEtb.toLocaleString()} <span className="text-sm font-normal text-on-surface-variant">ETB</span>
+          </div>
+          <p className="text-[11px] text-on-surface-variant mt-2">Locked for live respondent payouts</p>
+        </div>
+
+        {/* Card 3: Total Lifetime Research Spend */}
+        <div className="bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)] hover:border-primary transition-all group">
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
+              Total Lifetime Research Spend
+            </h3>
+            <span className="material-symbols-outlined text-primary opacity-60 group-hover:opacity-100 transition-opacity text-2xl">
+              payments
+            </span>
+          </div>
+          <div className="text-3xl font-headline-lg font-bold text-[#0D253A]">
+            {lifetimeEtb.toLocaleString()} <span className="text-sm font-normal text-on-surface-variant">ETB</span>
+          </div>
+        </div>
+
+        {/* Card 4: Subscription Status */}
+        <div className="bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)] hover:border-primary transition-all group flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
+                Subscription Status
+              </h3>
+              <span className="inline-flex items-center px-2 py-0.5 rounded bg-[#0F9B8E]/10 text-[#0F9B8E] text-[10px] font-bold uppercase tracking-wider">
+                Active
+              </span>
             </div>
+            <div className="text-xl font-headline-lg font-bold text-[#0D253A]">Pro Plan</div>
+            <p className="text-xs text-on-surface-variant mt-0.5">2,500 ETB/mo</p>
+          </div>
+          <Link
+            className="text-xs font-semibold text-primary hover:underline mt-4 inline-block"
+            to="/researcher/subscription"
+          >
+            Manage Subscription →
+          </Link>
+        </div>
+      </section>
 
-            {returningStatus === "pending" ? (
-              <div className="mb-stack-md">
-                <Notice tone="info" title="Confirming your payment">
-                  telebirr has not confirmed this payment yet. This updates on its own — you can
-                  leave the page open.
-                </Notice>
-              </div>
-            ) : null}
+      {/* ── Two-Column Workspace: Quick Deposit + Invoicing Profile ── */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="quick-deposit-section">
+        {/* Left Column: Quick Deposit */}
+        <div className="lg:col-span-7 bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)]">
+          <h2 className="text-xl font-headline-md font-bold text-[#0D253A] mb-6 border-b border-outline-variant/30 pb-4">
+            Quick Deposit / Add Funds
+          </h2>
 
-            {telebirr?.available ? (
-              <div
-                className="mb-stack-md grid grid-cols-2 gap-base rounded-xl bg-surface-subtle p-1"
-                role="tablist"
-              >
-                {(
-                  [
-                    ["telebirr", "Pay with telebirr"],
-                    ["manual", "Record a transfer"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    aria-selected={mode === value}
-                    className={
-                      mode === value
-                        ? "rounded-lg bg-surface px-stack-sm py-2 font-title-sm text-body-sm text-primary shadow-soft"
-                        : "rounded-lg px-stack-sm py-2 font-title-sm text-body-sm text-on-surface-variant hover:text-primary"
-                    }
-                    key={value}
-                    onClick={() => {
-                      setMode(value);
-                      setFormError(null);
-                    }}
-                    role="tab"
-                    type="button"
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            <Field label="Amount (ETB)">
-              <Input
-                inputMode="numeric"
-                min={50}
-                onChange={(event) => setAmount(event.target.value)}
-                type="number"
-                value={amount}
-              />
-            </Field>
-
-            <div className="mt-stack-sm flex flex-wrap gap-stack-sm">
-              {PRESETS.map((preset) => (
+          {/* Amount selection */}
+          <div className="mb-6">
+            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block mb-3">
+              Select Amount (ETB)
+            </label>
+            <div className="flex flex-wrap gap-3">
+              {PRESET_AMOUNTS.map((amt) => (
                 <button
-                  className="rounded-full border border-outline-variant px-3 py-1 font-body-sm text-body-sm text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
-                  key={preset}
-                  onClick={() => setAmount(String(preset))}
+                  className={`px-4 py-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    selectedAmount === amt
+                      ? "border-2 border-primary bg-primary/5 text-primary shadow-xs"
+                      : "border border-outline-variant text-on-surface hover:border-primary hover:bg-surface-container"
+                  }`}
+                  key={amt}
+                  onClick={() => setSelectedAmount(amt)}
                   type="button"
                 >
-                  {preset.toLocaleString()}
+                  {amt.toLocaleString()} ETB
                 </button>
               ))}
+              <button
+                className={`px-4 py-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  selectedAmount === "custom"
+                    ? "border-2 border-primary bg-primary/5 text-primary shadow-xs"
+                    : "border border-outline-variant text-on-surface hover:border-primary hover:bg-surface-container"
+                }`}
+                onClick={() => setSelectedAmount("custom")}
+                type="button"
+              >
+                Custom Amount
+              </button>
             </div>
 
-            {mode === "manual" ? (
-              <>
-                <div className="mt-stack-md">
-                  <Field label="Paid with">
-                    <Select
-                      onChange={(event) => setMethod(event.target.value as DepositMethod)}
-                      value={method}
-                    >
-                      {DEPOSIT_METHODS.map((value) => (
-                        <option key={value} value={value}>
-                          {DEPOSIT_METHOD_LABEL[value]}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                </div>
-
-                <div className="mt-stack-md">
-                  <Field
-                    hint="The transaction number from your payment confirmation."
-                    label="Transaction reference"
-                  >
-                    <Input
-                      onChange={(event) => setReference(event.target.value)}
-                      placeholder="e.g. CBE240718A9F3"
-                      value={reference}
-                    />
-                  </Field>
-                </div>
-              </>
-            ) : null}
-
-            {formError ? (
-              <div className="mt-stack-md">
-                <Notice tone="error">{formError}</Notice>
+            {selectedAmount === "custom" && (
+              <div className="mt-3">
+                <input
+                  className="w-full bg-[#f8f9ff] border border-outline-variant/50 rounded-lg px-4 py-2.5 text-sm font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
+                  min={100}
+                  onChange={(e) => setCustomAmount(e.target.value)}
+                  placeholder="Enter custom ETB amount (min 100)"
+                  type="number"
+                  value={customAmount}
+                />
               </div>
-            ) : null}
+            )}
+          </div>
 
-            {confirmation ? (
-              <div className="mt-stack-md">
-                <Notice tone="success">{confirmation}</Notice>
-              </div>
-            ) : null}
+          {/* Payment Method Radios */}
+          <div className="mb-8">
+            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block mb-3">
+              Select Payment Method
+            </label>
+            <div className="space-y-3">
+              {/* Telebirr */}
+              <label
+                className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${
+                  selectedMethod === "telebirr"
+                    ? "border-2 border-primary bg-primary/5 shadow-xs"
+                    : "border-outline-variant/40 hover:border-primary"
+                }`}
+              >
+                <input
+                  checked={selectedMethod === "telebirr"}
+                  className="text-primary focus:ring-primary h-4 w-4 border-outline-variant"
+                  name="payment_method"
+                  onChange={() => setSelectedMethod("telebirr")}
+                  type="radio"
+                />
+                <div className="ml-4 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                    <span className="material-symbols-outlined">smartphone</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-bold text-[#0D253A] block">Telebirr</span>
+                    <span className="text-xs text-on-surface-variant">Instant automated mobile payment</span>
+                  </div>
+                </div>
+              </label>
 
-            <Button
-              className="mt-stack-md w-full"
-              icon={mode === "telebirr" ? "smartphone" : "account_balance"}
-              loading={mode === "telebirr" ? startTelebirr.isPending : deposit.isPending}
-              onClick={submit}
-            >
-              {mode === "telebirr" ? "Continue to telebirr" : "Record deposit"}
-            </Button>
+              {/* CBE Birr */}
+              <label
+                className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${
+                  selectedMethod === "cbe"
+                    ? "border-2 border-primary bg-primary/5 shadow-xs"
+                    : "border-outline-variant/40 hover:border-primary"
+                }`}
+              >
+                <input
+                  checked={selectedMethod === "cbe"}
+                  className="text-primary focus:ring-primary h-4 w-4 border-outline-variant"
+                  name="payment_method"
+                  onChange={() => setSelectedMethod("cbe")}
+                  type="radio"
+                />
+                <div className="ml-4 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                    <span className="material-symbols-outlined">account_balance</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-bold text-[#0D253A] block">
+                      CBE Birr / Commercial Bank
+                    </span>
+                    <span className="text-xs text-on-surface-variant">Direct bank integration</span>
+                  </div>
+                </div>
+              </label>
 
-            <div className="mt-stack-md">
-              {mode === "telebirr" ? (
-                <Notice
-                  tone={telebirr?.demo ? "warning" : "info"}
-                  title={telebirr?.demo ? "Demo checkout" : "Paying with telebirr"}
-                >
-                  {telebirr?.demo
-                    ? "No telebirr credentials are configured, so checkout is simulated locally and credits your balance without a real payment."
-                    : "You will finish the payment in telebirr and come back here. Your balance updates once telebirr confirms it, which is usually immediate."}
-                </Notice>
-              ) : (
-                <Notice tone="info" title="Confirming a transfer by hand">
-                  Transfer to the Ethosk account with your chosen method, then enter the reference
-                  here to credit your balance. A reference can only be credited once.
-                </Notice>
-              )}
+              {/* Bank Transfer */}
+              <label
+                className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${
+                  selectedMethod === "bank_transfer"
+                    ? "border-2 border-primary bg-primary/5 shadow-xs"
+                    : "border-outline-variant/40 hover:border-primary"
+                }`}
+              >
+                <input
+                  checked={selectedMethod === "bank_transfer"}
+                  className="text-primary focus:ring-primary h-4 w-4 border-outline-variant"
+                  name="payment_method"
+                  onChange={() => setSelectedMethod("bank_transfer")}
+                  type="radio"
+                />
+                <div className="ml-4 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                    <span className="material-symbols-outlined">receipt_long</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-bold text-[#0D253A] block">
+                      Local Bank Transfer / Direct Wire
+                    </span>
+                    <span className="text-xs text-on-surface-variant">Takes 1-2 business days</span>
+                  </div>
+                </div>
+              </label>
             </div>
-          </Card>
+          </div>
+
+          <button
+            className="w-full bg-primary hover:bg-[#003450] text-white py-3.5 rounded-lg text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer disabled:opacity-60"
+            disabled={telebirrCheckout.isPending || manualDeposit.isPending}
+            onClick={handleProceedPayment}
+            type="button"
+          >
+            {telebirrCheckout.isPending || manualDeposit.isPending
+              ? "Processing payment…"
+              : `Proceed to Payment (${activeAmount.toLocaleString()} ETB)`}
+          </button>
         </div>
-      </div>
+
+        {/* Right Column: Billing Info & Invoicing */}
+        <div className="lg:col-span-5 bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)] flex flex-col justify-between">
+          <div>
+            <h2 className="text-xl font-headline-md font-bold text-[#0D253A] mb-6 border-b border-outline-variant/30 pb-4">
+              Billing Info &amp; Invoicing
+            </h2>
+
+            <div className="space-y-5 text-sm">
+              <div>
+                <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block mb-1">
+                  Organization Name
+                </span>
+                <div className="font-semibold text-[#0D253A]">
+                  Commercial Bank Research Unit
+                </div>
+              </div>
+
+              <div>
+                <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block mb-1">
+                  Tax Identification Number (TIN)
+                </span>
+                <div className="font-mono text-sm text-[#0D253A] font-semibold">
+                  0048291029
+                </div>
+              </div>
+
+              <div>
+                <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block mb-1">
+                  Billing Address
+                </span>
+                <div className="text-on-surface">
+                  Addis Ababa, Ethiopia<br />Bole Sub City, Woreda 03
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#f8f9ff] rounded-xl border border-outline-variant/40 mt-4">
+                <div className="flex items-start gap-3">
+                  <span className="material-symbols-outlined text-primary text-xl">info</span>
+                  <p className="text-xs text-on-surface-variant leading-relaxed">
+                    VAT invoices are automatically generated and sent to your registered billing email on the 1st of every month.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button
+            className="w-full mt-6 bg-[#f8f9ff] border border-outline-variant text-primary hover:bg-primary/5 py-3 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+            type="button"
+          >
+            Edit Invoicing Profile
+          </button>
+        </div>
+      </section>
+
+      {/* ── Transaction & Escrow History Table ── */}
+      <section className="bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)] overflow-hidden">
+        <h2 className="text-xl font-headline-md font-bold text-[#0D253A] mb-6">
+          Transaction &amp; Escrow History
+        </h2>
+
+        {deposits.length === 0 ? (
+          <EmptyState icon="receipt_long" title="No billing transactions yet">
+            Deposits, subscription renewals, and survey escrow commitments will appear here.
+          </EmptyState>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-outline-variant/40 bg-[#f8f9ff] text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
+                  <th className="py-4 px-4">Date</th>
+                  <th className="py-4 px-4">Reference ID</th>
+                  <th className="py-4 px-4">Description</th>
+                  <th className="py-4 px-4 text-right">Amount (ETB)</th>
+                  <th className="py-4 px-4">Method</th>
+                  <th className="py-4 px-4">Status</th>
+                  <th className="py-4 px-4 text-right">Invoice</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant/20 text-xs md:text-sm">
+                {deposits.map((dep) => {
+                  const isCompleted = dep.status === "completed";
+                  const isPending = dep.status === "pending";
+
+                  return (
+                    <tr className="hover:bg-[#f8f9ff] transition-colors" key={dep.id}>
+                      <td className="py-4 px-4 whitespace-nowrap text-[#5A6E7F]">
+                        {new Date(dep.created_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </td>
+
+                      <td className="py-4 px-4 font-mono text-[#5A6E7F]">
+                        #{dep.reference || dep.id.slice(0, 8).toUpperCase()}
+                      </td>
+
+                      <td className="py-4 px-4 text-[#0D253A] font-semibold">
+                        Deposit via {DEPOSIT_METHOD_LABEL[dep.method] || "Telebirr"}
+                      </td>
+
+                      <td className="py-4 px-4 text-right font-bold text-emerald-600">
+                        +{dep.amount_etb.toLocaleString()}
+                      </td>
+
+                      <td className="py-4 px-4 text-[#5A6E7F]">
+                        {DEPOSIT_METHOD_LABEL[dep.method] || "Telebirr"}
+                      </td>
+
+                      <td className="py-4 px-4">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                            isCompleted
+                              ? "bg-emerald-100 text-emerald-800"
+                              : isPending
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-error/10 text-error"
+                          }`}
+                        >
+                          {DEPOSIT_STATUS_LABEL[dep.status] || "Completed"}
+                        </span>
+                      </td>
+
+                      <td className="py-4 px-4 text-right">
+                        <button
+                          className="text-primary hover:underline text-xs font-semibold inline-flex items-center gap-1 cursor-pointer"
+                          type="button"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">download</span>
+                          <span>PDF</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

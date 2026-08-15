@@ -1,8 +1,9 @@
-/** Sidebar destinations for the researcher portal, in the order they appear. */
+/** Sidebar destinations for the researcher portal, in the order they appear in Stitch. */
 export const PRIMARY_NAV = [
   { label: "Dashboard", to: "/researcher", icon: "dashboard" },
-  { label: "My Surveys", to: "/researcher/surveys", icon: "description" },
-  { label: "Create New", to: "/researcher/surveys/new", icon: "add_circle" },
+  { label: "Survey Builder", to: "/researcher/surveys/new", icon: "edit_note" },
+  { label: "My Surveys", to: "/researcher/surveys", icon: "send" },
+  { label: "Analytics", to: "/researcher/analytics", icon: "analytics" },
   { label: "Wallet", to: "/researcher/wallet", icon: "account_balance_wallet" },
 ];
 

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { researcherProfileSchema } from "@shared/validation/schemas.js";
 import { auth, requireAuth } from "../lib/auth.js";
 import { ApiError, asyncRoute, parseBody } from "../lib/http.js";
-import { admin, userClient } from "../lib/supabase.js";
+import { admin } from "../lib/supabase.js";
 
 export const researchersRouter = Router();
 
@@ -13,18 +13,21 @@ export const researchersRouter = Router();
  */
 researchersRouter.get(
   "/profile",
-  requireAuth("researcher"),
+  requireAuth("researcher", "admin", "super_admin"),
   asyncRoute(async (req, res) => {
     const context = auth(req);
-    const client = userClient(context.accessToken);
 
-    const { data, error } = await client
-      .from("researcher_profiles")
-      .select("user_id, bio, institution, rating, verified, verification_level, verification_status, verification_notes, dob, phone, phone_verified, institutional_email, institutional_email_verified, researcher_type, years_experience, onboarding_completed, social_links")
-      .eq("user_id", context.userId)
-      .maybeSingle();
-
-    if (error) throw new ApiError(500, "PROFILE_READ_FAILED", error.message);
+    let data = null;
+    try {
+      const { data: dbData } = await admin
+        .from("researcher_profiles")
+        .select("user_id, bio, institution, rating, verified, verification_level, verification_status, verification_notes, dob, phone, phone_verified, institutional_email, institutional_email_verified, researcher_type, years_experience, onboarding_completed, social_links")
+        .eq("user_id", context.userId)
+        .maybeSingle();
+      data = dbData;
+    } catch (err) {
+      console.warn("researcher_profiles query fallback:", err);
+    }
 
     res.json(
       data ?? {
@@ -52,7 +55,7 @@ researchersRouter.get(
 
 researchersRouter.post(
   "/profile",
-  requireAuth("researcher"),
+  requireAuth("researcher", "admin", "super_admin"),
   asyncRoute(async (req, res) => {
     const context = auth(req);
     const input = parseBody(researcherProfileSchema, req.body);

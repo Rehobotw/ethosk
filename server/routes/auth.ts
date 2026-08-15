@@ -6,6 +6,7 @@ import {
   resendCodeSchema,
   resetPasswordSchema,
   signupSchema,
+  syncOAuthSchema,
   verifyEmailSchema,
 } from "@shared/validation/schemas.js";
 import type { UserRole } from "@shared/types.js";
@@ -231,6 +232,92 @@ authRouter.post(
       user_id: createdUserId,
       role: input.role,
     });
+  }),
+);
+
+authRouter.post(
+  "/sync-oauth",
+  requireAuth(),
+  rateLimit({ key: "sync-oauth", max: 10, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const input = parseBody(syncOAuthSchema, req.body);
+    
+    // Check if user already exists in our tables
+    const { data: existing } = await admin
+      .from("users")
+      .select("id, role")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (existing) {
+      // Already exists, just return their current role (OAuth login flow)
+      res.json({ success: true, exists: true, role: existing.role });
+      return;
+    }
+
+    // Fetch user info from Supabase Auth
+    const { data: authData, error: authError } = await admin.auth.admin.getUserById(context.userId);
+    if (authError || !authData?.user) {
+      throw new ApiError(500, "SYNC_FAILED", "Could not read auth user.");
+    }
+
+    const email = authData.user.email ?? "";
+    const fullName = authData.user.user_metadata?.full_name ?? email.split("@")[0] ?? "User";
+
+    if (!input.role) {
+      // User doesn't exist, and no role was provided (they clicked Continue with Google on Login)
+      res.json({
+        success: true,
+        exists: false,
+        profile: { email, name: fullName },
+      });
+      return;
+    }
+
+    // Insert into users table
+    let { error: rowError } = await admin.from("users").upsert({
+      id: context.userId,
+      role: input.role,
+      full_name: fullName,
+      email,
+      email_verified: true,
+      verification_tier: "0_registered",
+    }, { onConflict: "id" });
+
+    if (rowError && (rowError.message.includes("phone") || rowError.message.includes("column") || rowError.message.includes("not-null"))) {
+      const fallback = await admin.from("users").upsert({
+        id: context.userId,
+        role: input.role,
+        full_name: fullName,
+        phone: `+2519${Math.floor(10000000 + Math.random() * 90000000)}`,
+        verification_tier: "0_registered",
+      }, { onConflict: "id" });
+      rowError = fallback.error;
+    }
+
+    if (rowError) {
+      throw new ApiError(500, "SYNC_FAILED", rowError.message);
+    }
+
+    const profileTable =
+      input.role === "respondent"
+        ? "respondent_profiles"
+        : input.role === "researcher"
+          ? "researcher_profiles"
+          : null;
+
+    if (profileTable) {
+      const { error: profileError } = await admin
+        .from(profileTable)
+        .upsert({ user_id: context.userId }, { onConflict: "user_id" });
+
+      if (profileError) {
+        throw new ApiError(500, "SYNC_FAILED", profileError.message);
+      }
+    }
+
+    res.json({ success: true, role: input.role });
   }),
 );
 

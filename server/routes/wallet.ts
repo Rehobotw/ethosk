@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { depositSchema, telebirrCheckoutSchema } from "@shared/validation/schemas.js";
+import { depositSchema, telebirrCheckoutSchema, withdrawSchema } from "@shared/validation/schemas.js";
 import { env } from "../env.js";
 import { auth, requireAuth } from "../lib/auth.js";
 import { ApiError, asyncRoute, parseBody, routeParam } from "../lib/http.js";
@@ -417,50 +417,132 @@ walletRouter.get(
     const context = auth(req);
     const wallet = await readRespondentWallet(context.userId);
 
-    let payouts: Record<string, unknown>[] = [];
-    try {
-      const { data } = await admin
-        .from("respondent_payouts")
-        .select("id, survey_id, amount_etb, status, created_at, surveys(title)")
-        .eq("respondent_id", context.userId)
-        .order("created_at", { ascending: false })
-        .limit(50);
+    let payouts: any[] = [];
+    let pendingResponses: any[] = [];
 
-      if (data) payouts = data;
-    } catch {
-      /* ignore */
-    }
+    try {
+      const [{ data: pData }, { data: rData }] = await Promise.all([
+        admin
+          .from("respondent_payouts")
+          .select("id, survey_id, amount_etb, platform_fee_etb, status, created_at, surveys(title)")
+          .eq("respondent_id", context.userId)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        admin
+          .from("survey_responses")
+          .select("id, survey_id, completed_at, fraud_flag, surveys(id, title, reward_etb)")
+          .eq("respondent_id", context.userId)
+          .eq("fraud_flag", "clean")
+          .limit(50),
+      ]);
+
+      if (pData) payouts = pData;
+      if (rData) pendingResponses = rData;
+    } catch {}
 
     type PayoutRow = {
       id: string;
       survey_id: string;
       amount_etb: number | string;
+      platform_fee_etb?: number | string;
       status: string;
       created_at: string;
       surveys: { title: string } | Array<{ title: string }> | null;
     };
 
     const payoutRows = (payouts ?? []) as unknown as PayoutRow[];
+    const existingSurveyIds = new Set(payoutRows.map((p) => p.survey_id));
+
+    // Map settled/recorded payouts
+    const formattedPayouts = payoutRows.map((row) => {
+      let surveyTitle: string | null = null;
+      if (Array.isArray(row.surveys)) {
+        surveyTitle = row.surveys[0]?.title ?? null;
+      } else if (row.surveys && typeof row.surveys === "object") {
+        surveyTitle = row.surveys.title ?? null;
+      }
+
+      const gross = Number(row.amount_etb || 0);
+      const fee = Number(row.platform_fee_etb || 0);
+      const net = roundEtb(gross - fee);
+
+      return {
+        id: row.id,
+        survey_id: row.survey_id,
+        amount_etb: gross,
+        net_amount_etb: net,
+        platform_fee_etb: fee,
+        status: row.status as "available" | "withdrawn" | "pending" | "completed" | "paid",
+        created_at: row.created_at,
+        survey_title: surveyTitle,
+      };
+    });
+
+    // Calculate pending earnings from responses not yet settled
+    let pendingEtb = 0;
+    for (const resp of pendingResponses) {
+      if (!existingSurveyIds.has(resp.survey_id)) {
+        const survey = Array.isArray(resp.surveys) ? resp.surveys[0] : resp.surveys;
+        const gross = Number(survey?.reward_etb || 0);
+        const net = roundEtb(gross * 0.9); // 10% platform fee
+        if (net > 0) {
+          pendingEtb += net;
+          formattedPayouts.push({
+            id: resp.id,
+            survey_id: resp.survey_id,
+            amount_etb: gross,
+            net_amount_etb: net,
+            platform_fee_etb: roundEtb(gross * 0.1),
+            status: "pending",
+            created_at: resp.completed_at,
+            survey_title: survey?.title ?? "Survey Response",
+          });
+        }
+      }
+    }
 
     res.json({
-      wallet,
-      payouts: payoutRows.map((row) => {
-        let surveyTitle: string | null = null;
-        if (Array.isArray(row.surveys)) {
-          surveyTitle = row.surveys[0]?.title ?? null;
-        } else if (row.surveys && typeof row.surveys === "object") {
-          surveyTitle = row.surveys.title ?? null;
-        }
-
-        return {
-          id: row.id,
-          survey_id: row.survey_id,
-          amount_etb: Number(row.amount_etb),
-          status: row.status,
-          created_at: row.created_at,
-          survey_title: surveyTitle,
-        };
-      }),
+      wallet: {
+        ...wallet,
+        pending_etb: roundEtb(pendingEtb),
+      },
+      payouts: formattedPayouts.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      ),
     });
+  }),
+);
+
+walletRouter.post(
+  "/respondent/withdraw",
+  requireAuth("respondent"),
+  rateLimit({ key: "withdraw", max: 5, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const input = parseBody(withdrawSchema, req.body);
+
+    const wallet = await readRespondentWallet(context.userId);
+
+    if (input.amount_etb > wallet.available_etb) {
+      throw new ApiError(
+        400,
+        "INSUFFICIENT_FUNDS",
+        `You requested ${input.amount_etb} ETB, but only have ${wallet.available_etb} ETB available.`,
+      );
+    }
+
+    const { error: insertError } = await admin.from("respondent_withdrawals").insert({
+      respondent_id: context.userId,
+      amount_etb: input.amount_etb,
+      method: input.method,
+      account_number: input.account_number,
+      status: "pending",
+    });
+
+    if (insertError) {
+      throw new ApiError(500, "WITHDRAWAL_FAILED", insertError.message);
+    }
+
+    res.status(201).json({ status: "pending" });
   }),
 );

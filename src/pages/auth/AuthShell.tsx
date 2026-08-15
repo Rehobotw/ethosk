@@ -4,85 +4,138 @@ import clsx from "clsx";
 import type { UserRole } from "@shared/types";
 import { Icon } from "@/components/ui";
 import { useLanguage } from "@/lib/language";
+import { AuthSlideshow } from "./AuthSlideshow";
 
 export function AuthShell({
   title,
   subtitle,
   children,
   footer,
+  role,
 }: {
   title: string;
   subtitle: string;
   children: ReactNode;
   footer: ReactNode;
+  role?: UserRole | "respondent" | "researcher";
 }) {
   const { language, toggleLanguage } = useLanguage();
 
   return (
-    <div className="flex min-h-screen flex-col relative bg-surface-bright text-primary">
-      {/* Background Shader — same as MarketingLayout */}
-      <div className="fixed inset-0 pointer-events-none z-[-1] bg-gradient-to-br from-surface-bright via-surface-container-low to-primary-fixed">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary-fixed rounded-full mix-blend-multiply filter blur-[150px] opacity-60" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-inverse-primary rounded-full mix-blend-multiply filter blur-[180px] opacity-40" />
-      </div>
+    <div className="flex min-h-screen w-full flex-col lg:flex-row bg-surface-bright text-on-background">
+      {/* ── Left Panel: Trust & Brand Narrative (Stitch split-panel for login) ── */}
+      {role ? (
+        <div className="relative hidden lg:flex lg:w-[45%] flex-col justify-between p-10 lg:p-12 overflow-hidden border-r border-outline-variant/20 bg-primary-fixed shrink-0 min-h-screen">
+          {/* Subtle overlay for depth */}
+          <div className="absolute inset-0 bg-surface-container-low opacity-50 pointer-events-none" />
 
-      {/* Top bar */}
-      <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
-        <button
-          aria-label={language === "en" ? "Switch to Amharic" : "Switch to English"}
-          className="flex items-center gap-2 bg-white/60 backdrop-blur-xl rounded-full px-3 py-1.5 text-sm border border-white/40 cursor-pointer hover:bg-white/80 transition-colors"
-          onClick={toggleLanguage}
-          title={language === "en" ? "Switch to Amharic (አማርኛ)" : "Switch to English"}
-          type="button"
+          {/* Slideshow content */}
+          <div className="relative z-10 flex flex-col h-full justify-between">
+            <AuthSlideshow role={role} variant="panel" />
+          </div>
+
+          {/* Copyright */}
+          <div className="relative z-10 mt-auto pt-6">
+            <p className="font-label-md text-label-md text-on-primary-fixed-variant/80">
+              © {new Date().getFullYear()} Ethosk Research Systems. All rights reserved.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {/* ── Right Panel: Form Canvas ── */}
+      <div
+        className={clsx(
+          "flex-1 flex flex-col justify-center items-center relative min-h-screen",
+          "p-6 sm:p-8 md:p-12",
+        )}
+        style={{
+          background:
+            "radial-gradient(circle at 80% 20%, rgba(143,205,255,0.1) 0%, transparent 40%), radial-gradient(circle at 20% 80%, rgba(0,89,133,0.1) 0%, transparent 50%)",
+        }}
+      >
+        {/* Language switcher */}
+        <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
+          <button
+            aria-label={language === "en" ? "Switch to Amharic" : "Switch to English"}
+            className="flex items-center gap-2 bg-white/60 backdrop-blur-xl rounded-full px-3 py-1.5 text-sm border border-white/40 cursor-pointer hover:bg-white/80 transition-colors"
+            onClick={toggleLanguage}
+            title={language === "en" ? "Switch to Amharic (አማርኛ)" : "Switch to English"}
+            type="button"
+          >
+            <span className="w-5 h-5 rounded-full bg-primary-fixed text-primary flex items-center justify-center text-[10px] font-bold">
+              {language.toUpperCase()}
+            </span>
+            <span className="text-primary/80 text-sm font-medium">
+              {language === "en" ? "Amharic" : "English"}
+            </span>
+          </button>
+        </div>
+
+        {/* Logo */}
+        {!role ? (
+          <Link className="flex items-center gap-2 mb-6 mt-2" to="/">
+            <span className="font-headline-lg text-2xl text-primary font-bold tracking-tight">Ethosk</span>
+          </Link>
+        ) : (
+          <div className="lg:hidden flex items-center gap-2 mb-8 mt-4">
+            <Icon className="text-primary" filled name="hub" />
+            <span className="font-title-md text-title-md text-primary tracking-tight">Ethosk</span>
+          </div>
+        )}
+
+        {/* Glass form card matching Stitch glass-card pattern */}
+        <div
+          className="w-full max-w-[440px] rounded-xl p-6 sm:p-8 md:p-10 my-auto"
+          style={{
+            background: "rgba(255,255,255,0.9)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            border: "1px solid rgba(192,199,208,0.4)",
+            boxShadow: "0 4px 20px rgba(0,89,133,0.08)",
+          }}
         >
-          <span className="w-5 h-5 rounded-full bg-primary-fixed text-primary flex items-center justify-center text-[10px] font-bold">
-            {language.toUpperCase()}
-          </span>
-          <span className="text-primary/80 text-sm font-medium">
-            {language === "en" ? "Amharic" : "English"}
-          </span>
-        </button>
-      </div>
-
-      <div className="flex flex-1 items-center justify-center px-margin-mobile py-12 relative z-[1]">
-        <div className="w-full max-w-md">
-          {/* Logo */}
-          <div className="text-center">
-            <Link className="text-2xl font-headline-lg text-primary" to="/">
-              Ethosk
-            </Link>
-            <h1 className="mt-6 text-3xl font-headline-lg font-bold leading-tight text-primary">
+          {/* Title block */}
+          <div className="text-center mb-8">
+            <h2 className="font-headline-lg text-headline-lg text-on-surface mb-2">
               {title}
-            </h1>
-            <p className="mt-2 font-body-md text-on-surface-variant">
+            </h2>
+            <p className="font-body-md text-body-md text-on-surface-variant">
               {subtitle}
             </p>
           </div>
 
-          {/* Glassmorphic form container */}
-          <div className="mt-8 glass-silk rounded-2xl p-8">{children}</div>
+          {children}
 
-          <div className="mt-6 text-center font-body-md text-on-surface-variant">
-            {footer}
+          {/* Divider + secondary action */}
+          <div className="mt-8 flex items-center justify-center">
+            <div className="border-t border-outline-variant/40 flex-grow" />
+            <span className="px-4 font-label-md text-label-md text-on-surface-variant">or</span>
+            <div className="border-t border-outline-variant/40 flex-grow" />
           </div>
 
-          <div className="mt-6 flex justify-center">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/60 backdrop-blur-xl border border-white/40 px-4 py-2 font-label-caps text-label-caps uppercase text-on-surface-variant shadow-sm">
-              <Icon className="text-[16px] text-primary" filled name="verified_user" />
-              Fayda Verified Access
-            </span>
+          <div className="mt-6 text-center flex flex-col gap-3">
+            <div className="font-body-md text-body-md text-on-surface-variant">
+              {footer}
+            </div>
+            <div className="inline-flex items-center justify-center gap-1 bg-surface-container-high px-3 py-1.5 rounded-full mx-auto w-max border border-outline-variant/20">
+              <Icon className="text-on-surface-variant text-[14px]" name="domain" />
+              <span className="font-label-caps text-label-caps text-on-surface-variant tracking-wider">
+                {role === "researcher"
+                  ? "For research teams and institutions"
+                  : "ID-verified respondent panel"}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <footer className="border-t border-white/40 bg-white/40 backdrop-blur-3xl px-margin-mobile py-4 text-center relative z-[1]">
-        <p className="font-body-md text-[12px] text-on-surface-variant">
-          © {new Date().getFullYear()} Ethosk. All rights reserved.
-        </p>
-        <p className="mt-1 font-label-caps text-[10px] uppercase text-on-surface-variant/60">
-          Fully compliant with Federal Democratic Republic of Ethiopia Proclamation 1321/2024
-        </p>
-      </footer>
+        {/* Mobile copyright */}
+        <div className="mt-8 text-center w-full lg:hidden pb-4">
+          <p className="font-label-md text-label-md text-on-surface-variant/60">
+            © {new Date().getFullYear()} Ethosk
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

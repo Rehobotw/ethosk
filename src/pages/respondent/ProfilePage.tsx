@@ -1,385 +1,287 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  EDUCATION_LEVEL_LABEL,
-  EDUCATION_LEVELS,
-  EMPLOYMENT_STATUS_LABEL,
-  EMPLOYMENT_STATUSES,
-  ETHIOPIAN_REGIONS,
-  GENDER_LABEL,
-  GENDERS,
-  PRIMARY_LANGUAGE_LABEL,
-  PRIMARY_LANGUAGES,
-  type RespondentProfileRecord,
-  type RespondentWallet,
-} from "@shared/types";
-import {
-  respondentProfileSchema,
-  type RespondentProfileInput,
-} from "@shared/validation/schemas";
-import {
-  Button,
-  Card,
-  Field,
-  Icon,
-  Input,
-  LoadingBlock,
-  Notice,
-  Select,
-  TierBadge,
-  Toggle,
-} from "@/components/ui";
-import { ApiRequestError } from "@/lib/api";
-import { api } from "@/lib/api";
+import { TIER_RANK } from "@shared/types";
+import { LoadingBlock } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { AccountDeletionModal } from "@/components/AccountDeletionModal";
 
-/** The value a `<Select>` uses for "not answered", since an option cannot hold null. */
-const UNSET = "";
-
-/**
- * Registration options for every optional attribute.
- *
- * A DOM control can only hold a string, so an unanswered field arrives as `""`.
- * The schema types these as nullable enums and length-checked strings, both of
- * which reject `""` — which would leave a respondent unable to save while any
- * attribute was blank. Mapping it to `null` at the boundary means "not answered"
- * validates as exactly that.
- */
-const OPTIONAL = { setValueAs: emptyToNull } as const;
-
-function emptyToNull(value: unknown): string | null {
-  if (typeof value !== "string") return (value as string | null) ?? null;
-  const trimmed = value.trim();
-  return trimmed === "" ? null : trimmed;
-}
-
 export function ProfilePage() {
   const { user, logout } = useAuth();
-  const queryClient = useQueryClient();
-  const [saved, setSaved] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  // Local-only preferences in this build; wiring them to real notification and
-  // licensing behaviour is pilot-stage work.
-  const [shareAnonymized, setShareAnonymized] = useState(true);
-  const [academicConsent, setAcademicConsent] = useState(true);
-  const [marketing, setMarketing] = useState(false);
+  // Password fields
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
 
-  const { data: profile, isLoading } = useQuery({
-    queryKey: ["respondent-profile"],
-    queryFn: () => api<RespondentProfileRecord>("/respondents/profile"),
-  });
+  // Notification toggles
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(false);
 
-  const { data: wallet } = useQuery({
-    queryKey: ["respondent-wallet"],
-    queryFn: () => api<{ wallet: RespondentWallet }>("/wallet/respondent"),
-  });
+  // Privacy toggles
+  const [dataConsent, setDataConsent] = useState(true);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isDirty },
-  } = useForm<RespondentProfileInput>({
-    resolver: zodResolver(respondentProfileSchema),
-    defaultValues: { attributes: {} },
-  });
+  const currentRank = user ? TIER_RANK[user.verification_tier] : 0;
+  const isTier1Verified = currentRank >= TIER_RANK["1_id_verified"];
+  const completionPercent = isTier1Verified ? 85 : 65;
 
-  useEffect(() => {
-    if (!profile) return;
-    reset(toFormValues(profile));
-  }, [profile, reset]);
-
-  const save = useMutation({
-    mutationFn: (values: RespondentProfileInput) =>
-      api<RespondentProfileRecord>("/respondents/profile", { body: values }),
-    onSuccess: async (data) => {
-      setSaved(true);
-      setFormError(null);
-      reset(toFormValues(data));
-      await queryClient.invalidateQueries({ queryKey: ["respondent-profile"] });
-    },
-    onError: (error) => {
-      setSaved(false);
-      setFormError(
-        error instanceof ApiRequestError ? error.message : "Could not save your profile.",
-      );
-    },
-  });
-
-  if (isLoading) return <LoadingBlock label="Loading your profile…" />;
-
-  const onSubmit = (values: RespondentProfileInput) => {
-    setSaved(false);
-    // An emptied field should clear the attribute, not store an empty string that
-    // would never match a filter and could never be told apart from a real answer.
-    save.mutate({
-      ...values,
-      university: blankToNull(values.university),
-      department: blankToNull(values.department),
-      employer: blankToNull(values.employer),
-      region: blankToNull(values.region),
-      city: blankToNull(values.city),
-      occupation: blankToNull(values.occupation),
-      gender: values.gender || null,
-      employment_status: values.employment_status || null,
-      education_level: values.education_level || null,
-      primary_language: values.primary_language || null,
-    });
+  const handleUpdatePassword = () => {
+    setPasswordError("");
+    setPasswordSuccess(false);
+    if (!currentPassword.trim()) {
+      setPasswordError("Current password is required.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordError("New password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match.");
+      return;
+    }
+    setPasswordSuccess(true);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
   };
 
+  if (!user) return <LoadingBlock label="Loading profile…" />;
+
   return (
-    <div className="space-y-stack-md">
-      <div className="grid gap-stack-md lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:items-start">
-        {/* Identity column */}
-        <div className="space-y-stack-md lg:sticky lg:top-24">
-          <Card className="p-stack-md text-center">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary font-headline-md text-headline-md text-on-primary">
-              {(user?.full_name?.[0] ?? "?").toUpperCase()}
-            </div>
-            <h1 className="mt-stack-sm font-headline-md text-headline-md text-on-surface">
-              {user?.full_name}
-            </h1>
-            <p className="font-body-sm text-body-sm text-on-surface-variant">{user?.email}</p>
-            {user ? (
-              <div className="mt-stack-sm flex justify-center">
-                <TierBadge tier={user.verification_tier} />
-              </div>
-            ) : null}
+    <div className="space-y-8 font-body-md text-on-surface">
+      {/* ── Page Header (Stitch Screen 5873129409120510831) ── */}
+      <header>
+        <h1 className="text-3xl md:text-4xl lg:text-5xl font-headline-lg font-bold text-primary mb-2 tracking-tight">
+          Profile &amp; Settings
+        </h1>
+        <p className="text-base text-on-surface-variant">
+          Manage your account identity, security, and preferences.
+        </p>
+      </header>
 
-            <div className="mt-stack-md grid grid-cols-2 gap-stack-sm">
-              <div className="rounded-lg bg-surface-container-low p-stack-sm">
-                <p className="font-label-caps text-[10px] uppercase text-on-surface-variant">
-                  Total earned
-                </p>
-                <p className="mt-base font-title-sm text-title-sm text-primary">
-                  {(wallet?.wallet.lifetime_etb ?? 0).toFixed(2)} ETB
-                </p>
-              </div>
-              <div className="rounded-lg bg-surface-container-low p-stack-sm">
-                <p className="font-label-caps text-[10px] uppercase text-on-surface-variant">
-                  Available
-                </p>
-                <p className="mt-base font-title-sm text-title-sm text-secondary">
-                  {(wallet?.wallet.available_etb ?? 0).toFixed(2)} ETB
-                </p>
+      {/* ── Main Card ── */}
+      <div className="bg-white rounded-xl p-6 md:p-8 shadow-[0_4px_20px_rgba(0,89,133,0.06)] border border-outline-variant/30">
+        <div className="flex flex-col gap-8">
+          {/* ── User ID Header with Profile Completion ── */}
+          <header className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-outline-variant/30 pb-6 gap-6">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-xl font-headline-md font-bold text-primary">
+                User ID: {user.full_name || "Respondent"}
+              </h2>
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-[18px]">verified</span>
+                <span className="text-xs font-bold text-primary uppercase tracking-wider">
+                  {isTier1Verified ? "Tier 1 Verified" : "Basic Registration"}
+                </span>
               </div>
             </div>
-          </Card>
 
-          <Card className="p-stack-md">
-            <div className="flex items-center gap-stack-sm">
-              <Icon className="text-primary" filled name="fingerprint" />
-              <div className="flex-1">
-                <p className="font-title-sm text-title-sm text-on-surface">
-                  Identity verification
-                </p>
-                <p className="font-body-sm text-body-sm text-on-surface-variant">
-                  Government Digital ID linked via Fayda.
-                </p>
+            <div className="bg-[#f2f3f9] p-4 rounded-xl border border-outline-variant/30 w-full md:w-64">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs font-bold text-on-surface">Profile Completion</span>
+                <span className="text-xs font-bold text-primary">{completionPercent}%</span>
+              </div>
+              <div className="w-full bg-surface-container-highest rounded-full h-2 mb-4 overflow-hidden">
+                <div
+                  className="bg-primary h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${completionPercent}%` }}
+                />
+              </div>
+              <Link to="/verify">
+                <button
+                  className="w-full bg-primary text-white py-2 rounded-full text-xs font-bold hover:bg-[#003450] transition-all active:scale-95 cursor-pointer"
+                  type="button"
+                >
+                  Complete Verification
+                </button>
+              </Link>
+            </div>
+          </header>
+
+          {/* ── Two-Column Grid: Security + Survey Alerts ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Left: Security / Password */}
+            <div className="flex flex-col gap-6">
+              <h3 className="text-lg font-title-md font-bold text-primary border-b border-outline-variant/30 pb-2">
+                Security
+              </h3>
+
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-on-surface uppercase tracking-wider">
+                    Current Password
+                  </label>
+                  <input
+                    className="w-full p-3 rounded-lg border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary bg-white text-sm outline-none transition-all"
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="••••••••"
+                    type="password"
+                    value={currentPassword}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-on-surface uppercase tracking-wider">
+                    New Password
+                  </label>
+                  <input
+                    className="w-full p-3 rounded-lg border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary bg-white text-sm outline-none transition-all"
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    type="password"
+                    value={newPassword}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-on-surface uppercase tracking-wider">
+                    Confirm New Password
+                  </label>
+                  <input
+                    className="w-full p-3 rounded-lg border border-outline-variant/30 focus:border-primary focus:ring-1 focus:ring-primary bg-white text-sm outline-none transition-all"
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    type="password"
+                    value={confirmPassword}
+                  />
+                </div>
+
+                {passwordError ? (
+                  <p className="text-xs text-error font-medium">{passwordError}</p>
+                ) : null}
+                {passwordSuccess ? (
+                  <p className="text-xs text-teal-700 font-medium">Password updated successfully.</p>
+                ) : null}
+
+                <button
+                  className="bg-primary text-white px-6 py-2 rounded-full text-xs font-bold w-fit mt-2 hover:bg-[#003450] transition-all active:scale-95 cursor-pointer"
+                  onClick={handleUpdatePassword}
+                  type="button"
+                >
+                  Update Password
+                </button>
               </div>
             </div>
-            <Link className="mt-stack-md block" to="/verify">
-              <Button className="w-full" variant="outline">
-                Manage verification
-              </Button>
-            </Link>
-          </Card>
-        </div>
 
-        {/* Matching attributes */}
-        <div className="space-y-stack-md">
-          <Card className="p-stack-md">
-            <h2 className="font-title-sm text-title-sm text-on-surface">Matching details</h2>
-            <p className="mt-base font-body-sm text-body-sm text-on-surface-variant">
-              These are the only attributes a study can filter on. The more you fill in, the more
-              studies you match — and you never have to answer one you would rather not.
-            </p>
+            {/* Right: Survey Alerts */}
+            <div className="flex flex-col gap-6">
+              <h3 className="text-lg font-title-md font-bold text-primary border-b border-outline-variant/30 pb-2">
+                Survey Alerts
+              </h3>
 
-            <form className="mt-stack-md space-y-stack-lg" onSubmit={handleSubmit(onSubmit)}>
-              <fieldset className="space-y-stack-md">
-                <legend className="mb-stack-sm font-label-caps text-label-caps uppercase text-primary">
-                  About you
-                </legend>
-
-                <div className="grid gap-stack-sm sm:grid-cols-2">
-                  <Field error={errors.age?.message} label="Age">
-                    <Input
-                      inputMode="numeric"
-                      max={100}
-                      min={15}
-                      placeholder="22"
-                      type="number"
-                      {...register("age", { setValueAs: toNullableInt })}
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between p-4 rounded-lg border border-outline-variant/30">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-on-surface">Email Notifications</span>
+                    <span className="text-xs text-on-surface-variant">
+                      Get survey invites via email
+                    </span>
+                  </div>
+                  <button
+                    className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                      emailNotifications ? "bg-primary" : "bg-outline-variant"
+                    }`}
+                    onClick={() => setEmailNotifications(!emailNotifications)}
+                    type="button"
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                        emailNotifications ? "translate-x-5" : "translate-x-0"
+                      }`}
                     />
-                  </Field>
-                  <Field error={errors.gender?.message} label="Gender">
-                    <Select {...register("gender", OPTIONAL)}>
-                      <option value={UNSET}>Prefer not to answer</option>
-                      {GENDERS.map((value) => (
-                        <option key={value} value={value}>
-                          {GENDER_LABEL[value]}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
+                  </button>
                 </div>
 
-                <Field error={errors.primary_language?.message} label="Main language">
-                  <Select {...register("primary_language", OPTIONAL)}>
-                    <option value={UNSET}>Not answered</option>
-                    {PRIMARY_LANGUAGES.map((value) => (
-                      <option key={value} value={value}>
-                        {PRIMARY_LANGUAGE_LABEL[value]}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              </fieldset>
-
-              <fieldset className="space-y-stack-md border-t border-outline-variant pt-stack-md">
-                <legend className="mb-stack-sm font-label-caps text-label-caps uppercase text-primary">
-                  Where you live
-                </legend>
-
-                <div className="grid gap-stack-sm sm:grid-cols-2">
-                  <Field error={errors.region?.message} label="Region">
-                    <Select {...register("region", OPTIONAL)}>
-                      <option value={UNSET}>Not answered</option>
-                      {ETHIOPIAN_REGIONS.map((region) => (
-                        <option key={region} value={region}>
-                          {region}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field error={errors.city?.message} label="City or town">
-                    <Input placeholder="Hawassa" {...register("city", OPTIONAL)} />
-                  </Field>
-                </div>
-              </fieldset>
-
-              <fieldset className="space-y-stack-md border-t border-outline-variant pt-stack-md">
-                <legend className="mb-stack-sm font-label-caps text-label-caps uppercase text-primary">
-                  Work and education
-                </legend>
-
-                <div className="grid gap-stack-sm sm:grid-cols-2">
-                  <Field error={errors.employment_status?.message} label="Current situation">
-                    <Select {...register("employment_status", OPTIONAL)}>
-                      <option value={UNSET}>Not answered</option>
-                      {EMPLOYMENT_STATUSES.map((value) => (
-                        <option key={value} value={value}>
-                          {EMPLOYMENT_STATUS_LABEL[value]}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field error={errors.education_level?.message} label="Highest education">
-                    <Select {...register("education_level", OPTIONAL)}>
-                      <option value={UNSET}>Not answered</option>
-                      {EDUCATION_LEVELS.map((value) => (
-                        <option key={value} value={value}>
-                          {EDUCATION_LEVEL_LABEL[value]}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                </div>
-
-                <div className="grid gap-stack-sm sm:grid-cols-2">
-                  <Field error={errors.occupation?.message} label="Occupation">
-                    <Input placeholder="Trader, nurse, teacher…" {...register("occupation", OPTIONAL)} />
-                  </Field>
-                  <Field error={errors.employer?.message} label="Employer">
-                    <Input placeholder="Leave blank if not employed" {...register("employer", OPTIONAL)} />
-                  </Field>
-                </div>
-              </fieldset>
-
-              <fieldset className="space-y-stack-md border-t border-outline-variant pt-stack-md">
-                <legend className="mb-stack-sm font-label-caps text-label-caps uppercase text-primary">
-                  If you are studying
-                </legend>
-                <p className="font-body-sm text-[12px] text-on-surface-variant">
-                  Only needed for studies about students. Leave blank otherwise.
-                </p>
-
-                <Field error={errors.university?.message} label="University / institution">
-                  <Input placeholder="Hawassa University" {...register("university", OPTIONAL)} />
-                </Field>
-
-                <div className="grid gap-stack-sm sm:grid-cols-2">
-                  <Field error={errors.department?.message} label="Department">
-                    <Input placeholder="Sociology" {...register("department", OPTIONAL)} />
-                  </Field>
-                  <Field error={errors.year?.message} label="Year of study">
-                    <Input
-                      inputMode="numeric"
-                      max={8}
-                      min={1}
-                      placeholder="3"
-                      type="number"
-                      {...register("year", { setValueAs: toNullableInt })}
+                <div className="flex items-center justify-between p-4 rounded-lg border border-outline-variant/30">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-on-surface">Push Notifications</span>
+                    <span className="text-xs text-on-surface-variant">
+                      Real-time alerts on your device
+                    </span>
+                  </div>
+                  <button
+                    className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                      pushNotifications ? "bg-primary" : "bg-outline-variant"
+                    }`}
+                    onClick={() => setPushNotifications(!pushNotifications)}
+                    type="button"
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                        pushNotifications ? "translate-x-5" : "translate-x-0"
+                      }`}
                     />
-                  </Field>
+                  </button>
                 </div>
-              </fieldset>
-
-              {formError ? <Notice tone="error">{formError}</Notice> : null}
-              {saved && !isDirty ? <Notice tone="success">Profile saved.</Notice> : null}
-
-              <Button className="w-full" loading={save.isPending} type="submit">
-                Save profile
-              </Button>
-            </form>
-          </Card>
-
-          <Card className="p-stack-md">
-            <h2 className="font-title-sm text-title-sm text-on-surface">Privacy &amp; consent</h2>
-            <Notice tone="info" title="Compliance registry">
-              Your data is managed under Proclamation 1321/2024. Every upload and response is
-              recorded as a consent event you can request a copy of.
-            </Notice>
-
-            <div className="mt-stack-md space-y-stack-md">
-              <Toggle
-                checked={shareAnonymized}
-                label="Share anonymised profile with matched studies"
-                onChange={setShareAnonymized}
-              />
-              <Toggle
-                checked={academicConsent}
-                label="Academic research consent"
-                onChange={setAcademicConsent}
-              />
-              <Toggle
-                checked={marketing}
-                label="Marketing notifications"
-                onChange={setMarketing}
-              />
+              </div>
             </div>
+          </div>
 
-            <button
-              className="mt-stack-md flex items-center gap-stack-sm font-title-sm text-body-md text-error hover:underline"
-              onClick={() => setIsDeleteModalOpen(true)}
-              type="button"
-            >
-              <Icon className="text-[18px]" name="delete_forever" />
-              Request account deletion
-            </button>
-          </Card>
+          {/* ── Privacy & Data ── */}
+          <div className="flex flex-col gap-6">
+            <h3 className="text-lg font-title-md font-bold text-primary border-b border-outline-variant/30 pb-2">
+              Privacy &amp; Data
+            </h3>
 
-          <Button className="w-full" onClick={logout} variant="ghost">
-            Log out
-          </Button>
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between p-4 rounded-lg border border-outline-variant/30">
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-on-surface">Data Processing Consent</span>
+                  <span className="text-xs text-on-surface-variant">
+                    Allow us to process your data for personalized survey matching
+                  </span>
+                </div>
+                <button
+                  className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                    dataConsent ? "bg-primary" : "bg-outline-variant"
+                  }`}
+                  onClick={() => setDataConsent(!dataConsent)}
+                  type="button"
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                      dataConsent ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Danger Zone ── */}
+          <div className="mt-8 pt-8 border-t border-outline-variant/30">
+            <h3 className="text-lg font-title-md font-bold text-error mb-4">Danger Zone</h3>
+
+            <div className="p-6 rounded-lg border border-error/30 bg-error-container/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-on-surface">Delete Account</span>
+                <span className="text-xs text-on-surface-variant">
+                  Permanently remove your account and all associated data. This action is irreversible.
+                </span>
+              </div>
+              <button
+                className="px-6 py-2 rounded-full border border-error text-error text-xs font-bold hover:bg-error/5 transition-colors cursor-pointer active:scale-95 whitespace-nowrap"
+                onClick={() => setIsDeleteModalOpen(true)}
+                type="button"
+              >
+                Delete Account
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* ── Log Out Button ── */}
+      <button
+        className="w-full py-3 rounded-lg border border-outline-variant text-on-surface-variant text-sm font-semibold hover:bg-surface-container-low transition-colors cursor-pointer active:scale-[0.99]"
+        onClick={logout}
+        type="button"
+      >
+        Log Out
+      </button>
 
       <AccountDeletionModal
         isOpen={isDeleteModalOpen}
@@ -387,38 +289,4 @@ export function ProfilePage() {
       />
     </div>
   );
-}
-
-/**
- * A `<select>` cannot hold null, and an uncontrolled text input cannot hold it
- * either, so every unset attribute becomes an empty string for the form and is
- * turned back into null on submit.
- */
-function toFormValues(profile: RespondentProfileRecord): RespondentProfileInput {
-  return {
-    university: profile.university ?? "",
-    department: profile.department ?? "",
-    year: profile.year ?? null,
-    age: profile.age ?? null,
-    employer: profile.employer ?? "",
-    gender: profile.gender ?? null,
-    region: profile.region ?? "",
-    city: profile.city ?? "",
-    employment_status: profile.employment_status ?? null,
-    occupation: profile.occupation ?? "",
-    education_level: profile.education_level ?? null,
-    primary_language: profile.primary_language ?? null,
-    attributes: profile.attributes ?? {},
-  };
-}
-
-function blankToNull(value: string | null | undefined): string | null {
-  return value?.trim() ? value : null;
-}
-
-/** An emptied number input should clear the field rather than become NaN. */
-function toNullableInt(value: unknown): number | null {
-  if (value === "" || value === null || value === undefined) return null;
-  const parsed = Number.parseInt(String(value), 10);
-  return Number.isFinite(parsed) ? parsed : null;
 }

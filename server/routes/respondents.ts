@@ -5,6 +5,9 @@ import {
   ACCEPTED_UPLOAD_MIME_TYPES,
   documentUploadSchema,
   faydaVerifySchema,
+  institutionalDetailsSchema,
+  institutionalEmailOtpConfirmSchema,
+  institutionalEmailOtpRequestSchema,
   MAX_UPLOAD_BYTES,
   respondentProfileSchema,
 } from "@shared/validation/schemas.js";
@@ -21,11 +24,25 @@ import { admin, userClient } from "../lib/supabase.js";
 
 export const respondentsRouter = Router();
 
+const respondentEmailOtpStore = new Map<string, { code: string; email: string; timestamp: number }>();
+
 // Held in memory so the size and MIME checks run before anything reaches storage.
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_UPLOAD_BYTES },
 });
+
+function calculateAgeFromDob(dob: string): number | null {
+  const birthDate = new Date(dob);
+  if (isNaN(birthDate.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age >= 0 ? age : null;
+}
 
 respondentsRouter.post(
   "/profile",
@@ -34,15 +51,46 @@ respondentsRouter.post(
     const context = auth(req);
     const input = parseBody(respondentProfileSchema, req.body);
 
+    const { full_name, phone, dob, ...profileFields } = input;
+
+    // Update user's legal full name if provided
+    if (full_name && full_name.trim()) {
+      await admin.from("users").update({ full_name: full_name.trim() }).eq("id", context.userId);
+    }
+
+    // If DOB is provided and age is not explicitly set, compute age from DOB
+    const computedAge = profileFields.age ?? (dob ? calculateAgeFromDob(dob) : null);
+
+    // Merge phone and dob into attributes for secure, structured persistence
+    const mergedAttributes = {
+      ...(profileFields.attributes || {}),
+      ...(phone !== undefined && { phone }),
+      ...(dob !== undefined && { dob }),
+    };
+
     const client = userClient(context.accessToken);
     const { data, error } = await client
       .from("respondent_profiles")
-      .upsert({ user_id: context.userId, ...input }, { onConflict: "user_id" })
+      .upsert(
+        {
+          user_id: context.userId,
+          ...profileFields,
+          age: computedAge,
+          attributes: mergedAttributes,
+        },
+        { onConflict: "user_id" },
+      )
       .select()
       .single();
 
     if (error) throw new ApiError(500, "PROFILE_SAVE_FAILED", error.message);
-    res.json(data);
+
+    res.json({
+      ...data,
+      full_name: full_name ?? null,
+      phone: (data.attributes as Record<string, unknown>)?.phone ?? phone ?? null,
+      dob: (data.attributes as Record<string, unknown>)?.dob ?? dob ?? null,
+    });
   }),
 );
 
@@ -53,24 +101,39 @@ respondentsRouter.get(
     const context = auth(req);
     const client = userClient(context.accessToken);
 
-    const { data, error } = await client
-      .from("respondent_profiles")
-      .select()
-      .eq("user_id", context.userId)
-      .maybeSingle();
+    const [{ data: profile, error }, { data: userRecord }] = await Promise.all([
+      client.from("respondent_profiles").select().eq("user_id", context.userId).maybeSingle(),
+      admin.from("users").select("full_name").eq("id", context.userId).maybeSingle(),
+    ]);
 
     if (error) throw new ApiError(500, "PROFILE_READ_FAILED", error.message);
-    res.json(
-      data ?? {
-        user_id: context.userId,
-        university: null,
-        department: null,
-        year: null,
-        age: null,
-        employer: null,
-        attributes: {},
-      },
-    );
+
+    const base = profile ?? {
+      user_id: context.userId,
+      university: null,
+      department: null,
+      year: null,
+      age: null,
+      employer: null,
+      gender: null,
+      region: null,
+      city: null,
+      employment_status: null,
+      occupation: null,
+      education_level: null,
+      primary_language: null,
+      attributes: {},
+      updated_at: new Date().toISOString(),
+    };
+
+    const attrs = (base.attributes || {}) as Record<string, unknown>;
+
+    res.json({
+      ...base,
+      full_name: userRecord?.full_name ?? null,
+      phone: attrs.phone ?? null,
+      dob: attrs.dob ?? null,
+    });
   }),
 );
 
@@ -183,12 +246,141 @@ respondentsRouter.post(
 );
 
 respondentsRouter.post(
+  "/institutional-details",
+  requireAuth("respondent"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const input = parseBody(institutionalDetailsSchema, req.body);
+
+    const client = userClient(context.accessToken);
+    const { data: currentProfile } = await client
+      .from("respondent_profiles")
+      .select("attributes")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    const currentAttrs = (currentProfile?.attributes || {}) as Record<string, unknown>;
+
+    const updatePayload: Record<string, unknown> = {
+      user_id: context.userId,
+      department: input.department,
+      attributes: {
+        ...currentAttrs,
+        institutional_verification: {
+          institution_type: input.institution_type,
+          institution_name: input.institution_name,
+          department: input.department,
+          position_or_year: input.position_or_year,
+          updated_at: new Date().toISOString(),
+        },
+      },
+    };
+
+    if (input.institution_type === "university") {
+      updatePayload.university = input.institution_name;
+      const parsedYear = Number.parseInt(input.position_or_year, 10);
+      if (Number.isFinite(parsedYear) && parsedYear >= 1 && parsedYear <= 8) {
+        updatePayload.year = parsedYear;
+      }
+    } else {
+      updatePayload.employer = input.institution_name;
+      updatePayload.occupation = input.position_or_year;
+    }
+
+    const { data, error } = await client
+      .from("respondent_profiles")
+      .upsert(updatePayload, { onConflict: "user_id" })
+      .select()
+      .single();
+
+    if (error) throw new ApiError(500, "INSTITUTIONAL_DETAILS_SAVE_FAILED", error.message);
+    res.json(data);
+  }),
+);
+
+respondentsRouter.post(
+  "/verify-institutional-email/request",
+  requireAuth("respondent"),
+  rateLimit({ key: "respondent-inst-email-otp", max: 5, windowMs: 15 * 60_000 }),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const { email } = parseBody(institutionalEmailOtpRequestSchema, req.body);
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    respondentEmailOtpStore.set(context.userId, { code: otp, email, timestamp: Date.now() });
+
+    res.json({
+      success: true,
+      message: "Verification code sent to institutional email",
+      _dev_otp: otp,
+    });
+  }),
+);
+
+respondentsRouter.post(
+  "/verify-institutional-email/confirm",
+  requireAuth("respondent"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const { code, email } = parseBody(institutionalEmailOtpConfirmSchema, req.body);
+    const stored = respondentEmailOtpStore.get(context.userId);
+
+    if (!stored || stored.code !== code || stored.email.toLowerCase() !== email.toLowerCase()) {
+      throw new ApiError(400, "INVALID_CODE", "Invalid or expired verification code.");
+    }
+
+    // Check expiry (15 minutes)
+    if (Date.now() - stored.timestamp > 15 * 60_000) {
+      respondentEmailOtpStore.delete(context.userId);
+      throw new ApiError(400, "CODE_EXPIRED", "Verification code has expired. Request a new one.");
+    }
+
+    const client = userClient(context.accessToken);
+    const { data: currentProfile } = await client
+      .from("respondent_profiles")
+      .select("attributes")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    const currentAttrs = (currentProfile?.attributes || {}) as Record<string, unknown>;
+
+    await client
+      .from("respondent_profiles")
+      .upsert(
+        {
+          user_id: context.userId,
+          attributes: {
+            ...currentAttrs,
+            institutional_email: email,
+            institutional_email_verified: true,
+            institutional_email_verified_at: new Date().toISOString(),
+          },
+        },
+        { onConflict: "user_id" },
+      );
+
+    respondentEmailOtpStore.delete(context.userId);
+    res.json({ success: true, message: "Institutional email verified successfully." });
+  }),
+);
+
+respondentsRouter.post(
   "/documents",
   requireAuth("respondent"),
   rateLimit({ key: "doc-upload", max: 10, windowMs: 60_000 }),
   upload.single("file"),
   asyncRoute(async (req, res) => {
     const context = auth(req);
+
+    // Gate entry: Requires Tier 1 completion first
+    if (TIER_RANK[context.verificationTier] < TIER_RANK["1_id_verified"]) {
+      throw new ApiError(
+        403,
+        "TIER_1_REQUIRED",
+        "You must complete Tier 1 Identity Verification with your Fayda National ID before uploading institutional documents.",
+      );
+    }
+
     const { doc_type: docType } = parseBody(documentUploadSchema, req.body);
     const file = req.file;
 

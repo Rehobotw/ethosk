@@ -34,6 +34,7 @@ export const PERMISSIONS = [
 
   // Admin capabilities
   "admin:review_documents",
+  "admin:review_surveys",
   "admin:process_data_requests",
   "admin:view_audit_trail",
 
@@ -66,6 +67,7 @@ const RESEARCHER_PERMISSIONS: readonly Permission[] = [
 
 const ADMIN_PERMISSIONS: readonly Permission[] = [
   "admin:review_documents",
+  "admin:review_surveys",
   "admin:process_data_requests",
   "admin:view_audit_trail",
 ] as const;

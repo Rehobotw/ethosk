@@ -1,29 +1,37 @@
-import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { UserRole } from "@shared/types";
 import { loginSchema, type LoginInput } from "@shared/validation/schemas";
-import { Button, Field, Icon, Input, Notice } from "@/components/ui";
+import { Notice } from "@/components/ui";
 import { ApiRequestError } from "@/lib/api";
 import { homePathForRole, useAuth } from "@/lib/auth";
 import { useAutofillSafeSubmit } from "@/lib/forms";
 import { useLanguage } from "@/lib/language";
-import { AuthShell, RoleTabs } from "./AuthShell";
+import { supabase } from "@/lib/supabase";
+import { AuthShell } from "./AuthShell";
 
-export function LoginPage() {
+interface LoginPageProps {
+  role?: UserRole;
+}
+
+export function LoginPage({ role: initialRole }: LoginPageProps) {
   const { login, user, loading, logout } = useAuth();
   const navigate = useNavigate();
-  const { t } = useLanguage();
-  const [searchParams] = useSearchParams();
-  const requestedRole = (searchParams.get("role") as UserRole) || "researcher";
-  const [role, setRole] = useState<UserRole>(requestedRole);
+  const { t, language } = useLanguage();
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [role, setRole] = useState<UserRole>(initialRole || "respondent");
+
+  useEffect(() => {
+    if (initialRole) setRole(initialRole);
+  }, [initialRole]);
 
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { email: "", password: "", role },
   });
   const {
     register,
@@ -33,6 +41,11 @@ export function LoginPage() {
   } = form;
 
   const watchEmail = watch("email");
+
+  // Keep form role in sync with state
+  useEffect(() => {
+    setValue("role", role);
+  }, [role, setValue]);
 
   const onSubmit = async (values: LoginInput) => {
     setFormError(null);
@@ -54,7 +67,6 @@ export function LoginPage() {
   const { formRef, onSubmit: handleFormSubmit } = useAutofillSafeSubmit(form, onSubmit);
 
   const handleDemoFill = async (targetRole: UserRole, email: string) => {
-    setRole(targetRole);
     setValue("email", email);
     setValue("password", "ethosk-demo-2024");
     setFormError(null);
@@ -65,6 +77,23 @@ export function LoginPage() {
       setFormError(
         error instanceof ApiRequestError ? error.message : "Could not sign in. Try again.",
       );
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setFormError(null);
+    setIsGoogleLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) throw error;
+    } catch (error: any) {
+      setFormError(error.message || "Failed to initialize Google login.");
+      setIsGoogleLoading(false);
     }
   };
 
@@ -79,127 +108,213 @@ export function LoginPage() {
         subtitle="You are currently signed in to Ethosk."
         title="Already Logged In"
       >
-        <div className="space-y-4 rounded-xl glass-pressed p-4 text-center">
+        <div className="space-y-4 rounded-xl p-4 text-center">
           <p className="font-body-md text-on-surface">
             Currently logged in as <strong className="text-primary">{user.full_name || user.email}</strong> ({user.role}).
           </p>
           <div className="flex flex-col gap-2 sm:flex-row justify-center">
-            <Button onClick={() => navigate(homePathForRole(user.role))}>
+            <button
+              onClick={() => navigate(homePathForRole(user.role))}
+              className="primary-gradient-btn px-6 py-2.5 rounded-full text-white font-semibold text-sm"
+              type="button"
+            >
               Go to {user.role.charAt(0).toUpperCase() + user.role.slice(1)} Portal
-            </Button>
-            <Button variant="outline" onClick={() => logout()}>
+            </button>
+            <button
+              onClick={() => logout()}
+              className="px-6 py-2.5 rounded-full border border-outline-variant text-primary font-semibold text-sm hover:bg-surface-container transition-colors"
+              type="button"
+            >
               Log Out &amp; Switch Account
-            </Button>
+            </button>
           </div>
         </div>
       </AuthShell>
     );
   }
 
+  const isAm = language === "am";
+  const roleTitle = role === "researcher"
+    ? (isAm ? "ተመራማሪ" : "Researcher")
+    : (isAm ? "ተሳታፊ" : "Respondent");
+
   return (
     <AuthShell
       footer={
         <>
-          Don&rsquo;t have an account?{" "}
+          {isAm ? "መለያ የለዎትም? " : "Don't have an account? "}
           <Link className="font-semibold text-primary hover:underline" to={`/signup?role=${role}`}>
             {t("nav.signup")}
           </Link>
         </>
       }
-      subtitle={t("auth.login_subtitle")}
-      title={t("auth.login_title")}
+      role={role}
+      subtitle={isAm ? "እንኳን ደህና መጡ። እባክዎ መረጃዎን ያስገቡ::" : "Welcome back. Please enter your details."}
+      title={isAm ? `${roleTitle} መግቢያ` : `${roleTitle} Login`}
     >
-      <RoleTabs onChange={setRole} value={role} />
-
-      {/* Quick Demo Login Shortcuts */}
-      <div className="mt-5 rounded-xl glass-pressed p-3 text-center">
-        <p className="font-label-caps text-[12px] font-semibold text-surface-tint uppercase tracking-wide">
-          ⚡ {t("auth.demo_login_title")}
-        </p>
-        <div className="mt-2 grid grid-cols-2 gap-2">
+      {/* ── Role Toggle ── */}
+      <div className="flex items-center justify-center mb-6">
+        <div className="flex items-center bg-surface-container-high/60 rounded-full p-1 border border-outline-variant/30">
           <button
-            className="flex flex-col items-center justify-center rounded-xl bg-white/60 backdrop-blur-xl border border-white/40 p-2 text-[11px] font-medium text-on-surface hover:bg-white/80 transition-colors"
-            onClick={() => void handleDemoFill("researcher", "researcher@ethosk.com")}
             type="button"
+            onClick={() => setRole("respondent")}
+            className={`px-4 py-2 rounded-full text-sm font-semibold transition-all cursor-pointer ${
+              role === "respondent"
+                ? "bg-white text-primary shadow-sm"
+                : "text-on-surface-variant hover:text-primary"
+            }`}
           >
-            <span className="font-bold text-primary">{t("auth.demo_researcher")}</span>
-            <span className="text-[10px] text-on-surface-variant">researcher@ethosk.com</span>
+            <span className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[16px]">groups</span>
+              {isAm ? "ተሳታፊ" : "Respondent"}
+            </span>
           </button>
-
           <button
-            className="flex flex-col items-center justify-center rounded-xl bg-white/60 backdrop-blur-xl border border-white/40 p-2 text-[11px] font-medium text-on-surface hover:bg-white/80 transition-colors"
-            onClick={() => void handleDemoFill("respondent", "respondent@ethosk.com")}
             type="button"
+            onClick={() => setRole("researcher")}
+            className={`px-4 py-2 rounded-full text-sm font-semibold transition-all cursor-pointer ${
+              role === "researcher"
+                ? "bg-white text-primary shadow-sm"
+                : "text-on-surface-variant hover:text-primary"
+            }`}
           >
-            <span className="font-bold text-primary">{t("auth.demo_respondent")}</span>
-            <span className="text-[10px] text-on-surface-variant">respondent@ethosk.com</span>
+            <span className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[16px]">science</span>
+              {isAm ? "ተመራማሪ" : "Researcher"}
+            </span>
           </button>
         </div>
       </div>
 
+      <div className="space-y-4">
+        <button
+          className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-outline-variant/60 bg-surface-container-low hover:bg-surface-container transition-colors text-on-surface font-label-md text-sm"
+          disabled={isGoogleLoading || isSubmitting}
+          onClick={handleGoogleLogin}
+          type="button"
+        >
+          {isGoogleLoading ? (
+            <span className="material-symbols-outlined animate-spin text-lg">progress_activity</span>
+          ) : (
+            <img alt="Google" className="h-5 w-5" src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" />
+          )}
+          <span>{isAm ? "በ Google ይቀጥሉ" : "Continue with Google"}</span>
+        </button>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-outline-variant/40" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-surface-container-lowest px-3 text-on-surface-variant font-label-md">
+              {isAm ? "ወይም በኢሜይል ይቀጥሉ" : "Or continue with email"}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <form
-        className="mt-5 space-y-4"
+        className="mt-6 space-y-4"
         onSubmit={handleFormSubmit}
         ref={formRef}
       >
-        <div className="space-y-4 rounded-xl bg-white/60 backdrop-blur-xl border border-white/40 p-5">
-          <Field error={errors.email?.message} label={t("auth.email")}>
-            <Input
+        {/* Email Field */}
+        <div className="space-y-1.5">
+          <label className="font-label-md text-label-md text-on-surface block" htmlFor="email">
+            {isAm ? "የኢሜይል አድራሻ" : "Email Address"}
+          </label>
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-on-surface-variant">
+              <span className="material-symbols-outlined text-[20px]">mail</span>
+            </span>
+            <input
               autoComplete="email"
+              className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant/60 rounded-lg font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50 focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
+              id="email"
               inputMode="email"
-              placeholder="name@example.com"
+              placeholder={role === "researcher" ? "name@institution.edu" : "name@example.com"}
               type="email"
               {...register("email")}
             />
-          </Field>
+          </div>
+          {errors.email && (
+            <p className="text-xs text-error mt-1">{errors.email.message}</p>
+          )}
+        </div>
 
-          <Field
-            action={
-              <Link
-                className="font-label-caps text-label-caps uppercase text-surface-tint hover:text-primary hover:underline"
-                to={watchEmail ? `/forgot-password?email=${encodeURIComponent(watchEmail)}` : "/forgot-password"}
-              >
-                Forgot?
-              </Link>
-            }
-            error={errors.password?.message}
-            label={t("auth.password")}
-          >
-            <div className="relative">
-              <Input
-                autoComplete="current-password"
-                className="pr-11"
-                type={showPassword ? "text" : "password"}
-                {...register("password")}
-              />
-              <button
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors"
-                onClick={() => setShowPassword((shown) => !shown)}
-                type="button"
-              >
-                <Icon className="text-[20px]" name={showPassword ? "visibility_off" : "visibility"} />
-              </button>
-            </div>
-          </Field>
+        {/* Password Field */}
+        <div className="space-y-1.5">
+          <div className="flex justify-between items-center">
+            <label className="font-label-md text-label-md text-on-surface block" htmlFor="password">
+              {isAm ? "የይለፍ ቃል" : "Password"}
+            </label>
+            <Link
+              className="font-label-md text-xs text-primary hover:underline transition-colors"
+              to={watchEmail ? `/forgot-password?email=${encodeURIComponent(watchEmail)}` : "/forgot-password"}
+            >
+              {isAm ? "የይለፍ ቃል ረሱ?" : "Forgot password?"}
+            </Link>
+          </div>
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-on-surface-variant">
+              <span className="material-symbols-outlined text-[20px]">lock</span>
+            </span>
+            <input
+              autoComplete="current-password"
+              className="w-full pl-10 pr-10 py-3 bg-surface-container-low border border-outline-variant/60 rounded-lg font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50 focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
+              id="password"
+              placeholder="••••••••"
+              type={showPassword ? "text" : "password"}
+              {...register("password")}
+            />
+            <button
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant hover:text-primary transition-colors"
+              onClick={() => setShowPassword((shown) => !shown)}
+              type="button"
+            >
+              <span className="material-symbols-outlined text-[20px]">
+                {showPassword ? "visibility_off" : "visibility"}
+              </span>
+            </button>
+          </div>
+          {errors.password && (
+            <p className="text-xs text-error mt-1">{errors.password.message}</p>
+          )}
         </div>
 
         {formError ? <Notice tone="error">{formError}</Notice> : null}
 
+        {/* Submit Button */}
         <button
-          className="primary-gradient-btn w-full py-3.5 rounded-xl font-body-lg font-semibold flex items-center justify-center gap-2 shadow-md transform hover:-translate-y-0.5 transition-all magnetic-btn disabled:opacity-50"
-          disabled={isSubmitting}
+          className="w-full primary-gradient-btn text-white font-title-lg text-base py-3.5 px-4 rounded-full flex items-center justify-center gap-2 hover:shadow-lg active:scale-95 transition-all shadow-md disabled:opacity-50 mt-2"
+          disabled={isSubmitting || isGoogleLoading}
           type="submit"
         >
           {isSubmitting ? (
             <span className="material-symbols-outlined animate-spin text-white text-lg">progress_activity</span>
           ) : null}
-          <span className="text-white">
-            {t("nav.login")} ({role === "researcher" ? t("auth.role_researcher") : t("auth.role_respondent")})
-          </span>
-          <span className="material-symbols-outlined text-lg text-white">arrow_forward</span>
+          <span>{isAm ? "ግቡ" : "Sign In"}</span>
+          <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
         </button>
       </form>
+      
+      {/* Quick Demo Login Shortcut */}
+      <div className="mt-5 rounded-xl bg-surface-container-low/70 border border-outline-variant/30 p-3 text-center">
+        <p className="font-label-caps text-[11px] text-surface-tint uppercase tracking-wider">
+          ⚡ {t("auth.demo_login_title")}
+        </p>
+        <div className="mt-2 flex justify-center">
+          <button
+            className="flex flex-col items-center justify-center rounded-lg bg-white border border-outline-variant/30 px-3 py-1.5 text-xs text-on-surface hover:bg-surface-container transition-colors shadow-xs"
+            onClick={() => void handleDemoFill(role, `${role}@ethosk.com`)}
+            type="button"
+          >
+            <span className="font-bold text-primary">{roleTitle} Demo</span>
+            <span className="text-[10px] text-on-surface-variant">{role}@ethosk.com</span>
+          </button>
+        </div>
+      </div>
     </AuthShell>
   );
 }

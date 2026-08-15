@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { verifyEmailSchema, type VerifyEmailInput } from "@shared/validation/schemas";
-import { Button, Field, Icon, Input, Notice } from "@/components/ui";
+import { Notice } from "@/components/ui";
 import { ApiRequestError } from "@/lib/api";
 import { homePathForRole, useAuth } from "@/lib/auth";
 import { useAutofillSafeSubmit } from "@/lib/forms";
@@ -13,7 +13,8 @@ import { AuthShell } from "./AuthShell";
 export function VerifyEmailPage() {
   const { verifyEmail, resendCode, user, loading } = useAuth();
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { language } = useLanguage();
+  const isAm = language === "am";
   const [searchParams] = useSearchParams();
   const initialEmail = searchParams.get("email") || "";
   const initialCode = searchParams.get("code") || "";
@@ -69,7 +70,9 @@ export function VerifyEmailPage() {
       setFormError(
         error instanceof ApiRequestError
           ? error.message
-          : "Invalid verification code. Please check and try again.",
+          : isAm
+            ? "ልክ ያልሆነ የማረጋገጫ ኮድ። እባክዎ አረጋግጠው እንደገና ይሞክሩ።"
+            : "Invalid verification code. Please check and try again.",
       );
     }
   };
@@ -82,11 +85,18 @@ export function VerifyEmailPage() {
     setIsResending(true);
     try {
       const result = await resendCode({ email: currentEmail });
-      setInfoMessage(result.message || "A new verification code has been sent.");
+      setInfoMessage(
+        result.message ||
+          (isAm ? "አዲስ የማረጋገጫ ኮድ ወደ ኢሜይልዎ ተልኳል።" : "A new verification code has been sent."),
+      );
       setCooldown(30);
     } catch (error) {
       setFormError(
-        error instanceof ApiRequestError ? error.message : "Failed to resend code. Try again later.",
+        error instanceof ApiRequestError
+          ? error.message
+          : isAm
+            ? "ኮድ እንደገና መላክ አልተቻለም። እባክዎ ቆይተው እንደገና ይሞክሩ።"
+            : "Failed to resend code. Try again later.",
       );
     } finally {
       setIsResending(false);
@@ -102,66 +112,101 @@ export function VerifyEmailPage() {
     <AuthShell
       footer={
         <>
-          Already verified?{" "}
+          {isAm ? "አስቀድመው አረጋግጠዋል? " : "Already verified? "}
           <Link className="font-semibold text-primary hover:underline" to="/login">
-            {t("nav.login")}
+            {isAm ? "ግቡ" : "Log in"}
           </Link>
         </>
       }
-      subtitle={t("auth.verify_subtitle")}
-      title={t("auth.verify_title")}
+      subtitle={
+        isAm
+          ? "ወደ ኢሜይል አድራሻዎ የተላከውን ባለ 6 አሃዝ ኮድ ያስገቡ"
+          : "Enter the 6-digit code sent to your email address"
+      }
+      title={isAm ? "ኢሜይልዎን ያረጋግጡ" : "Verify your email"}
     >
-      <form className="mt-stack-md space-y-stack-md" onSubmit={handleFormSubmit} ref={formRef}>
-        <div className="space-y-stack-md rounded-xl border border-outline-variant bg-surface-container-lowest p-stack-md">
-          <Field error={errors.email?.message} label={t("auth.email")}>
-            <Input
+      <form className="space-y-5" onSubmit={handleFormSubmit} ref={formRef}>
+        {/* Email Address Field */}
+        <div className="space-y-1.5">
+          <label className="font-label-md text-label-md text-on-surface block" htmlFor="email">
+            {isAm ? "የኢሜይል አድራሻ" : "Email Address"}
+          </label>
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-on-surface-variant">
+              <span className="material-symbols-outlined text-[20px]">mail</span>
+            </span>
+            <input
               autoComplete="email"
+              className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant/60 rounded-lg font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50 focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
+              id="email"
               inputMode="email"
               placeholder="name@example.com"
               type="email"
               {...register("email")}
             />
-          </Field>
+          </div>
+          {errors.email && (
+            <p className="text-xs text-error mt-1">{errors.email.message}</p>
+          )}
+        </div>
 
-          <Field
-            error={errors.code?.message}
-            hint="Enter the 6-digit verification code"
-            label={t("auth.verification_code")}
-          >
-            <Input
+        {/* 6-digit Verification Code */}
+        <div className="space-y-1.5">
+          <label className="font-label-md text-label-md text-on-surface block" htmlFor="code">
+            {isAm ? "የማረጋገጫ ኮድ" : "Verification Code"}
+          </label>
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-on-surface-variant">
+              <span className="material-symbols-outlined text-[20px]">key</span>
+            </span>
+            <input
               autoComplete="one-time-code"
-              className="text-center font-mono text-lg tracking-widest"
+              className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant/60 rounded-lg font-mono text-center text-lg tracking-[0.3em] font-bold text-primary placeholder:text-on-surface-variant/40 focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
+              id="code"
               maxLength={8}
               placeholder="123456"
+              type="text"
               {...register("code")}
             />
-          </Field>
+          </div>
+          {errors.code && (
+            <p className="text-xs text-error mt-1">{errors.code.message}</p>
+          )}
         </div>
 
         {formError ? <Notice tone="error">{formError}</Notice> : null}
         {infoMessage ? <Notice tone="info">{infoMessage}</Notice> : null}
 
-        <Button className="w-full py-3" loading={isSubmitting} type="submit">
-          Verify & Continue
-          <Icon className="text-[18px]" name="check_circle" />
-        </Button>
+        {/* Submit Button */}
+        <button
+          className="w-full primary-gradient-btn text-white font-title-lg text-base py-3.5 px-6 rounded-full flex items-center justify-center gap-2 hover:shadow-lg active:scale-95 transition-all shadow-md disabled:opacity-50 mt-2 cursor-pointer"
+          disabled={isSubmitting}
+          type="submit"
+        >
+          {isSubmitting ? (
+            <span className="material-symbols-outlined animate-spin text-white text-lg">progress_activity</span>
+          ) : null}
+          <span>{isAm ? "አረጋግጥ እና ቀጥል" : "Verify & Continue"}</span>
+          <span className="material-symbols-outlined text-[18px]">check_circle</span>
+        </button>
 
-        <div className="flex items-center justify-between pt-2">
+        {/* Resend and Back Links */}
+        <div className="flex items-center justify-between pt-3">
           <button
-            className="text-xs text-primary font-medium hover:underline disabled:opacity-50"
+            className="text-xs text-primary font-semibold hover:underline disabled:opacity-50 cursor-pointer"
             disabled={isResending || cooldown > 0}
             onClick={() => void handleResend()}
             type="button"
           >
             {isResending
-              ? "Sending…"
+              ? (isAm ? "በመላክ ላይ…" : "Sending…")
               : cooldown > 0
-                ? `Resend code in ${cooldown}s`
-                : "Didn't receive a code? Resend"}
+                ? (isAm ? `በ ${cooldown} ሰከንድ ውስጥ እንደገና ይላኩ` : `Resend code in ${cooldown}s`)
+                : (isAm ? "ኮድ አልደረሰዎትም? እንደገና ይላኩ" : "Didn't receive a code? Resend")}
           </button>
 
-          <Link className="text-xs text-on-surface-variant hover:underline" to="/login">
-            Back to login
+          <Link className="text-xs text-on-surface-variant font-medium hover:text-primary transition-colors" to="/login">
+            {isAm ? "ወደ መግቢያ ተመለስ" : "Back to login"}
           </Link>
         </div>
       </form>

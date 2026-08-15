@@ -7,6 +7,7 @@ import {
   GENDERS,
   PRIMARY_LANGUAGES,
   QUESTION_TYPES,
+  SURVEY_STATUSES,
   TARGET_LANGUAGES,
   USER_ROLES,
   VERIFICATION_TIERS,
@@ -84,6 +85,9 @@ export const deleteAccountRequestSchema = z.object({
 export type DeleteAccountRequestInput = z.infer<typeof deleteAccountRequestSchema>;
 
 export const respondentProfileSchema = z.object({
+  full_name: z.string().trim().min(2).max(160).nullable().optional(),
+  phone: z.string().trim().nullable().optional(),
+  dob: z.string().nullable().optional(), // YYYY-MM-DD
   university: z.string().trim().min(2).max(160).nullable().optional(),
   department: z.string().trim().min(2).max(160).nullable().optional(),
   year: z
@@ -113,6 +117,16 @@ export const respondentProfileSchema = z.object({
   attributes: z.record(z.unknown()).default({}),
 });
 export type RespondentProfileInput = z.infer<typeof respondentProfileSchema>;
+
+export const syncOAuthSchema = z.object({
+  role: z.enum(USER_ROLES).optional(),
+});
+
+export const withdrawSchema = z.object({
+  amount_etb: z.number().min(100, "Minimum payout is 100 ETB"),
+  method: z.enum(["telebirr", "cbebirr"]),
+  account_number: z.string().min(9, "Enter a valid mobile money account number"),
+});
 
 export const researcherProfileSchema = z.object({
   bio: z
@@ -162,7 +176,9 @@ export const surveySchema = z.object({
     .min(1, "Add at least one question")
     .max(30, "The MVP builder supports up to 30 questions"),
   reward_etb: z.number().min(0).max(10_000).nullable().optional(),
-  status: z.enum(["draft", "final_draft"]).optional(),
+  compliance_answer: z.boolean().nullable().optional(),
+  compliance_document_path: z.string().nullable().optional(),
+  status: z.enum(SURVEY_STATUSES).optional(),
 });
 export type SurveyInput = z.infer<typeof surveySchema>;
 
@@ -293,7 +309,9 @@ export const aiDraftRequestSchema = z.object({
   topic: z
     .string()
     .min(5, "Topic must be at least 5 characters.")
-    .max(500, "Topic must be less than 500 characters."),
+    .max(1000, "Topic must be less than 1000 characters."),
+  description: z.string().max(2000).nullable().optional(),
+  target_question_count: z.number().int().min(3).max(20).default(5).optional(),
 });
 export type AiDraftRequestInput = z.infer<typeof aiDraftRequestSchema>;
 
@@ -320,6 +338,25 @@ export const documentUploadSchema = z.object({
   doc_type: z.enum(DOC_TYPES),
 });
 
+export const institutionalDetailsSchema = z.object({
+  institution_type: z.enum(["university", "corporate"]),
+  institution_name: z.string().trim().min(2, "Institution name is required").max(160),
+  department: z.string().trim().min(2, "Department or faculty is required").max(160),
+  position_or_year: z.string().trim().min(1, "Academic year or position title is required").max(80),
+});
+export type InstitutionalDetailsInput = z.infer<typeof institutionalDetailsSchema>;
+
+export const institutionalEmailOtpRequestSchema = z.object({
+  email: emailSchema,
+});
+export type InstitutionalEmailOtpRequestInput = z.infer<typeof institutionalEmailOtpRequestSchema>;
+
+export const institutionalEmailOtpConfirmSchema = z.object({
+  email: emailSchema,
+  code: z.string().trim().min(4, "Enter the verification code").max(8),
+});
+export type InstitutionalEmailOtpConfirmInput = z.infer<typeof institutionalEmailOtpConfirmSchema>;
+
 export const chatTurnSchema = z.object({
   messages: z
     .array(
@@ -329,6 +366,7 @@ export const chatTurnSchema = z.object({
       }),
     )
     .max(60),
+  language: z.enum(["en", "am", "om"]).optional().default("en"),
 });
 
 /** Schema for the JSON the document-check model is required to return (§7.3). */
