@@ -12,7 +12,7 @@ interface SurveyWithStats extends SurveyRecord {
   flagged_count?: number;
 }
 
-type TabKey = "ongoing" | "drafts" | "completed";
+type TabKey = "ongoing" | "wip" | "final_draft" | "completed";
 
 export function DashboardPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("ongoing");
@@ -34,9 +34,8 @@ export function DashboardPage() {
   const wallet = walletData?.wallet;
 
   const ongoingSurveys = surveys.filter((s) => s.status === "active");
-  const draftSurveys = surveys.filter(
-    (s) => s.status === "wip" || s.status === "draft" || s.status === "final_draft",
-  );
+  const wipSurveys = surveys.filter((s) => s.status === "wip" || s.status === "draft");
+  const finalDraftSurveys = surveys.filter((s) => s.status === "final_draft");
   const completedSurveys = surveys.filter(
     (s) => (s.status as string) === "completed" || s.status === "closed",
   );
@@ -47,8 +46,10 @@ export function DashboardPage() {
   const currentTabSurveys =
     activeTab === "ongoing"
       ? ongoingSurveys
-      : activeTab === "drafts"
-      ? draftSurveys
+      : activeTab === "wip"
+      ? wipSurveys
+      : activeTab === "final_draft"
+      ? finalDraftSurveys
       : completedSurveys;
 
   return (
@@ -150,10 +151,14 @@ export function DashboardPage() {
             </span>
           </div>
           <p className="text-3xl font-headline-lg font-bold text-[#0D253A]">
-            {draftSurveys.length}
+            {wipSurveys.length + finalDraftSurveys.length}
           </p>
           <div className="mt-2 flex items-center gap-1 text-on-surface-variant text-xs">
-            <span>{draftSurveys.length > 0 ? "Awaiting compliance review" : "No drafts in progress"}</span>
+            <span>
+              {wipSurveys.length + finalDraftSurveys.length > 0
+                ? `${wipSurveys.length} in progress, ${finalDraftSurveys.length} final drafts`
+                : "No drafts in progress"}
+            </span>
           </div>
         </div>
       </div>
@@ -175,14 +180,25 @@ export function DashboardPage() {
           </button>
           <button
             className={`text-xs font-bold pb-3 px-2 transition-colors cursor-pointer ${
-              activeTab === "drafts"
+              activeTab === "wip"
                 ? "text-primary border-b-2 border-primary"
                 : "text-[#5A6E7F] hover:text-on-surface"
             }`}
-            onClick={() => setActiveTab("drafts")}
+            onClick={() => setActiveTab("wip")}
             type="button"
           >
-            Drafts ({draftSurveys.length})
+            Work-in-Progress ({wipSurveys.length})
+          </button>
+          <button
+            className={`text-xs font-bold pb-3 px-2 transition-colors cursor-pointer ${
+              activeTab === "final_draft"
+                ? "text-primary border-b-2 border-primary"
+                : "text-[#5A6E7F] hover:text-on-surface"
+            }`}
+            onClick={() => setActiveTab("final_draft")}
+            type="button"
+          >
+            Final Drafts ({finalDraftSurveys.length})
           </button>
           <button
             className={`text-xs font-bold pb-3 px-2 transition-colors cursor-pointer ${
@@ -209,8 +225,10 @@ export function DashboardPage() {
             <p className="text-xs text-on-surface-variant max-w-sm mb-5">
               {activeTab === "ongoing"
                 ? "Create a new study or check ongoing operations."
-                : activeTab === "drafts"
-                ? "No draft studies currently awaiting review."
+                : activeTab === "wip"
+                ? "No work-in-progress drafts currently being edited."
+                : activeTab === "final_draft"
+                ? "No final drafts ready for posting."
                 : "Completed research studies will appear here."}
             </p>
             {activeTab !== "completed" && (

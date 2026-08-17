@@ -41,6 +41,20 @@ import { payForResponse, readResearcherWallet, roundEtb } from "../lib/wallet.js
 
 export const surveysRouter = Router();
 
+surveysRouter.post(
+  "/improve-question-text",
+  requireAuth("researcher"),
+  rateLimit({ key: "improve-text", max: 30, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const { text } = (req.body || {}) as { text?: string };
+    if (!text || typeof text !== "string" || !text.trim()) {
+      throw new ApiError(400, "TEXT_REQUIRED", "Question text is required.");
+    }
+    const { improved, ok } = await improveQuestion(text.trim());
+    res.json({ original: text, improved, unchanged: !ok });
+  }),
+);
+
 // ---------------------------------------------------------------------------
 // Survey CRUD
 // ---------------------------------------------------------------------------

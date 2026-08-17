@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Question, SurveyRecord, RespondentWallet } from "@shared/types";
 import { surveySchema } from "@shared/validation/schemas";
@@ -8,8 +8,24 @@ import {
   Notice,
 } from "@/components/ui";
 import { ApiRequestError, api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
-function blankQuestion(type: Question["type"] = "single_choice"): Question {
+function blankQuestion(type: Question["type"] | "scale" = "single_choice"): Question {
+  if (type === "scale") {
+    return {
+      id: `q${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      text: "",
+      type: "single_choice",
+      options: [
+        "1 - Strongly Disagree",
+        "2 - Disagree",
+        "3 - Neutral",
+        "4 - Agree",
+        "5 - Strongly Agree",
+      ],
+      required: true,
+    };
+  }
   return {
     id: `q${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
     text: "",
@@ -20,16 +36,30 @@ function blankQuestion(type: Question["type"] = "single_choice"): Question {
 }
 
 export function SurveyBuilderPage() {
-  const { id } = useParams();
+  const { id: paramId } = useParams();
+  const [searchParams] = useSearchParams();
+  const effectiveId = paramId || searchParams.get("id") || null;
+
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
-  const [surveyId, setSurveyId] = useState<string | null>(id ?? null);
+  const isSubscribed = Boolean(
+    (user?.subscription_tier as string) === "subscribed" ||
+    (user?.subscription_tier as string) === "pro" ||
+    user?.role === "admin"
+  );
+
+  const [surveyId, setSurveyId] = useState<string | null>(effectiveId);
   const [title, setTitle] = useState("Customer Perception Study 2026");
   const [description, setDescription] = useState("");
   const [rewardEtb, setRewardEtb] = useState<number>(25);
   const [targetSampleSize, setTargetSampleSize] = useState<number>(100);
   const [activeStep, setActiveStep] = useState<"builder" | "wizard_filters" | "wizard_budget" | "submitted">("builder");
+
+  // AI Optimize state
+  const [optimizingQuestionId, setOptimizingQuestionId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<Record<string, string>>({});
 
   // Filter state
   const [minAge, setMinAge] = useState<string>("18");
@@ -65,9 +95,9 @@ export function SurveyBuilderPage() {
   const [banner, setBanner] = useState<{ tone: "success" | "error" | "warning"; text: string } | null>(null);
 
   const { data: existing, isLoading } = useQuery({
-    queryKey: ["survey", id],
-    queryFn: () => api<SurveyRecord>(`/surveys/${id}`),
-    enabled: Boolean(id),
+    queryKey: ["survey", effectiveId],
+    queryFn: () => api<SurveyRecord>(`/surveys/${effectiveId}`),
+    enabled: Boolean(effectiveId),
   });
 
   const { data: researcherWallet } = useQuery({
@@ -93,6 +123,45 @@ export function SurveyBuilderPage() {
     }
   }, [existing]);
 
+  const handleOptimizeQuestion = async (qId: string, currentText: string) => {
+    if (!currentText.trim()) return;
+    setOptimizingQuestionId(qId);
+    try {
+      const res = await api<{ original: string; improved: string; unchanged: boolean }>(
+        "/surveys/improve-question-text",
+        {
+          body: { text: currentText },
+        }
+      );
+      if (res.improved && res.improved !== currentText) {
+        setSuggestions((prev) => ({ ...prev, [qId]: res.improved }));
+      } else {
+        setBanner({ tone: "success", text: "AI verified: question phrasing is already clear and concise." });
+      }
+    } catch (err: any) {
+      setBanner({ tone: "error", text: err?.message || "Could not optimize question." });
+    } finally {
+      setOptimizingQuestionId(null);
+    }
+  };
+
+  const handleApplySuggestion = (qId: string, suggestedText: string) => {
+    updateQuestion(qId, { text: suggestedText });
+    setSuggestions((prev) => {
+      const next = { ...prev };
+      delete next[qId];
+      return next;
+    });
+  };
+
+  const handleDismissSuggestion = (qId: string) => {
+    setSuggestions((prev) => {
+      const next = { ...prev };
+      delete next[qId];
+      return next;
+    });
+  };
+
   const saveSurvey = useMutation({
     mutationFn: async (targetStatus: "wip" | "final_draft" = "wip") => {
       const payload = surveySchema.parse({
@@ -115,7 +184,7 @@ export function SurveyBuilderPage() {
           : "Work-in-progress draft saved.";
       setBanner({ tone: "success", text: msg });
       await queryClient.invalidateQueries({ queryKey: ["surveys"] });
-      if (!id) navigate(`/researcher/surveys/${survey.id}/edit`, { replace: true });
+      if (!effectiveId) navigate(`/survey-builder/manual/${survey.id}`, { replace: true });
     },
     onError: (error) => {
       setBanner({
@@ -159,10 +228,26 @@ export function SurveyBuilderPage() {
     },
   });
 
-  const addQuestion = (type: Question["type"] = "single_choice") => {
+  const addQuestion = (type: Question["type"] | "scale" = "single_choice") => {
     const q = blankQuestion(type);
     setQuestions((prev) => [...prev, q]);
     setActiveQuestionId(q.id);
+  };
+
+  const moveQuestion = (id: string, direction: "up" | "down") => {
+    const index = questions.findIndex((q) => q.id === id);
+    if (index === -1) return;
+    const targetIdx = direction === "up" ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= questions.length) return;
+    setQuestions((prev) => {
+      const next = [...prev];
+      const curr = next[index];
+      const target = next[targetIdx];
+      if (!curr || !target) return prev;
+      next[index] = target;
+      next[targetIdx] = curr;
+      return next;
+    });
   };
 
   const updateQuestion = (id: string, partial: Partial<Question>) => {
@@ -699,12 +784,13 @@ export function SurveyBuilderPage() {
         <div className="flex items-center gap-3 min-w-0">
           <Link
             className="text-on-surface-variant hover:text-primary p-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
-            to="/researcher/surveys"
+            to="/survey-builder"
+            title="Back to Survey Builder Landing"
           >
             <span className="material-symbols-outlined text-[20px]">arrow_back</span>
           </Link>
           <input
-            className="font-['Newsreader',serif] text-2xl font-bold text-[#00456d] tracking-tight bg-transparent border-none focus:ring-1 focus:ring-primary/20 hover:bg-slate-100/60 rounded px-2 py-1 transition-colors cursor-text w-[360px] md:w-[480px] outline-none"
+            className="font-['Newsreader',serif] text-2xl font-bold text-[#00456d] tracking-tight bg-transparent border-none focus:ring-1 focus:ring-primary/20 hover:bg-slate-100/60 rounded px-2 py-1 transition-colors cursor-text w-[320px] md:w-[420px] outline-none truncate"
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Survey Title"
             type="text"
@@ -715,21 +801,29 @@ export function SurveyBuilderPage() {
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <button
-            className="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-[#41474f] hover:bg-slate-200 transition-colors cursor-pointer"
+            className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-[#41474f] hover:bg-slate-200 transition-colors cursor-pointer disabled:opacity-50"
             disabled={saveSurvey.isPending}
             onClick={() => saveSurvey.mutate("wip")}
             type="button"
           >
-            Save Draft
+            {saveSurvey.isPending ? "Saving…" : "Save Draft"}
           </button>
           <button
-            className="px-4 py-2 rounded-lg text-xs font-bold bg-[#1d5d8a] text-white hover:bg-[#00456d] transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+            className="px-3.5 py-2 rounded-lg text-xs font-bold bg-[#0066cc] text-white hover:bg-[#0052a3] transition-colors cursor-pointer disabled:opacity-50"
+            disabled={saveSurvey.isPending}
+            onClick={() => saveSurvey.mutate("final_draft")}
+            type="button"
+          >
+            Save as Final Draft
+          </button>
+          <button
+            className="px-3.5 py-2 rounded-lg text-xs font-bold bg-[#1d5d8a] text-white hover:bg-[#00456d] transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
             onClick={() => setActiveStep("wizard_filters")}
             type="button"
           >
-            <span>Configure &amp; Launch Wizard</span>
+            <span>Configure &amp; Launch</span>
             <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
           </button>
         </div>
@@ -751,10 +845,9 @@ export function SurveyBuilderPage() {
           <div className="space-y-2">
             {[
               { type: "single_choice" as const, label: "Multiple Choice", icon: "radio_button_checked" },
-              { type: "text" as const, label: "Short Text", icon: "short_text" },
-              { type: "single_choice" as const, label: "Linear Scale", icon: "linear_scale" },
-              { type: "single_choice" as const, label: "Rating Grid", icon: "grid_on" },
               { type: "multi_choice" as const, label: "Checkbox List", icon: "check_box" },
+              { type: "text" as const, label: "Short Text", icon: "short_text" },
+              { type: "scale" as const, label: "Linear Scale (1-5)", icon: "linear_scale" },
             ].map((qt, idx) => (
               <div
                 className="flex items-center gap-3 p-3 rounded-lg border border-outline-variant/40 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group bg-white shadow-2xs"
@@ -790,17 +883,57 @@ export function SurveyBuilderPage() {
                   onClick={() => setActiveQuestionId(q.id)}
                 >
                   {/* Question Card Header */}
-                  <div className="bg-[#f8f9ff] px-5 py-2.5 flex items-center justify-between border-b border-outline-variant/30">
+                  <div className="bg-[#f8f9ff] px-5 py-2.5 flex items-center justify-between border-b border-outline-variant/30 flex-wrap gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-outline-variant text-[18px]">
-                        drag_indicator
-                      </span>
                       <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
-                        Question {qIndex + 1} • {q.type === "text" ? "Short Text" : "Multiple Choice"}
+                        Question {qIndex + 1} • {q.type === "text" ? "Short Text" : q.type === "multi_choice" ? "Checkbox List" : "Multiple Choice"}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
+                      {/* Move Up / Down Buttons */}
+                      <button
+                        className="p-1 text-on-surface-variant hover:text-primary rounded transition-colors cursor-pointer disabled:opacity-30"
+                        disabled={qIndex === 0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveQuestion(q.id, "up");
+                        }}
+                        title="Move Up"
+                        type="button"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">arrow_upward</span>
+                      </button>
+                      <button
+                        className="p-1 text-on-surface-variant hover:text-primary rounded transition-colors cursor-pointer disabled:opacity-30"
+                        disabled={qIndex === questions.length - 1}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveQuestion(q.id, "down");
+                        }}
+                        title="Move Down"
+                        type="button"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">arrow_downward</span>
+                      </button>
+
+                      {/* AI Optimize Button (Subscription-Gated: Hidden on Free Tier) */}
+                      {isSubscribed && (
+                        <button
+                          className="px-2.5 py-1 bg-[#6a1b9a]/10 hover:bg-[#6a1b9a]/20 text-[#6a1b9a] rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          disabled={optimizingQuestionId === q.id || !q.text.trim()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleOptimizeQuestion(q.id, q.text);
+                          }}
+                          title="AI Optimize Question Phrasing"
+                          type="button"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                          <span>{optimizingQuestionId === q.id ? "Optimizing…" : "AI Optimize"}</span>
+                        </button>
+                      )}
+
                       <button
                         className="p-1 text-on-surface-variant hover:text-primary rounded transition-colors cursor-pointer"
                         onClick={(e) => {
@@ -849,6 +982,41 @@ export function SurveyBuilderPage() {
                       value={q.text}
                     />
 
+                    {/* AI Phrasing Suggestion Banner */}
+                    {suggestions[q.id] && (
+                      <div className="mb-4 p-3.5 bg-[#f3e5f5] border border-[#6a1b9a]/30 rounded-xl text-xs flex flex-col gap-2">
+                        <div className="flex items-center gap-1.5 text-[#6a1b9a] font-bold">
+                          <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
+                          <span>AI Phrasing Suggestion</span>
+                        </div>
+                        <p className="text-on-surface font-medium text-sm">
+                          "{suggestions[q.id]}"
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <button
+                            className="px-3 py-1 bg-[#6a1b9a] text-white rounded-md font-bold text-xs hover:bg-[#4a148c] cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleApplySuggestion(q.id, suggestions[q.id]!);
+                            }}
+                            type="button"
+                          >
+                            Apply Suggestion
+                          </button>
+                          <button
+                            className="px-3 py-1 bg-white text-on-surface-variant rounded-md font-medium text-xs hover:bg-slate-100 cursor-pointer border border-outline-variant/40"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDismissSuggestion(q.id);
+                            }}
+                            type="button"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {q.type === "text" ? (
                       <div className="pl-2">
                         <div className="w-full md:w-2/3 border-b border-dashed border-outline-variant/60 pb-2 text-xs text-outline italic">
@@ -860,7 +1028,7 @@ export function SurveyBuilderPage() {
                         {(q.options || []).map((opt, optIdx) => (
                           <div className="flex items-center gap-3 group/opt" key={optIdx}>
                             <span className="material-symbols-outlined text-outline-variant text-[18px]">
-                              radio_button_unchecked
+                              {q.type === "multi_choice" ? "check_box_outline_blank" : "radio_button_unchecked"}
                             </span>
                             <input
                               className="flex-1 px-3 py-1.5 text-xs text-on-surface bg-[#f8f9ff] border border-outline-variant/40 rounded-lg focus:outline-none focus:border-primary"
@@ -883,7 +1051,7 @@ export function SurveyBuilderPage() {
 
                         <div className="flex items-center gap-3 pt-2">
                           <span className="material-symbols-outlined text-outline-variant text-[18px]">
-                            radio_button_unchecked
+                            {q.type === "multi_choice" ? "check_box_outline_blank" : "radio_button_unchecked"}
                           </span>
                           <button
                             className="text-xs text-primary hover:underline font-semibold focus:outline-none cursor-pointer"

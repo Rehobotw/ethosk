@@ -59,7 +59,7 @@ interface AuthState {
   refresh: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthState | null>(null);
+export const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
