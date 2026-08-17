@@ -15,6 +15,9 @@ describe("isNavActive", () => {
     "/researcher",
     "/researcher/surveys",
     "/researcher/surveys/new",
+    "/researcher/surveys/new/manual",
+    "/researcher/surveys/new/import",
+    "/researcher/surveys/new/ai",
     "/researcher/surveys/abc-123/edit",
     "/researcher/surveys/abc-123/dashboard",
     "/researcher/wallet",
@@ -37,5 +40,12 @@ describe("isNavActive", () => {
     expect(isNavActive("/researcher", "/researcher")).toBe(true);
     expect(isNavActive("/researcher/wallet", "/researcher")).toBe(false);
     expect(isNavActive("/researcher/surveys", "/researcher")).toBe(false);
+  });
+
+  it("highlights the Survey Builder for /surveys/new sub-routes (manual, import, ai)", () => {
+    for (const sub of ["/researcher/surveys/new/manual", "/researcher/surveys/new/import", "/researcher/surveys/new/ai"]) {
+      expect(isNavActive(sub, "/researcher/surveys/new")).toBe(true);
+      expect(isNavActive(sub, "/researcher/surveys")).toBe(false);
+    }
   });
 });

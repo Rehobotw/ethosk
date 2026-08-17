@@ -29,8 +29,12 @@ export function isNavActive(pathname: string, to: string): boolean {
   if (to === "/researcher") return pathname === "/researcher";
 
   if (to === "/researcher/surveys") {
-    // Editing or reviewing a survey belongs to the list; creating one has its own entry.
-    return pathname.startsWith("/researcher/surveys") && pathname !== "/researcher/surveys/new";
+    // Editing or reviewing a survey belongs to the list; creating one (and its
+    // sub-routes: /manual, /import, /ai) has its own entry.
+    return (
+      pathname.startsWith("/researcher/surveys") &&
+      !pathname.startsWith("/researcher/surveys/new")
+    );
   }
 
   return pathname === to || pathname.startsWith(`${to}/`);

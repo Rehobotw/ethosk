@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { useLanguage } from "@/lib/language";
 import { Icon } from "../ui";
 import { LanguageToggle } from "../ui/LanguageToggle";
+import { RespondentAvatar } from "./RespondentAvatar";
 
 export function RespondentLayout() {
   const { user, logout } = useAuth();
@@ -51,9 +52,7 @@ export function RespondentLayout() {
         <div className="flex items-center gap-3">
           <LanguageToggle />
           <span className="material-symbols-outlined text-[#41474f]">notifications</span>
-          <div className="w-8 h-8 rounded-full bg-[#1d5d8a] text-white flex items-center justify-center font-bold text-xs">
-            {initials}
-          </div>
+          <RespondentAvatar compact />
         </div>
       </header>
 
@@ -185,18 +184,8 @@ export function RespondentLayout() {
               <span className="absolute top-0 right-0 w-2 h-2 bg-[#ba1a1a] rounded-full" />
             </button>
 
-            <div className="flex items-center gap-3 border-l border-[#c1c7d0] pl-6">
-              <div className="text-right">
-                <p className="text-xs font-semibold text-[#181c1e]">
-                  {user?.full_name || "Respondent"}
-                </p>
-                <p className="text-[11px] text-[#41474f]">
-                  {user?.email ? user.email.split("@")[0] : "respondent"}
-                </p>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-[#1d5d8a] text-white flex items-center justify-center font-bold text-sm">
-                {initials}
-              </div>
+            <div className="border-l border-[#c1c7d0] pl-4">
+              <RespondentAvatar />
             </div>
           </div>
         </div>

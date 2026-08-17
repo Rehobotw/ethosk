@@ -42,6 +42,15 @@ const SurveyListPage = lazy(() =>
 const SurveyBuilderPage = lazy(() =>
   import("./pages/researcher/SurveyBuilderPage").then((m) => ({ default: m.SurveyBuilderPage })),
 );
+const SurveyNewLandingPage = lazy(() =>
+  import("./pages/researcher/SurveyNewLandingPage").then((m) => ({ default: m.SurveyNewLandingPage })),
+);
+const SurveyImportPage = lazy(() =>
+  import("./pages/researcher/SurveyImportPage").then((m) => ({ default: m.SurveyImportPage })),
+);
+const SurveyAiPage = lazy(() =>
+  import("./pages/researcher/SurveyAiPage").then((m) => ({ default: m.SurveyAiPage })),
+);
 const SurveyAnalyticsPage = lazy(() =>
   import("./pages/researcher/SurveyAnalyticsPage").then((m) => ({
     default: m.SurveyAnalyticsPage,
@@ -133,6 +142,7 @@ export default function App() {
         <Route element={<HistoryPage />} path="/history" />
         <Route element={<WalletPage />} path="/wallet" />
         <Route element={<ProfilePage />} path="/profile" />
+        <Route element={<ProfilePage />} path="/respondent/profile" />
         <Route element={<VerificationPage />} path="/verify" />
         <Route element={<DocumentsPage />} path="/documents" />
       </Route>
@@ -174,7 +184,10 @@ export default function App() {
       >
         <Route element={<DashboardPage />} path="/researcher" />
         <Route element={<SurveyListPage />} path="/researcher/surveys" />
-        <Route element={<SurveyBuilderPage />} path="/researcher/surveys/new" />
+        <Route element={<SurveyNewLandingPage />} path="/researcher/surveys/new" />
+        <Route element={<SurveyBuilderPage />} path="/researcher/surveys/new/manual" />
+        <Route element={<SurveyImportPage />} path="/researcher/surveys/new/import" />
+        <Route element={<SurveyAiPage />} path="/researcher/surveys/new/ai" />
         <Route element={<SurveyBuilderPage />} path="/researcher/surveys/:id/edit" />
         <Route element={<SurveyAnalyticsPage />} path="/researcher/analytics" />
         <Route element={<SurveyAnalyticsPage />} path="/researcher/surveys/:id/dashboard" />
