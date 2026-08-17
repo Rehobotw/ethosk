@@ -27,8 +27,8 @@ const CREATION_CARDS = [
   {
     icon: "upload_file",
     title: "Import Survey",
-    description: "Upload an existing survey from a file (CSV, DOCX, or PDF).",
-    to: "/researcher/surveys/new/import",
+    description: "Upload an existing survey document (.docx, .pdf, .txt).",
+    to: "/survey-builder/import",
     color: "#2e7d32",
     bgGradient: "from-[#e8f5e9] to-[#f1f8e9]",
   },

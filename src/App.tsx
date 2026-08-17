@@ -187,6 +187,7 @@ export default function App() {
         <Route element={<SurveyNewLandingPage />} path="/researcher/surveys/new" />
         <Route element={<SurveyBuilderPage />} path="/researcher/surveys/new/manual" />
         <Route element={<SurveyImportPage />} path="/researcher/surveys/new/import" />
+        <Route element={<SurveyImportPage />} path="/survey-builder/import" />
         <Route element={<SurveyAiPage />} path="/researcher/surveys/new/ai" />
         <Route element={<SurveyBuilderPage />} path="/researcher/surveys/:id/edit" />
         <Route element={<SurveyAnalyticsPage />} path="/researcher/analytics" />
