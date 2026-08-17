@@ -144,6 +144,7 @@ export default function App() {
         <Route element={<ProfilePage />} path="/profile" />
         <Route element={<ProfilePage />} path="/respondent/profile" />
         <Route element={<VerificationPage />} path="/verify" />
+        <Route element={<VerificationPage />} path="/respondent/profile/verification" />
         <Route element={<DocumentsPage />} path="/documents" />
       </Route>
 

@@ -811,6 +811,59 @@ authRouter.get(
   }),
 );
 
+authRouter.post(
+  "/update-email",
+  requireAuth(),
+  rateLimit({ key: "update-email", max: 5, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const { email } = req.body as { email?: string };
+    if (!email || typeof email !== "string" || !email.includes("@")) {
+      throw new ApiError(400, "INVALID_EMAIL", "A valid email address is required.");
+    }
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check if email taken by another account
+    const { data: existing } = await admin.from("users").select("id").eq("email", cleanEmail).maybeSingle();
+    if (existing && existing.id !== context.userId) {
+      throw new ApiError(409, "EMAIL_ALREADY_IN_USE", "That email address is already in use.");
+    }
+
+    // Update in users table
+    await admin.from("users").update({ email: cleanEmail }).eq("id", context.userId);
+    try {
+      if (typeof admin.auth?.admin?.updateUserById === "function") {
+        await admin.auth.admin.updateUserById(context.userId, { email: cleanEmail });
+      }
+    } catch {
+      /* ignore */
+    }
+
+    res.json({ success: true, email: cleanEmail });
+  }),
+);
+
+authRouter.post(
+  "/update-password",
+  requireAuth(),
+  rateLimit({ key: "update-password", max: 5, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const { new_password } = req.body as { new_password?: string };
+    if (!new_password || new_password.length < 8) {
+      throw new ApiError(400, "INVALID_PASSWORD", "New password must be at least 8 characters.");
+    }
+    try {
+      if (typeof admin.auth?.admin?.updateUserById === "function") {
+        await admin.auth.admin.updateUserById(context.userId, { password: new_password });
+      }
+    } catch (e: any) {
+      throw new ApiError(500, "PASSWORD_UPDATE_FAILED", e.message || "Failed to update password.");
+    }
+    res.json({ success: true, message: "Password updated successfully." });
+  }),
+);
+
 /**
  * Endpoint for requesting account erasure / deletion under Proclamation 1321/2024 §17.7.
  */
