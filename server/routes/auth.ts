@@ -740,7 +740,7 @@ authRouter.post(
       });
     }
 
-    // If login requested a specific role, ensure target role profile is provisioned and set role
+    // If login requested a specific role, ensure the user legitimately owns that role profile
     if (input.role && input.role !== row.role) {
       const profileTable =
         input.role === "respondent"
@@ -750,8 +750,21 @@ authRouter.post(
             : null;
 
       if (profileTable) {
-        await admin.from(profileTable).upsert({ user_id: row.id }, { onConflict: "user_id" });
-        row.role = input.role;
+        const { data: existingProfile } = await admin
+          .from(profileTable)
+          .select("user_id")
+          .eq("user_id", row.id)
+          .maybeSingle();
+
+        if (existingProfile) {
+          row.role = input.role;
+        } else {
+          throw new ApiError(
+            403,
+            "ROLE_NOT_PROVISIONED",
+            `This account is not registered as a ${input.role}. Please sign up as a ${input.role} first to enable access.`,
+          );
+        }
       } else {
         throw new ApiError(
           403,
