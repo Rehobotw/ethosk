@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import type { SurveyRecord } from "@shared/types";
@@ -9,6 +10,7 @@ import {
   SectionHeading,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 interface SurveyWithStats extends SurveyRecord {
   response_count: number;
@@ -43,6 +45,15 @@ const CREATION_CARDS = [
 ] as const;
 
 export function SurveyNewLandingPage() {
+  const { user } = useAuth();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  const isSubscribed = Boolean(
+    (user?.subscription_tier as string) === "subscribed" ||
+    (user?.subscription_tier as string) === "pro" ||
+    user?.role === "admin"
+  );
+
   const { data, isLoading } = useQuery({
     queryKey: ["surveys"],
     queryFn: () => api<{ surveys: SurveyWithStats[] }>("/surveys"),
@@ -62,12 +73,11 @@ export function SurveyNewLandingPage() {
 
       {/* ── 3 Creation Method Cards ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {CREATION_CARDS.map((card) => (
-          <Link
-            key={card.to}
-            to={card.to}
-            className="group block"
-          >
+        {CREATION_CARDS.map((card) => {
+          const isAiCard = card.to === "/survey-builder/ai";
+          const requiresUpgrade = isAiCard && !isSubscribed;
+
+          const cardContent = (
             <Card className={`p-6 bg-gradient-to-br ${card.bgGradient} border-transparent hover:shadow-lg hover:scale-[1.02] transition-all duration-200 h-full`}>
               <div className="flex flex-col items-center text-center gap-4">
                 {/* Icon Circle */}
@@ -85,12 +95,19 @@ export function SurveyNewLandingPage() {
 
                 {/* Title & Description */}
                 <div>
-                  <h3
-                    className="text-lg font-bold mb-1.5"
-                    style={{ color: card.color }}
-                  >
-                    {card.title}
-                  </h3>
+                  <div className="flex items-center justify-center gap-1.5 mb-1.5">
+                    <h3
+                      className="text-lg font-bold"
+                      style={{ color: card.color }}
+                    >
+                      {card.title}
+                    </h3>
+                    {isAiCard && !isSubscribed && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#6a1b9a]/15 text-[#6a1b9a]">
+                        PRO
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-on-surface-variant leading-relaxed">
                     {card.description}
                   </p>
@@ -101,14 +118,84 @@ export function SurveyNewLandingPage() {
                   className="mt-auto flex items-center gap-1 text-xs font-semibold opacity-60 group-hover:opacity-100 transition-opacity"
                   style={{ color: card.color }}
                 >
-                  <span>Get Started</span>
-                  <Icon className="text-[14px]" name="arrow_forward" />
+                  <span>{requiresUpgrade ? "Upgrade to Unlock" : "Get Started"}</span>
+                  <Icon className="text-[14px]" name={requiresUpgrade ? "lock" : "arrow_forward"} />
                 </div>
               </div>
             </Card>
-          </Link>
-        ))}
+          );
+
+          if (requiresUpgrade) {
+            return (
+              <button
+                key={card.to}
+                type="button"
+                onClick={() => setShowUpgradeModal(true)}
+                className="group block text-left w-full cursor-pointer"
+              >
+                {cardContent}
+              </button>
+            );
+          }
+
+          return (
+            <Link
+              key={card.to}
+              to={card.to}
+              className="group block"
+            >
+              {cardContent}
+            </Link>
+          );
+        })}
       </div>
+
+      {/* ── Free Tier Upgrade Modal ── */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl border border-outline-variant/30 space-y-5 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-[#6a1b9a]/10 text-[#6a1b9a] flex items-center justify-center mx-auto">
+              <span
+                className="material-symbols-outlined text-[32px]"
+                style={{ fontVariationSettings: "'FILL' 1" }}
+              >
+                auto_awesome
+              </span>
+            </div>
+
+            <div>
+              <span className="px-2.5 py-0.5 rounded-full bg-[#6a1b9a]/10 text-[#6a1b9a] text-[11px] font-bold uppercase tracking-wider">
+                Pro Feature
+              </span>
+              <h3 className="text-xl font-bold text-[#0D253A] mt-2 mb-1.5 font-headline-lg">
+                Unlock AI Survey Generator
+              </h3>
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                Generate tailored, high-rigor survey questions in seconds from your research goal. Available on Pro researcher plans.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2.5">
+              <Link to="/researcher/subscription" className="w-full">
+                <button
+                  type="button"
+                  className="w-full py-2.5 bg-[#6a1b9a] hover:bg-[#4a148c] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Icon className="text-[16px]" name="lock_open" />
+                  Upgrade Subscription
+                </button>
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowUpgradeModal(false)}
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-on-surface-variant rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Maybe Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Recent Drafts Section ── */}
       <div className="mt-2">

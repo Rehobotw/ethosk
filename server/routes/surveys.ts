@@ -55,6 +55,41 @@ surveysRouter.post(
   }),
 );
 
+surveysRouter.post(
+  "/ai-generate",
+  requireAuth("researcher"),
+  rateLimit({ key: "ai-generate", max: 15, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+
+    if (context.subscriptionTier !== "subscribed" && context.role !== "admin") {
+      throw new ApiError(403, "SUBSCRIPTION_REQUIRED", "AI Survey Generator requires a Pro subscription.");
+    }
+
+    const { topic, description, targetQuestionCount } = (req.body || {}) as {
+      topic?: string;
+      description?: string;
+      targetQuestionCount?: number;
+    };
+
+    if (!topic || typeof topic !== "string" || !topic.trim()) {
+      throw new ApiError(400, "TOPIC_REQUIRED", "A research topic or goal is required.");
+    }
+
+    const draft = await generateSurveyDraft({
+      topic: topic.trim(),
+      description: description ? description.trim() : undefined,
+      targetQuestionCount: targetQuestionCount ? Number(targetQuestionCount) : 5,
+    });
+
+    if (!draft) {
+      throw new ApiError(500, "GENERATION_FAILED", "Failed to generate survey draft.");
+    }
+
+    res.json(draft);
+  }),
+);
+
 // ---------------------------------------------------------------------------
 // Survey CRUD
 // ---------------------------------------------------------------------------
