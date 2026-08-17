@@ -12,78 +12,77 @@ function renderAvatar(props: React.ComponentProps<typeof RespondentAvatar>) {
 }
 
 describe("RespondentAvatar (§3.1 Component Spec)", () => {
-  it("Tier 0: Registered — no badge shown, 'Registered' label", () => {
+  it("Variant P0 (Tier 0): subtitle shows 'Tier 0' and no badge", () => {
     renderAvatar({
       fullName: "Abebe Kebede",
       verificationTier: "0_registered",
     });
 
     expect(screen.getByText("Abebe Kebede")).toBeDefined();
-    expect(screen.getByText("Registered")).toBeDefined();
+    expect(screen.getByText("Tier 0")).toBeDefined();
     expect(screen.queryByTestId("tier-inline-badge")).toBeNull();
     const link = screen.getByTestId("respondent-avatar-container");
-    expect(link.getAttribute("href")).toBe("/profile");
+    expect(link.getAttribute("href")).toBe("/respondent/profile");
   });
 
-  it("Tier 1: ID Verified — yellow 'Tier 1' badge", () => {
+  it("Variant P1 (Tier 1): yellow badge + white checkmark renders inline before 'Tier 1'", () => {
     renderAvatar({
       fullName: "Sara Hailu",
       verificationTier: "1_id_verified",
     });
 
     expect(screen.getByText("Sara Hailu")).toBeDefined();
-    expect(screen.getByText("ID Verified")).toBeDefined();
+    expect(screen.getByText("Tier 1")).toBeDefined();
     const badge = screen.getByTestId("tier-inline-badge");
     expect(badge).toBeDefined();
-    expect(badge.textContent).toBe("Tier 1");
+    expect(badge.className).toContain("bg-[#f59e0b]"); // Yellow background
   });
 
-  it("Tier 2: Attribute Verified — blue 'Tier 2' badge", () => {
+  it("Variant P2 (Tier 2): blue badge + white checkmark renders inline before 'Tier 2'", () => {
     renderAvatar({
       fullName: "Dawit Mengistu",
       verificationTier: "2_attribute_verified",
     });
 
     expect(screen.getByText("Dawit Mengistu")).toBeDefined();
-    expect(screen.getByText("Attribute Verified")).toBeDefined();
+    expect(screen.getByText("Tier 2")).toBeDefined();
     const badge = screen.getByTestId("tier-inline-badge");
     expect(badge).toBeDefined();
-    expect(badge.textContent).toBe("Tier 2");
+    expect(badge.className).toContain("bg-[#0066cc]"); // Blue background
   });
 
-  it("Tier 3: Institution Attested — shows blue 'Tier 2' badge (highest inline badge)", () => {
+  it("Higher Tier 3 inherits blue badge and 'Tier 2' linear max indicator", () => {
     renderAvatar({
       fullName: "Tigist Bekele",
       verificationTier: "3_institution_attested",
     });
 
     expect(screen.getByText("Tigist Bekele")).toBeDefined();
+    expect(screen.getByText("Tier 2")).toBeDefined();
     const badge = screen.getByTestId("tier-inline-badge");
     expect(badge).toBeDefined();
-    expect(badge.textContent).toBe("Tier 2");
+    expect(badge.className).toContain("bg-[#0066cc]");
   });
 
-  it("Compact mode hides text block", () => {
+  it("Compact mode hides text block for mobile header", () => {
     renderAvatar({
       fullName: "Compact User",
       verificationTier: "1_id_verified",
       compact: true,
     });
 
-    // Name text should not be visible in compact mode
     expect(screen.queryByText("Compact User")).toBeNull();
-    // Avatar link should still exist
     expect(screen.getByTestId("respondent-avatar-container")).toBeDefined();
   });
 
-  it("Links to /profile and contains no expand/dropdown triggers", () => {
+  it("Links to /respondent/profile and contains no hover cards, dropdowns, or corner badges", () => {
     const { container } = renderAvatar({
       fullName: "Test User",
       verificationTier: "1_id_verified",
     });
 
     const link = screen.getByRole("link");
-    expect(link.getAttribute("href")).toBe("/profile");
+    expect(link.getAttribute("href")).toBe("/respondent/profile");
     expect(container.querySelector("[role='menu']")).toBeNull();
     expect(container.querySelector("[aria-expanded]")).toBeNull();
   });

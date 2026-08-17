@@ -13,28 +13,29 @@ interface RespondentAvatarProps {
 }
 
 /**
- * Spec ref: §3.1 Respondent Avatar component (v3)
+ * Spec ref: §3.1 Respondent Avatar Component (v3)
  *
  * Anatomy:
- * - Avatar: 36×36 px circular image / initials
- * - Text block (two lines):
+ * - Avatar: 36×36 px circular image — no corner badge at any tier
+ * - Text block (right-aligned, two lines):
  *     Top line: Full name — bold
- *     Bottom line: Verification tier label
- * - Inline badge (next to text, NOT corner badge — different from researcher):
- *     Yellow "Tier 1" when `verification_tier === "1_id_verified"`
- *     Blue "Tier 2" when `verification_tier >= "2_attribute_verified"`
- *     No badge when `verification_tier === "0_registered"`
+ *     Bottom line: Optional inline badge (yellow / blue checkmark) + tier label ("Tier 0" / "Tier 1" / "Tier 2")
+ *
+ * Badge color logic (inline, in subtitle line):
+ * - P0 (Tier 0): No badge, Subtitle text: "Tier 0"
+ * - P1 (Tier 1): Yellow badge with white checkmark inline before "Tier 1"
+ * - P2 (Tier 2): Blue badge with white checkmark inline before "Tier 2"
  *
  * Interaction:
- * - Click: navigates to /respondent/profile
- * - Hover: subtle background tint only — no dropdown, no popover
+ * - Click: entire container navigates to /respondent/profile
+ * - Hover: subtle background tint only — no dropdown, no popover, no content change
  */
 export function RespondentAvatar({
   fullName,
   avatarUrl,
   verificationTier: propTier,
   compact = false,
-  customNavigateTo = "/profile",
+  customNavigateTo = "/respondent/profile",
 }: RespondentAvatarProps = {}) {
   let user: any = null;
   try {
@@ -59,36 +60,26 @@ export function RespondentAvatar({
   const tier = propTier || user?.verification_tier || "0_registered";
   const tierRank = TIER_RANK[tier as keyof typeof TIER_RANK] ?? 0;
 
-  // Badge config based on tier
-  let badge: { label: string; color: string; bg: string } | null = null;
-  if (tierRank >= 2) {
-    badge = {
-      label: isAm ? "ደረጃ 2" : "Tier 2",
-      color: "#1565c0",
-      bg: "#e3f2fd",
-    };
-  } else if (tierRank >= 1) {
-    badge = {
-      label: isAm ? "ደረጃ 1" : "Tier 1",
-      color: "#f57f17",
-      bg: "#fff8e1",
-    };
-  }
+  // Tier badge color & label per §3.1
+  let badgeColor: string | null = null;
+  let tierLabel = isAm ? "ደረጃ 0" : "Tier 0";
 
-  const tierLabel = tierRank >= 2
-    ? (isAm ? "ባህሪ የተረጋገጠ" : "Attribute Verified")
-    : tierRank >= 1
-      ? (isAm ? "መታወቂያ የተረጋገጠ" : "ID Verified")
-      : (isAm ? "መሰረታዊ" : "Registered");
+  if (tierRank >= 2) {
+    badgeColor = "bg-[#0066cc]"; // Blue for Tier 2
+    tierLabel = isAm ? "ደረጃ 2" : "Tier 2";
+  } else if (tierRank >= 1) {
+    badgeColor = "bg-[#f59e0b]"; // Yellow for Tier 1
+    tierLabel = isAm ? "ደረጃ 1" : "Tier 1";
+  }
 
   return (
     <Link
       to={customNavigateTo}
-      className="group flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-[#e5e8eb] transition-colors cursor-pointer text-left select-none"
+      className="group flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-slate-100/80 transition-colors cursor-pointer text-left select-none"
       title={`${name} · ${tierLabel}`}
       data-testid="respondent-avatar-container"
     >
-      {/* Avatar: 36×36 px circular */}
+      {/* Avatar: 36×36 px circular — clean edge, NO corner badge */}
       <div className="relative w-9 h-9 shrink-0">
         {avatarUrl ? (
           <img
@@ -103,27 +94,32 @@ export function RespondentAvatar({
         )}
       </div>
 
-      {/* Text block + inline badge (hidden in compact mode) */}
+      {/* Text block (two lines, hidden in compact mode) */}
       {!compact && (
         <div className="flex flex-col min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-bold text-[#181c1e] truncate max-w-[120px]">
-              {name}
-            </span>
-            {/* Inline tier badge */}
-            {badge && (
+          {/* Top line: Full name — bold */}
+          <span className="text-xs font-bold text-[#181c1e] truncate max-w-[130px] leading-tight">
+            {name}
+          </span>
+
+          {/* Bottom line: inline badge + tier label (never line-wrapped) */}
+          <div className="flex items-center gap-1 text-[11px] text-[#5A6E7F] font-semibold whitespace-nowrap leading-tight mt-0.5">
+            {badgeColor && (
               <span
-                className="shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold leading-none"
-                style={{ backgroundColor: badge.bg, color: badge.color }}
+                className={`inline-flex items-center justify-center w-3 h-3 rounded-full ${badgeColor} text-white shrink-0`}
                 data-testid="tier-inline-badge"
               >
-                {badge.label}
+                <svg
+                  className="w-2 h-2 fill-current"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                </svg>
               </span>
             )}
+            <span>{tierLabel}</span>
           </div>
-          <span className="text-[10px] text-[#41474f] leading-tight">
-            {tierLabel}
-          </span>
         </div>
       )}
     </Link>
