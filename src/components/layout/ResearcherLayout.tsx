@@ -6,7 +6,7 @@ import { useLanguage } from "@/lib/language";
 import { ThemeToggle } from "@/lib/theme";
 import { Icon } from "../ui";
 import { LanguageToggle } from "../ui/LanguageToggle";
-import { ProfileDropdown } from "./ProfileDropdown";
+import { ResearcherAvatar } from "./ResearcherAvatar";
 import { isNavActive } from "./researcherNav";
 
 export function ResearcherLayout() {
@@ -148,7 +148,7 @@ export function ResearcherLayout() {
               >
                 <span className="material-symbols-outlined text-[22px]">notifications</span>
               </button>
-              <ProfileDropdown />
+              <ResearcherAvatar />
             </div>
           </header>
         ) : null}

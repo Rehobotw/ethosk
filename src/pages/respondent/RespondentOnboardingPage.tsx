@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useLanguage } from "@/lib/language";
@@ -19,14 +18,8 @@ export function RespondentOnboardingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Check existing verification status
-  const { data: profile } = useQuery({
-    queryKey: ["respondent-profile"],
-    queryFn: () => api<any>("/respondents/profile"),
-  });
-
   useEffect(() => {
-    if (user?.verification_tier && user.verification_tier !== "unverified") {
+    if (user?.verification_tier && user.verification_tier !== "0_registered") {
       setStep(4);
     }
   }, [user]);

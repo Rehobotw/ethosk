@@ -183,6 +183,7 @@ export default function App() {
         <Route element={<SubscriptionPage />} path="/researcher/subscription" />
         <Route element={<ResearcherProfilePage />} path="/researcher/profile" />
         <Route element={<SettingsPage />} path="/researcher/settings" />
+        <Route element={<SettingsPage />} path="/profile/settings" />
       </Route>
 
       {/* Admin */}
