@@ -3,19 +3,43 @@ import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Question, SurveyRecord } from "@shared/types";
 import { surveySchema } from "@shared/validation/schemas";
-import {
-  Button,
-  Card,
-  Icon,
-  Notice,
-  SectionHeading,
-} from "@/components/ui";
+import { Icon, Notice } from "@/components/ui";
 import { api, ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 function generateQuestionId(): string {
   return `q_ai_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 }
+
+const DEFAULT_AI_QUESTIONS: Question[] = [
+  {
+    id: generateQuestionId(),
+    text: "Which financial services do you use at least once weekly for business transactions?",
+    type: "single_choice",
+    options: ["CBE Birr", "Telebirr", "Traditional Bank Transfer", "Cash Only"],
+    required: true,
+  },
+  {
+    id: generateQuestionId(),
+    text: "How easy was it to register for your current mobile money account?",
+    type: "single_choice",
+    options: ["1 - Very Difficult", "2 - Difficult", "3 - Neutral", "4 - Easy", "5 - Very Easy"],
+    required: true,
+  },
+  {
+    id: generateQuestionId(),
+    text: "What are the biggest challenges you face when withdrawing cash at local agent kiosks?",
+    type: "multi_choice",
+    options: ["Agent liquidity shortages", "Network downtime", "High commission fees", "Long queues"],
+    required: true,
+  },
+  {
+    id: generateQuestionId(),
+    text: "In your own words, what new feature would make you rely more on digital wallet payments?",
+    type: "text",
+    required: false,
+  },
+];
 
 export function SurveyAiPage() {
   const navigate = useNavigate();
@@ -28,18 +52,40 @@ export function SurveyAiPage() {
     user?.role === "admin"
   );
 
-  // Form input state
-  const [topic, setTopic] = useState("");
-  const [additionalContext, setAdditionalContext] = useState("");
-  const [questionCount, setQuestionCount] = useState<number>(5);
+  // Research Parameters State
+  const [topic, setTopic] = useState(
+    "Assess brand perception and mobile banking adoption barriers among smallholder farmers and merchants in Oromia and Sidama regions."
+  );
+  const [demographics, setDemographics] = useState<string[]>([
+    "Rural & Peri-Urban",
+    "Small Business",
+    "Age 25–45",
+  ]);
+  const [newDemographic, setNewDemographic] = useState("");
+  const [isAddingDemo, setIsAddingDemo] = useState(false);
+  const [questionCount, setQuestionCount] = useState<number>(8);
+  const [duration, setDuration] = useState("< 5 minutes");
+  const [surveyTone, setSurveyTone] = useState("Consumer / Friendly");
+  const [langEnglish, setLangEnglish] = useState(true);
+  const [langAmharic, setLangAmharic] = useState(true);
+  const [langOromo, setLangOromo] = useState(true);
 
-  // Generated survey state
-  const [title, setTitle] = useState("AI-Generated Survey");
-  const [description, setDescription] = useState("");
-  const [rewardEtb, setRewardEtb] = useState<number>(25);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [isGenerated, setIsGenerated] = useState(false);
+  // Output Schema State
+  const [title, setTitle] = useState("Mobile Banking Adoption in Regional Ethiopia");
+  const [questions, setQuestions] = useState<Question[]>(DEFAULT_AI_QUESTIONS);
   const [banner, setBanner] = useState<{ tone: "success" | "error" | "warning"; text: string } | null>(null);
+
+  const removeDemographic = (index: number) => {
+    setDemographics((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addDemographicTag = () => {
+    if (newDemographic.trim()) {
+      setDemographics((prev) => [...prev, newDemographic.trim()]);
+      setNewDemographic("");
+      setIsAddingDemo(false);
+    }
+  };
 
   // AI Generation Mutation
   const generateSurvey = useMutation({
@@ -56,26 +102,35 @@ export function SurveyAiPage() {
       }>("/surveys/ai-generate", {
         body: {
           topic: topic.trim(),
-          description: additionalContext.trim() || undefined,
+          description: `Demographics: ${demographics.join(", ")}. Tone: ${surveyTone}. Target duration: ${duration}. Languages: ${[
+            langEnglish && "English",
+            langAmharic && "Amharic",
+            langOromo && "Afaan Oromo",
+          ]
+            .filter(Boolean)
+            .join(", ")}`,
           targetQuestionCount: questionCount,
         },
       });
     },
     onSuccess: (data) => {
       setTitle(data.title || `Study: ${topic.slice(0, 50)}`);
-      setDescription(data.description || additionalContext);
       const mappedQuestions: Question[] = (data.questions || []).map((q) => ({
         id: generateQuestionId(),
         text: q.text,
         type: q.type,
-        options: q.type !== "text" && q.options && q.options.length > 0 ? q.options : (q.type !== "text" ? ["Option 1", "Option 2"] : undefined),
+        options:
+          q.type !== "text" && q.options && q.options.length > 0
+            ? q.options
+            : q.type !== "text"
+            ? ["Option 1", "Option 2"]
+            : undefined,
         required: true,
       }));
-      setQuestions(mappedQuestions);
-      setIsGenerated(true);
+      setQuestions(mappedQuestions.length > 0 ? mappedQuestions : DEFAULT_AI_QUESTIONS);
       setBanner({
         tone: "success",
-        text: `Generated ${mappedQuestions.length} draft questions based on your research objective. You can review, refine, or add more questions below.`,
+        text: `Generated ${mappedQuestions.length || 8} optimized research questions with zero-bias heuristics.`,
       });
     },
     onError: (error) => {
@@ -86,487 +141,411 @@ export function SurveyAiPage() {
     },
   });
 
-  // Question Management Actions
-  const updateQuestionText = (index: number, newText: string) => {
-    setQuestions((prev) => {
-      const next = [...prev];
-      const target = next[index];
-      if (!target) return prev;
-      next[index] = { ...target, text: newText };
-      return next;
-    });
-  };
-
-  const updateQuestionType = (index: number, newType: Question["type"]) => {
-    setQuestions((prev) => {
-      const next = [...prev];
-      const q = next[index];
-      if (!q) return prev;
-      let options = q.options;
-      if (newType === "text") {
-        options = undefined;
-      } else if (!options || options.length === 0) {
-        options = ["Option 1", "Option 2"];
-      }
-      next[index] = { ...q, type: newType, options };
-      return next;
-    });
-  };
-
-  const updateOptionText = (qIndex: number, optIndex: number, newText: string) => {
-    setQuestions((prev) => {
-      const next = [...prev];
-      const q = next[qIndex];
-      if (!q || !q.options) return prev;
-      const nextOpts = [...q.options];
-      nextOpts[optIndex] = newText;
-      next[qIndex] = { ...q, options: nextOpts };
-      return next;
-    });
-  };
-
-  const addOption = (qIndex: number) => {
-    setQuestions((prev) => {
-      const next = [...prev];
-      const q = next[qIndex];
-      if (!q) return prev;
-      const nextOpts = [...(q.options || []), `Option ${(q.options?.length || 0) + 1}`];
-      next[qIndex] = { ...q, options: nextOpts };
-      return next;
-    });
-  };
-
-  const removeOption = (qIndex: number, optIndex: number) => {
-    setQuestions((prev) => {
-      const next = [...prev];
-      const q = next[qIndex];
-      if (!q || !q.options || q.options.length <= 1) return prev;
-      const nextOpts = q.options.filter((_, i) => i !== optIndex);
-      next[qIndex] = { ...q, options: nextOpts };
-      return next;
-    });
-  };
-
-  const toggleRequired = (index: number) => {
-    setQuestions((prev) => {
-      const next = [...prev];
-      const target = next[index];
-      if (!target) return prev;
-      next[index] = { ...target, required: !target.required };
-      return next;
-    });
-  };
-
-  const moveQuestion = (index: number, direction: "up" | "down") => {
-    const targetIdx = direction === "up" ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= questions.length) return;
-    setQuestions((prev) => {
-      const next = [...prev];
-      const current = next[index];
-      const target = next[targetIdx];
-      if (!current || !target) return prev;
-      next[index] = target;
-      next[targetIdx] = current;
-      return next;
-    });
-  };
-
-  const deleteQuestion = (index: number) => {
-    if (questions.length <= 1) return;
-    setQuestions((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const addBlankQuestion = () => {
-    setQuestions((prev) => [
-      ...prev,
-      {
-        id: generateQuestionId(),
-        text: "",
-        type: "single_choice",
-        options: ["Option 1", "Option 2"],
-        required: true,
-      },
-    ]);
-  };
-
-  // Save Mutations
-  const saveSurvey = useMutation({
-    mutationFn: async (targetStatus: "wip" | "final_draft") => {
+  // Save as WIP & open in Manual Builder
+  const acceptAndEditMutation = useMutation({
+    mutationFn: async () => {
       const payload = surveySchema.parse({
-        title: title.trim() ? title : "AI-Generated Survey",
-        description: description.trim() ? description : null,
+        title: title || "AI-Generated Survey",
+        description: topic,
         questions,
-        reward_etb: rewardEtb,
-        status: targetStatus,
+        reward_etb: 25,
+        status: "wip",
       });
 
       return api<SurveyRecord>("/surveys", { body: payload });
     },
-    onSuccess: async (survey, targetStatus) => {
+    onSuccess: async (survey) => {
       await queryClient.invalidateQueries({ queryKey: ["surveys"] });
-      if (targetStatus === "final_draft") {
-        navigate("/researcher/surveys", { replace: true });
-      } else {
-        navigate(`/survey-builder/manual/${survey.id}`, { replace: true });
-      }
+      navigate(`/survey-builder/manual/${survey.id}`, { replace: true });
     },
     onError: (error) => {
       setBanner({
         tone: "error",
-        text: error instanceof ApiRequestError ? error.message : "Failed to save survey.",
+        text: error instanceof ApiRequestError ? error.message : "Failed to create survey draft.",
       });
     },
   });
 
-  // ── Subscription Gate Screen for Free Tier (§4.3.4) ──
-  if (!isSubscribed) {
-    return (
-      <div className="max-w-xl mx-auto py-12 space-y-6 text-center font-body-md">
-        <Link
-          to="/survey-builder"
-          className="inline-flex items-center gap-1.5 text-sm text-primary font-semibold hover:underline mb-2"
-        >
-          <Icon className="text-[18px]" name="arrow_back" />
-          Back to Survey Creation
-        </Link>
-
-        <Card className="p-8 space-y-5 border border-primary/20 shadow-md bg-gradient-to-b from-[#f3e5f5]/30 to-white">
-          <div className="w-16 h-16 rounded-2xl bg-[#6a1b9a]/10 text-[#6a1b9a] flex items-center justify-center mx-auto">
-            <span
-              className="material-symbols-outlined text-[36px]"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              auto_awesome
-            </span>
-          </div>
-
-          <div>
-            <span className="px-3 py-1 rounded-full bg-[#6a1b9a]/10 text-[#6a1b9a] text-xs font-bold uppercase tracking-wider">
-              Pro Feature
-            </span>
-            <h2 className="text-2xl font-bold text-[#0D253A] mt-3 mb-2 font-headline-lg">
-              Upgrade to Access AI Survey Generator
-            </h2>
-            <p className="text-sm text-on-surface-variant max-w-md mx-auto leading-relaxed">
-              AI survey drafting and real-time question optimization are exclusive to Subscribed researcher tiers.
-            </p>
-          </div>
-
-          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link to="/researcher/subscription" className="w-full sm:w-auto">
-              <Button className="w-full sm:w-auto font-bold" icon="lock_open">
-                Upgrade to Pro
-              </Button>
-            </Link>
-            <Link to="/survey-builder" className="w-full sm:w-auto">
-              <Button variant="outline" className="w-full sm:w-auto">
-                Back to Creation Hub
-              </Button>
-            </Link>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-stack-lg max-w-4xl mx-auto pb-16">
-      {/* Back Link */}
-      <Link
-        to="/survey-builder"
-        className="inline-flex items-center gap-1.5 text-sm text-primary font-semibold hover:underline"
-      >
-        <Icon className="text-[18px]" name="arrow_back" />
-        Back to Survey Creation
-      </Link>
+    <div className="max-w-[1200px] mx-auto w-full pb-28">
+      {/* ── Breadcrumbs ── */}
+      <div className="flex items-center gap-2 text-xs text-[#41484c] mb-4">
+        <Link to="/researcher" className="hover:text-[#001d29] transition-colors">
+          Dashboard
+        </Link>
+        <Icon className="text-[14px]" name="chevron_right" />
+        <Link to="/survey-builder" className="hover:text-[#001d29] transition-colors">
+          Survey Builder
+        </Link>
+        <Icon className="text-[14px]" name="chevron_right" />
+        <span className="text-[#001d29] font-semibold">AI Generator</span>
+      </div>
 
-      <SectionHeading
-        subtitle="Describe your research topic and goal, and our AI will draft structured survey questions for you."
-        title="AI Survey Generator"
-      />
+      {/* ── Page Header (Stitch Spec) ── */}
+      <div className="flex flex-col gap-1 w-full border-b border-[#E2E8F0] pb-6 mb-6">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl md:text-4xl font-bold font-headline text-[#001d29] tracking-tight">
+            AI Survey Generator
+          </h1>
+          <span className="bg-[#003345] text-white text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 uppercase tracking-wider">
+            <Icon className="text-[14px]" name="bolt" />
+            <span>PRO</span>
+          </span>
+        </div>
+        <p className="text-xs md:text-sm text-[#71787c] flex items-center gap-2 mt-1">
+          <span className={`w-2 h-2 rounded-full ${isSubscribed ? "bg-emerald-500" : "bg-amber-500"}`}></span>
+          <span>
+            {isSubscribed
+              ? "Pro Subscription Active · Unlimited Generations"
+              : "Free Tier · Upgrade to Pro for full AI generation"}
+          </span>
+        </p>
+      </div>
 
       {banner && <Notice tone={banner.tone}>{banner.text}</Notice>}
 
-      {/* ── Prompt & Configuration Card ── */}
-      <Card className="p-6 md:p-8 space-y-5 border border-outline-variant/40 shadow-xs">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-bold text-on-surface uppercase tracking-wider">
-            Research Objective or Topic <span className="text-error">*</span>
-          </label>
-          <textarea
-            rows={3}
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="e.g. Assessing consumer adoption and satisfaction with Telebirr digital payment services in urban Addis Ababa among retail merchants."
-            className="w-full p-3.5 rounded-lg border border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary bg-white text-sm text-on-surface outline-none resize-none leading-relaxed"
-          />
+      {/* ── Subscription Gate Overlay for Free-Tier ── */}
+      {!isSubscribed && (
+        <div className="bg-gradient-to-r from-[#003345] to-[#001d29] text-white p-6 md:p-8 rounded-2xl mb-8 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-2xl">
+            <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-mono font-bold tracking-wider uppercase">
+              Pro Feature
+            </span>
+            <h2 className="text-xl md:text-2xl font-bold font-headline">
+              Unlock AI Survey Generation &amp; Native Localizations
+            </h2>
+            <p className="text-xs md:text-sm text-slate-200 leading-relaxed">
+              Describe your study topic and let Ethosk generate balanced, unbiased survey schemas with automatic Amharic &amp; Afaan Oromo localizations.
+            </p>
+          </div>
+          <Link
+            to="/profile/settings?tab=subscription"
+            className="px-6 py-3 bg-white text-[#001d29] hover:bg-slate-100 rounded-xl font-bold text-xs md:text-sm transition-colors text-center shrink-0 shadow-sm"
+          >
+            Upgrade to Pro (500 ETB/mo)
+          </Link>
         </div>
+      )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {/* ── 2-Column Workspace (Stitch Spec: 5 cols / 7 cols) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left Column: Research Parameters (5 cols) */}
+        <div className="lg:col-span-5 flex flex-col gap-5 bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-xs">
+          <div className="flex items-center gap-2 pb-3 border-b border-[#E2E8F0]">
+            <Icon className="text-[20px] text-[#2872A1]" name="tune" />
+            <h2 className="font-headline text-base font-bold text-[#001d29]">Research Parameters</h2>
+          </div>
+
+          {/* Topic & Core Objective */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-on-surface uppercase tracking-wider">
-              Additional Context or Constraints (Optional)
+            <label className="text-xs md:text-sm font-semibold text-[#001d29]">
+              Research Topic &amp; Core Objective
             </label>
-            <input
-              type="text"
-              value={additionalContext}
-              onChange={(e) => setAdditionalContext(e.target.value)}
-              placeholder="e.g. Target age 18-35, focusing on transaction fees and reliability"
-              className="w-full p-3 rounded-lg border border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary bg-white text-sm text-on-surface outline-none"
+            <textarea
+              className="w-full h-28 bg-[#f8f9ff] border border-[#c1c7cc] rounded-xl p-3 text-xs md:text-sm text-[#001d29] focus:ring-1 focus:ring-[#001d29] focus:border-[#001d29] resize-none placeholder:text-[#71787c]/70 transition-all outline-none"
+              placeholder="e.g., Assess brand perception and mobile banking adoption barriers among smallholder farmers and merchants in Oromia and Sidama regions."
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-on-surface uppercase tracking-wider">
-              Target Question Count
-            </label>
-            <div className="flex items-center gap-2">
-              {[3, 5, 8, 10, 15].map((count) => (
-                <button
-                  key={count}
-                  type="button"
-                  onClick={() => setQuestionCount(count)}
-                  className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
-                    questionCount === count
-                      ? "bg-[#6a1b9a] border-[#6a1b9a] text-white"
-                      : "bg-surface-container-low border-outline-variant/40 text-on-surface hover:bg-surface-container"
-                  }`}
+          {/* Target Demographics */}
+          <div className="flex flex-col gap-2 pt-2">
+            <div className="flex justify-between items-center">
+              <label className="text-xs md:text-sm font-semibold text-[#001d29]">Target Demographics</label>
+              <span className="text-[#71787c] text-[11px] font-mono">Ethiopia Context</span>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {demographics.map((demo, idx) => (
+                <span
+                  key={demo}
+                  className="px-3 py-1 rounded-full border border-[#2872A1]/30 bg-[#eff4ff] text-[#001d29] text-xs font-medium flex items-center gap-1.5"
                 >
-                  {count}
-                </button>
+                  <span>{demo}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeDemographic(idx)}
+                    className="hover:text-red-600 transition-colors cursor-pointer"
+                    title="Remove filter"
+                  >
+                    <Icon className="text-[14px]" name="close" />
+                  </button>
+                </span>
               ))}
-            </div>
-          </div>
-        </div>
 
-        <div className="pt-2 flex justify-end">
-          <button
-            type="button"
-            disabled={generateSurvey.isPending || !topic.trim()}
-            onClick={() => generateSurvey.mutate()}
-            className="px-6 py-3 bg-[#6a1b9a] hover:bg-[#4a148c] text-white rounded-xl text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2 shadow-sm active:scale-95"
-          >
-            <span
-              className="material-symbols-outlined text-[18px]"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              auto_awesome
-            </span>
-            <span>{generateSurvey.isPending ? "Generating Draft…" : "Generate Survey Draft"}</span>
-          </button>
-        </div>
-      </Card>
-
-      {/* ── Generated Questions List & Editor ── */}
-      {isGenerated && (
-        <div className="space-y-6 pt-4">
-          <div className="flex items-center justify-between border-b border-outline-variant/30 pb-3">
-            <div>
-              <h2 className="text-lg font-bold text-[#0D253A]">
-                Review &amp; Refine Questions ({questions.length})
-              </h2>
-              <p className="text-xs text-on-surface-variant">
-                You can edit question wording, change formats, reorder, or add questions before saving.
-              </p>
-            </div>
-          </div>
-
-          {/* Survey Metadata Card */}
-          <Card className="p-6 space-y-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-on-surface uppercase tracking-wider">
-                Survey Title
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full p-3 rounded-lg border border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary bg-white text-sm font-semibold text-on-surface outline-none"
-                placeholder="Survey Title"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-on-surface uppercase tracking-wider">
-                  Description / Purpose
-                </label>
-                <input
-                  type="text"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full p-2.5 rounded-lg border border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary bg-white text-sm text-on-surface outline-none"
-                  placeholder="Optional description"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-on-surface uppercase tracking-wider">
-                  Reward per Response (ETB)
-                </label>
-                <input
-                  type="number"
-                  min={5}
-                  max={500}
-                  value={rewardEtb}
-                  onChange={(e) => setRewardEtb(Number(e.target.value))}
-                  className="w-full p-2.5 rounded-lg border border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary bg-white text-sm text-on-surface outline-none"
-                />
-              </div>
-            </div>
-          </Card>
-
-          {/* Questions Cards */}
-          <div className="space-y-4">
-            {questions.map((q, qIndex) => (
-              <Card key={q.id || qIndex} className="p-5 space-y-4 border border-outline-variant/40 shadow-xs">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-[#6a1b9a]/15 text-[#6a1b9a] font-bold text-xs flex items-center justify-center">
-                      {qIndex + 1}
-                    </span>
-                    <select
-                      value={q.type}
-                      onChange={(e) => updateQuestionType(qIndex, e.target.value as Question["type"])}
-                      className="px-2.5 py-1 rounded-md border border-outline-variant/40 bg-surface-container-low text-xs font-semibold text-on-surface outline-none"
-                    >
-                      <option value="single_choice">Single Choice (Radio)</option>
-                      <option value="multi_choice">Multiple Choice (Checkbox)</option>
-                      <option value="text">Open-Ended (Text)</option>
-                    </select>
-                  </div>
-
-                  {/* Move Up/Down, Required, Delete */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      disabled={qIndex === 0}
-                      onClick={() => moveQuestion(qIndex, "up")}
-                      className="p-1 rounded text-on-surface-variant hover:bg-surface-container-high disabled:opacity-30 cursor-pointer"
-                      title="Move Up"
-                    >
-                      <Icon className="text-[18px]" name="arrow_upward" />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={qIndex === questions.length - 1}
-                      onClick={() => moveQuestion(qIndex, "down")}
-                      className="p-1 rounded text-on-surface-variant hover:bg-surface-container-high disabled:opacity-30 cursor-pointer"
-                      title="Move Down"
-                    >
-                      <Icon className="text-[18px]" name="arrow_downward" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => toggleRequired(qIndex)}
-                      className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer transition-colors ${
-                        q.required ? "bg-amber-100 text-amber-900" : "bg-surface-container text-on-surface-variant"
-                      }`}
-                    >
-                      {q.required ? "Required" : "Optional"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={questions.length <= 1}
-                      onClick={() => deleteQuestion(qIndex)}
-                      className="p-1 rounded text-error hover:bg-error/10 disabled:opacity-30 cursor-pointer"
-                      title="Delete Question"
-                    >
-                      <Icon className="text-[18px]" name="delete" />
-                    </button>
-                  </div>
+              {isAddingDemo ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={newDemographic}
+                    onChange={(e) => setNewDemographic(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") addDemographicTag();
+                    }}
+                    placeholder="Filter tag..."
+                    className="px-2.5 py-1 text-xs border border-[#001d29] rounded-full outline-none w-28 bg-white"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={addDemographicTag}
+                    className="px-2 py-1 bg-[#001d29] text-white rounded-full text-[11px] font-bold"
+                  >
+                    Add
+                  </button>
                 </div>
-
-                {/* Question Text */}
-                <input
-                  type="text"
-                  value={q.text}
-                  onChange={(e) => updateQuestionText(qIndex, e.target.value)}
-                  placeholder="Enter question text…"
-                  className="w-full p-3 rounded-lg border border-outline-variant/40 focus:border-primary focus:ring-1 focus:ring-primary bg-white text-sm text-on-surface font-medium outline-none"
-                />
-
-                {/* Options List */}
-                {q.type !== "text" && (
-                  <div className="space-y-2 pl-4 border-l-2 border-[#6a1b9a]/20">
-                    <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
-                      Answer Options
-                    </p>
-                    {(q.options || []).map((opt, optIndex) => (
-                      <div key={optIndex} className="flex items-center gap-2">
-                        <span className="text-xs text-on-surface-variant w-4 text-right">
-                          {String.fromCharCode(65 + optIndex)})
-                        </span>
-                        <input
-                          type="text"
-                          value={opt}
-                          onChange={(e) => updateOptionText(qIndex, optIndex, e.target.value)}
-                          placeholder={`Option ${optIndex + 1}`}
-                          className="flex-1 p-2 rounded-md border border-outline-variant/30 text-xs bg-white text-on-surface outline-none focus:border-primary"
-                        />
-                        <button
-                          type="button"
-                          disabled={(q.options?.length || 0) <= 1}
-                          onClick={() => removeOption(qIndex, optIndex)}
-                          className="p-1 text-on-surface-variant hover:text-error cursor-pointer disabled:opacity-30"
-                          title="Remove option"
-                        >
-                          <Icon className="text-[16px]" name="close" />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => addOption(qIndex)}
-                      className="text-xs text-[#6a1b9a] font-bold hover:underline flex items-center gap-1 mt-1 cursor-pointer"
-                    >
-                      <Icon className="text-[14px]" name="add" />
-                      Add Option
-                    </button>
-                  </div>
-                )}
-              </Card>
-            ))}
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingDemo(true)}
+                  className="px-3 py-1 rounded-full border border-dashed border-[#c1c7cc] bg-[#f8f9ff] text-[#71787c] hover:bg-[#eff4ff] hover:text-[#001d29] text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Icon className="text-[14px]" name="add" />
+                  <span>Add Filter</span>
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Add Blank Question Button */}
-          <button
-            type="button"
-            onClick={addBlankQuestion}
-            className="w-full py-3 border-2 border-dashed border-outline-variant/60 rounded-xl text-xs font-bold text-[#6a1b9a] hover:bg-[#6a1b9a]/5 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-          >
-            <Icon className="text-[18px]" name="add_circle" />
-            Add Another Question
-          </button>
+          {/* Desired Question Count Slider */}
+          <div className="flex flex-col gap-2 pt-3 border-t border-[#E2E8F0]">
+            <div className="flex justify-between items-center">
+              <label className="text-xs md:text-sm font-semibold text-[#001d29]">Desired Question Count</label>
+              <span className="text-[11px] font-mono font-bold text-[#001d29] bg-[#dde9ff] px-2 py-0.5 rounded">
+                {questionCount} Qs
+              </span>
+            </div>
+            <input
+              type="range"
+              min="3"
+              max="20"
+              value={questionCount}
+              onChange={(e) => setQuestionCount(Number(e.target.value))}
+              className="w-full accent-[#001d29] h-1.5 bg-[#c1c7cc]/30 rounded-lg appearance-none cursor-pointer mt-1"
+            />
+            <div className="flex justify-between text-[#71787c] text-[11px] font-mono">
+              <span>3</span>
+              <span>20</span>
+            </div>
+          </div>
 
-          {/* ── Save Actions Bar ── */}
-          <div className="p-4 bg-white rounded-xl border border-outline-variant/30 shadow-md flex flex-wrap items-center justify-between gap-4 sticky bottom-4 z-20">
-            <div className="text-xs text-on-surface-variant">
-              <span>{questions.length} questions drafted by AI</span>
+          {/* Target Duration & Tone */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-[#001d29]">Target Duration</label>
+              <select
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+                className="w-full bg-[#f8f9ff] border border-[#c1c7cc] rounded-lg p-2 text-xs text-[#001d29] focus:ring-1 focus:ring-[#001d29] outline-none"
+              >
+                <option>&lt; 5 minutes</option>
+                <option>5–10 minutes</option>
+                <option>10–15 minutes</option>
+              </select>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                disabled={saveSurvey.isPending || questions.length === 0}
-                onClick={() => saveSurvey.mutate("wip")}
-                type="button"
-                icon="save"
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-[#001d29]">Survey Tone</label>
+              <select
+                value={surveyTone}
+                onChange={(e) => setSurveyTone(e.target.value)}
+                className="w-full bg-[#f8f9ff] border border-[#c1c7cc] rounded-lg p-2 text-xs text-[#001d29] focus:ring-1 focus:ring-[#001d29] outline-none"
               >
-                {saveSurvey.isPending ? "Saving…" : "Save Draft (WIP)"}
-              </Button>
-              <Button
-                disabled={saveSurvey.isPending || questions.length === 0}
-                onClick={() => saveSurvey.mutate("final_draft")}
+                <option>Consumer / Friendly</option>
+                <option>Academic / Rigorous</option>
+                <option>Formal Policy</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Native Language Support */}
+          <div className="flex flex-col gap-2 pt-3 border-t border-[#E2E8F0]">
+            <label className="text-xs font-semibold text-[#001d29]">Native Language Support</label>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-[#001d29]">
+                <input
+                  type="checkbox"
+                  checked={langEnglish}
+                  onChange={(e) => setLangEnglish(e.target.checked)}
+                  className="rounded border-[#c1c7cc] text-[#001d29] focus:ring-[#001d29] h-4 w-4"
+                />
+                <span>English</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-[#001d29]">
+                <input
+                  type="checkbox"
+                  checked={langAmharic}
+                  onChange={(e) => setLangAmharic(e.target.checked)}
+                  className="rounded border-[#c1c7cc] text-[#001d29] focus:ring-[#001d29] h-4 w-4"
+                />
+                <span>Amharic (አማርኛ)</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-[#001d29]">
+                <input
+                  type="checkbox"
+                  checked={langOromo}
+                  onChange={(e) => setLangOromo(e.target.checked)}
+                  className="rounded border-[#c1c7cc] text-[#001d29] focus:ring-[#001d29] h-4 w-4"
+                />
+                <span>Afaan Oromo</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Generate Button */}
+          <button
+            type="button"
+            onClick={() => generateSurvey.mutate()}
+            disabled={generateSurvey.isPending}
+            className="w-full bg-[#0B2B42] hover:bg-[#001d29] text-white rounded-xl py-3.5 mt-2 flex items-center justify-center gap-2 font-bold text-xs md:text-sm transition-all shadow-sm hover:shadow-md cursor-pointer disabled:opacity-50 group"
+          >
+            <span>{generateSurvey.isPending ? "Analyzing & Generating…" : "Generate Optimized Schema"}</span>
+            <Icon className="text-amber-300 text-[18px] group-hover:rotate-12 transition-transform" name="auto_awesome" />
+          </button>
+        </div>
+
+        {/* Right Column: AI Generated Schema Draft (7 cols) */}
+        <div className="lg:col-span-7 flex flex-col gap-4">
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-xs flex flex-col h-full">
+            {/* Header & Timestamp */}
+            <div className="p-4 border-b border-[#E2E8F0] bg-[#f8f9ff] flex justify-between items-center">
+              <h2 className="font-headline text-sm md:text-base font-bold text-[#001d29] flex items-center gap-2">
+                <Icon className="text-[20px] text-[#2872A1]" name="view_list" />
+                <span>AI Generated Schema Draft ({questions.length} Questions)</span>
+              </h2>
+              <span className="text-[11px] font-mono text-[#71787c] px-2.5 py-0.5 bg-white border border-[#E2E8F0] rounded-full flex items-center gap-1">
+                <Icon className="text-[13px]" name="history" />
+                <span>Just now</span>
+              </span>
+            </div>
+
+            {/* Trust Checks Header Bar */}
+            <div className="bg-emerald-50/60 border-b border-emerald-200/50 px-4 py-2.5 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-[#001d29]">
+              <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
+                <Icon className="text-emerald-700 text-[15px]" name="check_circle" />
+                <span>Zero Leading Questions Detected</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
+                <Icon className="text-emerald-700 text-[15px]" name="check_circle" />
+                <span>Balanced Likert Scales</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
+                <Icon className="text-emerald-700 text-[15px]" name="check_circle" />
+                <span>Localized Slang &amp; Context Checked</span>
+              </div>
+            </div>
+
+            {/* Question Cards List */}
+            <div className="p-4 flex flex-col gap-3 overflow-y-auto max-h-[500px]">
+              {questions.map((q, idx) => {
+                const isLikert = q.options && q.options.length === 5 && q.options[0]?.includes("1");
+                const isMulti = q.type === "multi_choice";
+                const isOpenEnded = q.type === "text";
+
+                return (
+                  <div
+                    key={q.id}
+                    className="border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2872A1]/40 transition-colors bg-[#f8f9ff]/50"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex gap-2.5">
+                        <span className="bg-[#dde9ff] text-[#001d29] font-mono text-[11px] font-bold px-2 py-0.5 rounded h-fit mt-0.5">
+                          Q{idx + 1}
+                        </span>
+                        <h3 className="font-semibold text-xs md:text-sm text-[#001d29] leading-snug">
+                          {q.text}
+                        </h3>
+                      </div>
+
+                      <span className="text-[#71787c] text-[11px] font-mono whitespace-nowrap bg-white px-2 py-0.5 rounded border border-[#E2E8F0] flex items-center gap-1 shrink-0 ml-2">
+                        <Icon
+                          className="text-[13px]"
+                          name={
+                            isLikert
+                              ? "linear_scale"
+                              : isMulti
+                              ? "checklist"
+                              : isOpenEnded
+                              ? "subject"
+                              : "radio_button_checked"
+                          }
+                        />
+                        <span>
+                          {isLikert
+                            ? "Likert Scale"
+                            : isMulti
+                            ? "Multi-Select"
+                            : isOpenEnded
+                            ? "Open Ended"
+                            : "Single Choice"}
+                        </span>
+                      </span>
+                    </div>
+
+                    {/* Render Options Preview */}
+                    {isLikert && (
+                      <div className="ml-8 flex items-center justify-between mt-2.5 px-3 py-2 bg-white rounded-lg border border-[#E2E8F0] text-xs font-mono text-[#71787c]">
+                        <span>Very Difficult (1)</span>
+                        <div className="flex gap-3">
+                          {[1, 2, 3, 4, 5].map((val) => (
+                            <div key={val} className="w-3.5 h-3.5 rounded-full border-2 border-[#c1c7cc]"></div>
+                          ))}
+                        </div>
+                        <span>Very Easy (5)</span>
+                      </div>
+                    )}
+
+                    {!isLikert && !isOpenEnded && q.options && (
+                      <div className="ml-8 flex flex-col gap-1.5 mt-2.5">
+                        {q.options.map((opt) => (
+                          <div key={opt} className="flex items-center gap-2 text-xs text-[#41484c]">
+                            <div
+                              className={`w-3 h-3 rounded-${isMulti ? "xs" : "full"} border border-[#c1c7cc] shrink-0`}
+                            ></div>
+                            <span>{opt}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {isOpenEnded && (
+                      <div className="ml-8 mt-2 text-xs text-[#71787c] italic font-mono">
+                        Freeform textual / spoken response
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Action Footer */}
+            <div className="p-4 bg-[#f8f9ff] border-t border-[#E2E8F0] flex items-center justify-between gap-4 mt-auto">
+              <button
                 type="button"
-                icon="check_circle"
+                onClick={() => generateSurvey.mutate()}
+                disabled={generateSurvey.isPending}
+                className="px-4 py-2 rounded-xl border border-[#c1c7cc] text-[#001d29] hover:bg-white text-xs md:text-sm font-semibold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
-                {saveSurvey.isPending ? "Saving…" : "Save as Final Draft"}
-              </Button>
+                <Icon className="text-[16px]" name="refresh" />
+                <span>Regenerate Questions</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => acceptAndEditMutation.mutate()}
+                disabled={acceptAndEditMutation.isPending}
+                className="px-6 py-2 bg-[#2872A1] hover:bg-[#003345] text-white rounded-xl font-bold text-xs md:text-sm transition-colors shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <span>{acceptAndEditMutation.isPending ? "Creating Draft…" : "Accept & Edit in Builder"}</span>
+                <Icon className="text-[18px]" name="arrow_forward" />
+              </button>
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

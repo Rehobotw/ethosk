@@ -69,37 +69,34 @@ describe("SurveyAiPage (§4.3.4 AI Survey Generator Dedicated Page)", () => {
       subscription_tier: "free",
     });
 
-    expect(screen.getByText("Upgrade to Access AI Survey Generator")).toBeDefined();
-    expect(screen.getByText("Upgrade to Pro")).toBeDefined();
-    expect(screen.getByText("Back to Creation Hub")).toBeDefined();
+    expect(screen.getByText("Unlock AI Survey Generation & Native Localizations")).toBeDefined();
+    expect(screen.getByText("Upgrade to Pro (500 ETB/mo)")).toBeDefined();
   });
 
   it("renders topic input, question count selector, and generate button for subscribed tier", () => {
     renderAiPageWithUser();
 
     expect(screen.getByText("AI Survey Generator")).toBeDefined();
-    expect(screen.getByPlaceholderText(/Assessing consumer adoption/i)).toBeDefined();
-    expect(screen.getByText("Generate Survey Draft")).toBeDefined();
-    expect(screen.getByText("Target Question Count")).toBeDefined();
+    expect(screen.getByPlaceholderText(/Assess brand perception/i)).toBeDefined();
+    expect(screen.getByText("Generate Optimized Schema")).toBeDefined();
+    expect(screen.getByText("Desired Question Count")).toBeDefined();
   });
 
   it("generates survey draft and allows reviewing questions and saving", async () => {
     renderAiPageWithUser();
 
-    const topicInput = screen.getByPlaceholderText(/Assessing consumer adoption/i);
+    const topicInput = screen.getByPlaceholderText(/Assess brand perception/i);
     fireEvent.change(topicInput, { target: { value: "Mobile banking adoption study" } });
 
-    const generateBtn = screen.getByText("Generate Survey Draft");
+    const generateBtn = screen.getByText("Generate Optimized Schema");
     fireEvent.click(generateBtn);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Consumer Mobile Banking Study")).toBeDefined();
-      expect(screen.getByDisplayValue("How often do you make mobile money transfers?")).toBeDefined();
-      expect(screen.getByDisplayValue("What is your main barrier to using digital payments?")).toBeDefined();
+      expect(screen.getByText(/How often do you make mobile money transfers\?/)).toBeDefined();
+      expect(screen.getByText(/What is your main barrier to using digital payments\?/)).toBeDefined();
     });
 
-    // Save buttons appear
-    expect(screen.getByText("Save Draft (WIP)")).toBeDefined();
-    expect(screen.getByText("Save as Final Draft")).toBeDefined();
+    const acceptBtn = screen.getByText("Accept & Edit in Builder");
+    expect(acceptBtn).toBeDefined();
   });
 });
