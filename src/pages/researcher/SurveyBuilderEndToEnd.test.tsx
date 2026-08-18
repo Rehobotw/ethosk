@@ -92,10 +92,10 @@ describe("Survey Builder Flow Audit (§4.3.1–4.3.5)", () => {
     renderLanding({ role: "researcher", subscription_tier: "free" });
 
     // AI Card should have PRO indicator
-    expect(screen.getByText("PRO")).toBeDefined();
+    expect(screen.getByText(/PRO/)).toBeDefined();
 
-    // Click on AI generator card
-    const aiCardBtn = screen.getByRole("button", { name: /AI Survey Generator/i });
+    // Click on AI generator card CTA
+    const aiCardBtn = screen.getByRole("button", { name: /Generate with AI/i });
     fireEvent.click(aiCardBtn);
 
     // Upgrade Modal opens
