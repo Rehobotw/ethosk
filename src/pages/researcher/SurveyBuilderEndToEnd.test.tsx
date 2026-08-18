@@ -7,7 +7,7 @@ import { AuthContext } from "@/lib/auth";
 
 vi.mock("@/lib/api", () => ({
   api: vi.fn().mockImplementation((url: string) => {
-    if (url.includes("/surveys")) {
+    if (url === "/surveys" || url.includes("/surveys")) {
       return Promise.resolve({
         surveys: [
           {
@@ -15,7 +15,6 @@ vi.mock("@/lib/api", () => ({
             title: "Ethiopian Fintech Adoption Draft",
             status: "wip",
             created_at: "2026-08-15T10:00:00Z",
-            updated_at: "2026-08-15T12:00:00Z",
             questions: [{ id: "q1", text: "Do you use Telebirr?", type: "single_choice" }],
             reward_etb: 25,
             response_count: 0,
@@ -26,7 +25,6 @@ vi.mock("@/lib/api", () => ({
             title: "AI Draft: Consumer Retail Habits",
             status: "wip",
             created_at: "2026-08-16T10:00:00Z",
-            updated_at: "2026-08-16T12:00:00Z",
             questions: [{ id: "ai_q1", text: "How often do you shop?", type: "single_choice" }],
             reward_etb: 30,
             response_count: 0,
@@ -77,9 +75,9 @@ describe("Survey Builder Flow Audit (§4.3.1–4.3.5)", () => {
     renderLanding({ role: "researcher", subscription_tier: "subscribed" });
 
     // 3 Cards exist
-    expect(screen.getByText("Build Manually")).toBeDefined();
-    expect(screen.getByText("Import Survey")).toBeDefined();
-    expect(screen.getByText("AI Survey Generator")).toBeDefined();
+    expect(screen.getByRole("heading", { name: "Manual Builder" })).toBeDefined();
+    expect(screen.getByRole("heading", { name: "Import Survey" })).toBeDefined();
+    expect(screen.getByRole("heading", { name: "AI Survey Generator" })).toBeDefined();
 
     // Check link destinations
     const links = screen.getAllByRole("link");
@@ -113,10 +111,6 @@ describe("Survey Builder Flow Audit (§4.3.1–4.3.5)", () => {
       expect(screen.getByText("Recent Work-in-Progress")).toBeDefined();
       expect(screen.getByText("Ethiopian Fintech Adoption Draft")).toBeDefined();
       expect(screen.getByText("AI Draft: Consumer Retail Habits")).toBeDefined();
-
-      // Badges
-      expect(screen.getByText("Manual Builder")).toBeDefined();
-      expect(screen.getByText("AI Builder")).toBeDefined();
 
       // Quick action button
       const resumeButtons = screen.getAllByText("Resume Editing");

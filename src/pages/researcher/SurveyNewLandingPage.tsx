@@ -21,8 +21,8 @@ interface SurveyWithStats extends SurveyRecord {
 const CREATION_CARDS = [
   {
     icon: "edit_note",
-    title: "Build Manually",
-    description: "Design your survey question by question with the full builder.",
+    title: "Manual Builder",
+    description: "Build a survey from scratch by selecting question types and adding questions manually.",
     to: "/survey-builder/manual",
     color: "#00456d",
     bgGradient: "from-[#e8f4fd] to-[#f0f7fb]",
@@ -30,7 +30,7 @@ const CREATION_CARDS = [
   {
     icon: "upload_file",
     title: "Import Survey",
-    description: "Upload a Word document, PDF, or text file to extract questions.",
+    description: "Upload an existing .docx / .pdf / .txt and have it converted to a platform survey.",
     to: "/survey-builder/import",
     color: "#00695c",
     bgGradient: "from-[#e0f2f1] to-[#e8f5e9]",
@@ -38,7 +38,7 @@ const CREATION_CARDS = [
   {
     icon: "auto_awesome",
     title: "AI Survey Generator",
-    description: "Describe your research goal and let AI draft the survey for you.",
+    description: "Describe a study topic and let AI generate a full initial draft.",
     to: "/survey-builder/ai",
     color: "#6a1b9a",
     bgGradient: "from-[#f3e5f5] to-[#fce4ec]",
