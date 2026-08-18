@@ -31,6 +31,7 @@ export function ResearcherLayout() {
     { label: isAm ? "የደንበኝነት ምዝገባ" : "Subscription", to: "/researcher/subscription", icon: "star" },
     { label: isAm ? "መገለጫ" : "Profile", to: "/researcher/profile", icon: "person" },
     { label: isAm ? "ቅንብሮች" : "Settings", to: "/researcher/settings", icon: "settings" },
+    { label: isAm ? "የእርዳታ ማዕከል" : "Help Center", to: "/researcher/help", icon: "help" },
   ];
 
   const adminPrimaryNav = [

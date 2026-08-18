@@ -68,6 +68,9 @@ const ResearcherWalletPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import("./pages/researcher/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
+const HelpCenterPage = lazy(() =>
+  import("./pages/researcher/HelpCenterPage").then((m) => ({ default: m.HelpCenterPage })),
+);
 const ResearcherProfilePage = lazy(() =>
   import("./pages/researcher/ProfilePage").then((m) => ({ default: m.ProfilePage })),
 );
@@ -218,6 +221,8 @@ export default function App() {
         <Route element={<ResearcherProfilePage />} path="/researcher/profile" />
         <Route element={<SettingsPage />} path="/researcher/settings" />
         <Route element={<SettingsPage />} path="/profile/settings" />
+        <Route element={<HelpCenterPage />} path="/researcher/help" />
+        <Route element={<HelpCenterPage />} path="/help" />
       </Route>
 
       {/* Admin */}

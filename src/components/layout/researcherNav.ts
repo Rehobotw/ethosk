@@ -11,6 +11,7 @@ export const SECONDARY_NAV = [
   { label: "Subscription", to: "/researcher/subscription", icon: "star" },
   { label: "Profile", to: "/researcher/profile", icon: "person" },
   { label: "Settings", to: "/researcher/settings", icon: "settings" },
+  { label: "Help Center", to: "/researcher/help", icon: "help" },
 ];
 
 /** Every sidebar path, so a test can assert across all of them at once. */
