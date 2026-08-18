@@ -94,9 +94,9 @@ export function SurveyCreationSuccessPage() {
             type="button"
             onClick={() => {
               if (effectiveId) {
-                navigate(`/survey-builder/manual/${effectiveId}`);
+                navigate(`/survey-posting/${effectiveId}`);
               } else {
-                navigate("/survey-builder/manual");
+                navigate("/survey-posting");
               }
             }}
             className="w-full bg-[#2872A1] hover:bg-[#003345] text-white font-bold text-xs md:text-sm py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
