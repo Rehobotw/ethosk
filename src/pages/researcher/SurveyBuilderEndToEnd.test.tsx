@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SurveyNewLandingPage } from "./SurveyNewLandingPage";
@@ -14,9 +14,21 @@ vi.mock("@/lib/api", () => ({
             id: "draft-101",
             title: "Ethiopian Fintech Adoption Draft",
             status: "wip",
-            created_at: new Date().toISOString(),
-            questions: [],
+            created_at: "2026-08-15T10:00:00Z",
+            updated_at: "2026-08-15T12:00:00Z",
+            questions: [{ id: "q1", text: "Do you use Telebirr?", type: "single_choice" }],
             reward_etb: 25,
+            response_count: 0,
+            targeted_count: 0,
+          },
+          {
+            id: "draft-102",
+            title: "AI Draft: Consumer Retail Habits",
+            status: "wip",
+            created_at: "2026-08-16T10:00:00Z",
+            updated_at: "2026-08-16T12:00:00Z",
+            questions: [{ id: "ai_q1", text: "How often do you shop?", type: "single_choice" }],
+            reward_etb: 30,
             response_count: 0,
             targeted_count: 0,
           },
@@ -60,7 +72,7 @@ function renderLanding(userOverride?: any) {
   );
 }
 
-describe("Survey Builder Flow Audit (§4.3.1–4.3.4)", () => {
+describe("Survey Builder Flow Audit (§4.3.1–4.3.5)", () => {
   it("renders 3-card entry point with links to dedicated builder pages for subscribed researchers", () => {
     renderLanding({ role: "researcher", subscription_tier: "subscribed" });
 
@@ -94,9 +106,37 @@ describe("Survey Builder Flow Audit (§4.3.1–4.3.4)", () => {
     expect(screen.getByText("Maybe Later")).toBeDefined();
   });
 
-  it("surfaces recent WIP drafts with links to resume editing", async () => {
+  it("surfaces recent WIP drafts with builder type badges, timestamps, and Resume Editing buttons (§4.3.5)", async () => {
     renderLanding();
 
-    expect(screen.getByText("Recent Drafts")).toBeDefined();
+    await waitFor(() => {
+      expect(screen.getByText("Recent Work-in-Progress")).toBeDefined();
+      expect(screen.getByText("Ethiopian Fintech Adoption Draft")).toBeDefined();
+      expect(screen.getByText("AI Draft: Consumer Retail Habits")).toBeDefined();
+
+      // Badges
+      expect(screen.getByText("Manual Builder")).toBeDefined();
+      expect(screen.getByText("AI Builder")).toBeDefined();
+
+      // Quick action button
+      const resumeButtons = screen.getAllByText("Resume Editing");
+      expect(resumeButtons.length).toBe(2);
+    });
+  });
+
+  it("opens delete confirmation modal when clicking delete draft button", async () => {
+    renderLanding();
+
+    await waitFor(() => {
+      expect(screen.getByText("Ethiopian Fintech Adoption Draft")).toBeDefined();
+    });
+
+    const deleteButtons = screen.getAllByTitle("Delete draft");
+    expect(deleteButtons.length).toBeGreaterThan(0);
+    fireEvent.click(deleteButtons[0]!);
+
+    expect(screen.getByText("Delete Draft Survey?")).toBeDefined();
+    expect(screen.getByText(/Are you sure you want to permanently delete/i)).toBeDefined();
+    expect(screen.getByText("Cancel")).toBeDefined();
   });
 });

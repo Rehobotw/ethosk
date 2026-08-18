@@ -33,6 +33,10 @@ DO $$ BEGIN
   );
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+-- Ensure newer enum values exist if type was created previously
+ALTER TYPE survey_status ADD VALUE IF NOT EXISTS 'wip';
+ALTER TYPE survey_status ADD VALUE IF NOT EXISTS 'final_draft';
+
 -- ----------------------------------------------------------------------------
 -- 3. Core Tables
 -- ----------------------------------------------------------------------------
@@ -51,6 +55,12 @@ CREATE TABLE IF NOT EXISTS users (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Ensure users columns exist if table was already created in earlier migration
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned boolean NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified boolean NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS national_id_hash text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS fayda_verified_at timestamptz;
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users (lower(email));
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_national_id_hash ON users (national_id_hash) WHERE national_id_hash IS NOT NULL;
@@ -76,6 +86,17 @@ CREATE TABLE IF NOT EXISTS respondent_profiles (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Ensure respondent_profiles columns exist if table was already created in earlier migration
+ALTER TABLE respondent_profiles ADD COLUMN IF NOT EXISTS gender text;
+ALTER TABLE respondent_profiles ADD COLUMN IF NOT EXISTS region text;
+ALTER TABLE respondent_profiles ADD COLUMN IF NOT EXISTS city text;
+ALTER TABLE respondent_profiles ADD COLUMN IF NOT EXISTS employment_status text;
+ALTER TABLE respondent_profiles ADD COLUMN IF NOT EXISTS occupation text;
+ALTER TABLE respondent_profiles ADD COLUMN IF NOT EXISTS education_level text;
+ALTER TABLE respondent_profiles ADD COLUMN IF NOT EXISTS primary_language text;
+ALTER TABLE respondent_profiles ADD COLUMN IF NOT EXISTS employer text;
+ALTER TABLE respondent_profiles ADD COLUMN IF NOT EXISTS attributes jsonb NOT NULL DEFAULT '{}'::jsonb;
+
 CREATE INDEX IF NOT EXISTS idx_respondent_match ON respondent_profiles (university, department, year);
 CREATE INDEX IF NOT EXISTS idx_respondent_match_general ON respondent_profiles (region, employment_status, gender);
 
@@ -89,6 +110,10 @@ CREATE TABLE IF NOT EXISTS documents (
   ai_notes text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Ensure documents columns exist if table was already created in earlier migration
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS ai_notes text;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS status doc_review_status NOT NULL DEFAULT 'processing';
 
 CREATE INDEX IF NOT EXISTS idx_documents_status ON documents (status) WHERE status = 'needs_review';
 CREATE INDEX IF NOT EXISTS idx_documents_user ON documents (user_id);
@@ -117,6 +142,23 @@ CREATE TABLE IF NOT EXISTS researcher_profiles (
   social_links jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
+-- Ensure columns exist if table was already created in earlier migration
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS institution text;
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS dob date;
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS phone text;
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS phone_verified boolean NOT NULL DEFAULT false;
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS institutional_email text;
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS institutional_email_verified boolean NOT NULL DEFAULT false;
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS researcher_type text;
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS years_experience int;
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS onboarding_completed boolean NOT NULL DEFAULT false;
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS verification_level text NOT NULL DEFAULT 'unverified';
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS verification_status text NOT NULL DEFAULT 'unrequested';
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS verification_notes text;
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS subscription_tier text NOT NULL DEFAULT 'free';
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS subscription_expires_at timestamptz;
+ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS social_links jsonb NOT NULL DEFAULT '{}'::jsonb;
+
 -- Surveys Table
 CREATE TABLE IF NOT EXISTS surveys (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -137,6 +179,10 @@ CREATE TABLE IF NOT EXISTS surveys (
   created_at timestamptz NOT NULL DEFAULT now(),
   sent_at timestamptz
 );
+
+-- Ensure surveys columns exist if table was already created in earlier migration
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS description text;
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS escrow_etb numeric(12,2) NOT NULL DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_surveys_researcher ON surveys (researcher_id);
 CREATE INDEX IF NOT EXISTS idx_surveys_status ON surveys (status);
@@ -187,6 +233,10 @@ CREATE TABLE IF NOT EXISTS researcher_deposits (
   updated_at timestamptz,
   UNIQUE (researcher_id, reference)
 );
+
+-- Ensure researcher_deposits columns exist if table was already created in earlier migration
+ALTER TABLE researcher_deposits ADD COLUMN IF NOT EXISTS provider_ref text;
+ALTER TABLE researcher_deposits ADD COLUMN IF NOT EXISTS updated_at timestamptz;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_deposits_reference ON researcher_deposits (reference);
 CREATE INDEX IF NOT EXISTS idx_deposits_researcher ON researcher_deposits (researcher_id);

@@ -93,7 +93,7 @@ researchersRouter.post(
   requireAuth("researcher"),
   asyncRoute(async (req, res) => {
     const context = auth(req);
-    
+
     // Ensure profile exists and bio/institution are somewhat complete
     const { data: profile } = await admin
       .from("researcher_profiles")
@@ -118,7 +118,7 @@ researchersRouter.post(
       .eq("user_id", context.userId);
 
     if (error) throw new ApiError(500, "VERIFICATION_REQUEST_FAILED", error.message);
-    
+
     res.json({ success: true, verification_status: "pending" });
   }),
 );
@@ -134,11 +134,11 @@ researchersRouter.post(
     const context = auth(req);
     const { phone } = req.body;
     if (!phone) throw new ApiError(400, "INVALID_INPUT", "Phone number is required");
-    
+
     // Generate a simple 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     phoneOtpStore.set(context.userId, otp);
-    
+
     // In a real app, send via SMS. For now, just return it so we can test.
     res.json({ success: true, message: "OTP sent", _dev_otp: otp });
   }),
@@ -151,15 +151,15 @@ researchersRouter.post(
     const context = auth(req);
     const { code } = req.body;
     const storedCode = phoneOtpStore.get(context.userId);
-    
+
     if (!storedCode || storedCode !== code) {
       throw new ApiError(400, "INVALID_CODE", "Invalid or expired verification code");
     }
-    
+
     // Mark as verified in DB
     await admin.from("researcher_profiles").update({ phone_verified: true }).eq("user_id", context.userId);
     phoneOtpStore.delete(context.userId);
-    
+
     res.json({ success: true });
   }),
 );
@@ -171,10 +171,10 @@ researchersRouter.post(
     const context = auth(req);
     const { email } = req.body;
     if (!email) throw new ApiError(400, "INVALID_INPUT", "Email is required");
-    
+
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     emailOtpStore.set(context.userId, otp);
-    
+
     res.json({ success: true, message: "OTP sent to institutional email", _dev_otp: otp });
   }),
 );
@@ -186,14 +186,14 @@ researchersRouter.post(
     const context = auth(req);
     const { code } = req.body;
     const storedCode = emailOtpStore.get(context.userId);
-    
+
     if (!storedCode || storedCode !== code) {
       throw new ApiError(400, "INVALID_CODE", "Invalid or expired verification code");
     }
-    
+
     await admin.from("researcher_profiles").update({ institutional_email_verified: true }).eq("user_id", context.userId);
     emailOtpStore.delete(context.userId);
-    
+
     res.json({ success: true });
   }),
 );
