@@ -58,30 +58,30 @@ D) Never
     expect(q3.options).toHaveLength(3);
   });
 
-  it("renders upload zone and navigation back link", () => {
+  it("renders upload zone and navigation breadcrumb", () => {
     renderWithProviders();
 
-    expect(screen.getByText("Import Survey")).toBeDefined();
-    expect(screen.getByText("Back to Survey Creation")).toBeDefined();
-    expect(screen.getByText("Drag & Drop your survey document")).toBeDefined();
+    expect(screen.getByText("Import Questionnaire from Document")).toBeDefined();
+    expect(screen.getByText("Cancel & Return to Hub")).toBeDefined();
+    expect(screen.getByText("Drag and drop your survey document here")).toBeDefined();
   });
 
   it("rejects unsupported file formats with clear error", async () => {
     renderWithProviders();
 
-    const file = new File(["col1,col2\nval1,val2"], "survey.csv", { type: "text/csv" });
+    const file = new File(["invalid binary"], "malware.exe", { type: "application/x-msdownload" });
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
 
     fireEvent.change(fileInput, { target: { files: [file] } });
 
     await waitFor(() => {
       expect(
-        screen.getByText("Invalid file type. Only .docx, .pdf, and .txt files are accepted."),
+        screen.getByText("Invalid file type. Only .docx, .pdf, .csv, .xlsx, and .txt files are accepted."),
       ).toBeDefined();
     });
   });
 
-  it("accepts valid .txt file and extracts questions for editing", async () => {
+  it("accepts valid .txt file and extracts questions into schema preview", async () => {
     renderWithProviders();
 
     const content = `1. What is your primary language?
@@ -95,13 +95,9 @@ C) Tigrinya
     fireEvent.change(fileInput, { target: { files: [file] } });
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("What is your primary language?")).toBeDefined();
-      expect(screen.getByDisplayValue("Amharic")).toBeDefined();
-      expect(screen.getByDisplayValue("Afan Oromo")).toBeDefined();
+      expect(screen.getByText(/What is your primary language\?/)).toBeDefined();
+      expect(screen.getByText(/3 choices extracted/)).toBeDefined();
+      expect(screen.getByText(/Parsed 1 questions successfully/)).toBeDefined();
     });
-
-    // Verify Save actions exist
-    expect(screen.getByText("Save Draft (WIP)")).toBeDefined();
-    expect(screen.getByText("Save as Final Draft")).toBeDefined();
   });
 });
