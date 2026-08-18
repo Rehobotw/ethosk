@@ -51,6 +51,9 @@ const SurveyImportPage = lazy(() =>
 const SurveyAiPage = lazy(() =>
   import("./pages/researcher/SurveyAiPage").then((m) => ({ default: m.SurveyAiPage })),
 );
+const SurveyCreationSuccessPage = lazy(() =>
+  import("./pages/researcher/SurveyCreationSuccessPage").then((m) => ({ default: m.SurveyCreationSuccessPage })),
+);
 const SurveyAnalyticsPage = lazy(() =>
   import("./pages/researcher/SurveyAnalyticsPage").then((m) => ({
     default: m.SurveyAnalyticsPage,
@@ -194,6 +197,10 @@ export default function App() {
         <Route element={<SurveyImportPage />} path="/survey-builder/import" />
         <Route element={<SurveyAiPage />} path="/researcher/surveys/new/ai" />
         <Route element={<SurveyAiPage />} path="/survey-builder/ai" />
+        <Route element={<SurveyCreationSuccessPage />} path="/survey-builder/success" />
+        <Route element={<SurveyCreationSuccessPage />} path="/survey-builder/success/:id" />
+        <Route element={<SurveyCreationSuccessPage />} path="/researcher/surveys/success" />
+        <Route element={<SurveyCreationSuccessPage />} path="/researcher/surveys/:id/success" />
         <Route element={<SurveyBuilderPage />} path="/researcher/surveys/:id/edit" />
         <Route element={<SurveyAnalyticsPage />} path="/researcher/analytics" />
         <Route element={<SurveyAnalyticsPage />} path="/researcher/surveys/:id/dashboard" />
