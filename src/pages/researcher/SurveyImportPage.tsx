@@ -143,15 +143,67 @@ export function parseSurveyText(rawText: string): { title: string; questions: Qu
   };
 }
 
+async function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+  if (typeof file.arrayBuffer === "function") {
+    return await file.arrayBuffer();
+  }
+  if (typeof FileReader !== "undefined") {
+    return await new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (reader.result instanceof ArrayBuffer) {
+          resolve(reader.result);
+        } else {
+          resolve(new ArrayBuffer(0));
+        }
+      };
+      reader.onerror = () => reject(new Error("Unable to read file contents."));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+  throw new Error("Unable to read binary file.");
+}
+
+async function readFileAsText(file: File): Promise<string> {
+  if (typeof file.text === "function") {
+    try {
+      const txt = await file.text();
+      if (typeof txt === "string") return txt;
+    } catch {
+      // fallback
+    }
+  }
+
+  if (typeof file.arrayBuffer === "function") {
+    try {
+      const buffer = await file.arrayBuffer();
+      return new TextDecoder("utf-8").decode(buffer);
+    } catch {
+      // fallback
+    }
+  }
+
+  if (typeof FileReader !== "undefined") {
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = () => reject(new Error("Unable to read file contents."));
+      reader.readAsText(file);
+    });
+  }
+
+  throw new Error("Unable to read file contents.");
+}
+
 export async function extractTextFromFile(file: File): Promise<string> {
   const extension = file.name.split(".").pop()?.toLowerCase();
 
   if (extension === "txt" || extension === "csv") {
-    return await file.text();
+    return await readFileAsText(file);
   }
 
   if (extension === "docx") {
-    const buffer = await file.arrayBuffer();
+    const buffer = await readFileAsArrayBuffer(file);
     const decoder = new TextDecoder("utf-8");
     const content = decoder.decode(buffer);
 
@@ -171,7 +223,7 @@ export async function extractTextFromFile(file: File): Promise<string> {
   }
 
   if (extension === "pdf") {
-    const buffer = await file.arrayBuffer();
+    const buffer = await readFileAsArrayBuffer(file);
     const decoder = new TextDecoder("latin1");
     const content = decoder.decode(buffer);
 
