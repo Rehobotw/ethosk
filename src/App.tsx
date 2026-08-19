@@ -117,8 +117,8 @@ export default function App() {
       </Route>
 
       <Route element={<LoginPage />} path="/login" />
-      <Route element={<LoginPage role="respondent" />} path="/login/respondent" />
-      <Route element={<LoginPage role="researcher" />} path="/login/researcher" />
+      <Route element={<LoginPage />} path="/login/respondent" />
+      <Route element={<LoginPage />} path="/login/researcher" />
 
       <Route
         element={
@@ -201,8 +201,10 @@ export default function App() {
         <Route element={<SurveyBuilderPage />} path="/survey-builder/manual/:id" />
         <Route element={<SurveyImportPage />} path="/researcher/surveys/new/import" />
         <Route element={<SurveyImportPage />} path="/survey-builder/import" />
+        <Route element={<SurveyImportPage />} path="/survey-builder/import/:id" />
         <Route element={<SurveyAiPage />} path="/researcher/surveys/new/ai" />
         <Route element={<SurveyAiPage />} path="/survey-builder/ai" />
+        <Route element={<SurveyAiPage />} path="/survey-builder/ai/:id" />
         <Route element={<SurveyCreationSuccessPage />} path="/survey-builder/success" />
         <Route element={<SurveyCreationSuccessPage />} path="/survey-builder/success/:id" />
         <Route element={<SurveyCreationSuccessPage />} path="/researcher/surveys/success" />

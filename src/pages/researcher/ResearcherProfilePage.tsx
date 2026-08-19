@@ -25,16 +25,21 @@ const RESEARCHER_TYPES = [
   { value: "public_sector", label: "Public Sector / Policy Analyst" },
 ];
 
-export function ResearcherProfilePage() {
+export interface ResearcherProfilePageProps {
+  defaultTab?: "verification" | "settings" | "subscription" | "edit";
+}
+
+export function ResearcherProfilePage({ defaultTab = "verification" }: ResearcherProfilePageProps = {}) {
   const { user, refresh } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const activeTab = (searchParams.get("tab") as
-    | "verification"
-    | "settings"
-    | "subscription"
-    | "edit") || "verification";
+  const activeTab =
+    (searchParams.get("tab") as
+      | "verification"
+      | "settings"
+      | "subscription"
+      | "edit") || defaultTab;
 
   const setTab = (tab: string) => {
     setSearchParams({ tab });
@@ -149,6 +154,31 @@ export function ResearcherProfilePage() {
     },
   });
 
+  const updatePasswordMutation = useMutation({
+    mutationFn: async () => {
+      if (!newPassword || newPassword.length < 8) {
+        throw new Error("Password must be at least 8 characters");
+      }
+      if (newPassword !== confirmPassword) {
+        throw new Error("Passwords do not match");
+      }
+      return api<{ success: boolean }>("/auth/change-password", {
+        body: { password: newPassword },
+      });
+    },
+    onSuccess: () => {
+      setBanner({ tone: "success", text: "Password updated successfully." });
+      setNewPassword("");
+      setConfirmPassword("");
+    },
+    onError: (err) => {
+      setBanner({
+        tone: "error",
+        text: err instanceof ApiRequestError ? err.message : "Failed to update password.",
+      });
+    },
+  });
+
   const upgradeSubscriptionMutation = useMutation({
     mutationFn: async () => {
       return api<{ status: string }>("/wallet/researcher/subscription", {
@@ -208,11 +238,11 @@ export function ResearcherProfilePage() {
           <div className="flex items-center gap-6">
             <div className="relative group cursor-pointer shrink-0">
               <span className="flex h-20 w-20 md:h-24 md:w-24 items-center justify-center rounded-full bg-[#003345] text-2xl md:text-3xl font-bold text-white shadow-sm ring-4 ring-[#f8f9ff]">
-                {(user?.full_name || user?.email || "Dr. B")
+                {(user?.full_name || user?.email || "Researcher")
                   .split(/\s+/)
                   .slice(0, 2)
                   .map((p) => p[0]?.toUpperCase() ?? "")
-                  .join("")}
+                  .join("") || "R"}
               </span>
               <div className="absolute inset-0 bg-[#001d29]/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-xs">
                 <Icon className="text-white text-[20px]" name="photo_camera" />
@@ -221,7 +251,7 @@ export function ResearcherProfilePage() {
 
             <div>
               <h2 className="text-xl md:text-2xl font-headline font-bold text-[#001d29] mb-1">
-                {user?.full_name || "Dr. Tesfaye Bekele"}
+                {user?.full_name || user?.email || "Researcher Account"}
               </h2>
 
               <div className="flex items-center gap-2.5 mb-2 flex-wrap">
@@ -231,9 +261,13 @@ export function ResearcherProfilePage() {
                 <span className="px-2.5 py-0.5 bg-[#bfe8ff] text-[#001f2b] text-[11px] font-mono uppercase tracking-wider rounded font-bold">
                   {getResearcherTypeLabel()}
                 </span>
-                {isSubscribed && (
+                {isSubscribed ? (
                   <span className="px-2 py-0.5 bg-[#0B2B42] text-white text-[10px] font-mono uppercase tracking-wider rounded font-bold">
                     PRO TIER
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-mono uppercase tracking-wider rounded font-bold">
+                    FREE PLAN
                   </span>
                 )}
               </div>
@@ -241,7 +275,7 @@ export function ResearcherProfilePage() {
               <p className="text-[#41484c] text-xs md:text-sm flex items-center gap-1.5">
                 <Icon className="text-[16px] text-[#71787c]" name="account_balance" />
                 <span>
-                  {institution || profile?.institution || "Addis Ababa University · Faculty of Public Health"}
+                  {institution || profile?.institution || "No institutional affiliation added"}
                 </span>
               </p>
             </div>
@@ -387,7 +421,7 @@ export function ResearcherProfilePage() {
         {/* Right Canvas Area */}
         <div className="lg:col-span-3 space-y-6">
           {/* ════════════════════════════════════════════════════════════ */}
-          {/* TAB 1: Verification (Stitch Screen Default)               ── */}
+          {/* TAB 1: Verification (Dynamic Based on Verification Status)── */}
           {/* ════════════════════════════════════════════════════════════ */}
           {activeTab === "verification" && (
             <div className="space-y-6">
@@ -396,52 +430,148 @@ export function ResearcherProfilePage() {
               </h3>
 
               {/* Status Card 1: Verified Identity */}
-              <div className="bg-white rounded-2xl border border-emerald-200 p-6 shadow-[0_4px_12px_rgba(0,51,69,0.05)] relative overflow-hidden">
-                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-emerald-500"></div>
+              {profile?.verified || user?.verification_tier === "1_id_verified" || profile?.verification_level === "id_verified" ? (
+                <div className="bg-white rounded-2xl border border-emerald-200 p-6 shadow-[0_4px_12px_rgba(0,51,69,0.05)] relative overflow-hidden">
+                  <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-emerald-500"></div>
 
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-                    <Icon className="text-[28px]" name="verified_user" />
-                  </div>
-
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2 flex-wrap">
-                      <h4 className="font-bold text-[#001d29] text-base md:text-lg">
-                        Verified Researcher Identity
-                      </h4>
-                      <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-mono uppercase tracking-wide font-bold flex items-center gap-1">
-                        <Icon className="text-[14px]" name="check" />
-                        <span>Verified Organization &amp; National ID</span>
-                      </span>
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                      <Icon className="text-[28px]" name="verified_user" />
                     </div>
 
-                    <div className="bg-[#f8f9ff] rounded-xl p-4 mt-4 border border-[#E2E8F0] font-mono text-xs md:text-sm text-[#41484c] space-y-2.5">
-                      <div className="flex justify-between items-center pb-2 border-b border-[#E2E8F0]">
-                        <span className="text-[#71787c]">Institution:</span>
-                        <span className="text-[#001d29] font-medium">
-                          {institution || profile?.institution || "Addis Ababa University"}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        <h4 className="font-bold text-[#001d29] text-base md:text-lg">
+                          Verified Researcher Identity
+                        </h4>
+                        <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-mono uppercase tracking-wide font-bold flex items-center gap-1">
+                          <Icon className="text-[14px]" name="check" />
+                          <span>Verified Organization &amp; Identity</span>
                         </span>
                       </div>
 
-                      <div className="flex justify-between items-center pb-2 border-b border-[#E2E8F0]">
-                        <span className="text-[#71787c]">TIN / National ID:</span>
-                        <span className="text-[#001d29] font-medium">
-                          {(user as unknown as Record<string, unknown>)?.national_id_hash
-                            ? `FIN: ${String((user as unknown as Record<string, unknown>).national_id_hash).slice(0, 10)}…`
-                            : "0048291029"}
-                        </span>
-                      </div>
+                      <div className="bg-[#f8f9ff] rounded-xl p-4 mt-4 border border-[#E2E8F0] font-mono text-xs md:text-sm text-[#41484c] space-y-2.5">
+                        <div className="flex justify-between items-center pb-2 border-b border-[#E2E8F0]">
+                          <span className="text-[#71787c]">Institution:</span>
+                          <span className="text-[#001d29] font-medium">
+                            {institution || profile?.institution || "Affiliation Verified"}
+                          </span>
+                        </div>
 
-                      <div className="flex justify-between items-center pt-0.5">
-                        <span className="text-[#71787c]">Auth Methods:</span>
-                        <span className="text-[#001d29] font-medium">
-                          Fayda FIN &amp; Institutional Email eSignet Verified
-                        </span>
+                        <div className="flex justify-between items-center pb-2 border-b border-[#E2E8F0]">
+                          <span className="text-[#71787c]">Institutional Email:</span>
+                          <span className="text-[#001d29] font-medium">
+                            {institutionalEmail || profile?.institutional_email || user?.email || "Verified"}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center pt-0.5">
+                          <span className="text-[#71787c]">Status:</span>
+                          <span className="text-emerald-700 font-bold">
+                            Active &amp; In Good Standing
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              ) : profile?.verification_status === "pending" ? (
+                <div className="bg-white rounded-2xl border border-amber-200 p-6 shadow-[0_4px_12px_rgba(0,51,69,0.05)] relative overflow-hidden">
+                  <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-500"></div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+                      <Icon className="text-[28px]" name="hourglass_top" />
+                    </div>
+
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        <h4 className="font-bold text-[#001d29] text-base md:text-lg">
+                          Verification In Review
+                        </h4>
+                        <span className="px-2.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[11px] font-mono uppercase tracking-wide font-bold flex items-center gap-1">
+                          <Icon className="text-[14px]" name="pending" />
+                          <span>Under Review</span>
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-[#41484c] mb-4">
+                        Your verification details have been submitted and are currently being reviewed by the Ethosk compliance team.
+                      </p>
+
+                      <div className="bg-[#f8f9ff] rounded-xl p-4 border border-[#E2E8F0] font-mono text-xs text-[#41484c] space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-[#71787c]">Submitted Institution:</span>
+                          <span className="text-[#001d29] font-medium">{institution || profile?.institution || "Pending"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[#71787c]">Submitted Email:</span>
+                          <span className="text-[#001d29] font-medium">{institutionalEmail || profile?.institutional_email || user?.email}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-[0_4px_12px_rgba(0,51,69,0.05)] relative overflow-hidden">
+                  <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-slate-300"></div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+                      <Icon className="text-[28px]" name="shield" />
+                    </div>
+
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        <h4 className="font-bold text-[#001d29] text-base md:text-lg">
+                          Researcher Identity Unverified
+                        </h4>
+                        <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-full text-[11px] font-mono uppercase tracking-wide font-bold">
+                          Unverified (Basic Access)
+                        </span>
+                      </div>
+
+                      <p className="text-xs md:text-sm text-[#41484c] mb-4 leading-relaxed">
+                        Verify your institutional affiliation to receive verified researcher badges, higher participant targeting capacity, and accelerated survey approvals.
+                      </p>
+
+                      <div className="bg-[#f8f9ff] rounded-xl p-4 border border-[#E2E8F0] text-xs space-y-3 mb-5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[#71787c] font-medium">1. Institution Affiliation:</span>
+                          <span className="font-semibold text-[#001d29]">
+                            {institution || profile?.institution || "Not added"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[#71787c] font-medium">2. Institutional Email:</span>
+                          <span className="font-semibold text-[#001d29]">
+                            {institutionalEmail || profile?.institutional_email || "Not added"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-3">
+                        <Button
+                          onClick={() => requestVerificationMutation.mutate()}
+                          loading={requestVerificationMutation.isPending}
+                          icon="send"
+                          className="primary-gradient-btn px-5 py-2 rounded-xl text-xs font-semibold shadow-xs"
+                        >
+                          Request Verification
+                        </Button>
+                        <Button
+                          onClick={() => setTab("edit")}
+                          variant="outline"
+                          icon="edit"
+                          className="px-4 py-2 rounded-xl text-xs font-semibold"
+                        >
+                          Update Details
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Status Card 2: Credential & IRB Documentation */}
               <div className="bg-white rounded-2xl border border-[#E2E8F0] p-6 shadow-[0_4px_12px_rgba(0,51,69,0.05)]">
@@ -454,57 +584,34 @@ export function ResearcherProfilePage() {
                       </h4>
                     </div>
 
-                    <p className="text-[#41484c] text-xs md:text-sm mb-5 leading-relaxed">
-                      Current institutional authorization documents on file. Ensure these are kept up to date for uninterrupted platform access.
+                    <p className="text-[#41484c] text-xs md:text-sm mb-4 leading-relaxed">
+                      Institutional authorization letters, IRB ethical review approvals, and department attestations.
                     </p>
 
-                    {/* PDF Preview Box */}
-                    <div className="flex items-center gap-4 bg-[#eff4ff] border border-[#c1c7cc]/40 rounded-xl p-3.5 group hover:border-[#2872A1]/60 transition-colors">
-                      <div className="w-10 h-12 bg-white rounded-lg border border-[#c1c7cc]/50 flex flex-col items-center justify-center relative overflow-hidden shrink-0 shadow-2xs">
-                        <div className="absolute top-0 right-0 w-3 h-3 bg-[#eff4ff] border-b border-l border-[#c1c7cc]/50"></div>
-                        <span className="font-mono text-[9px] text-[#001d29] font-bold">PDF</span>
+                    <div className="flex items-center gap-4 bg-[#f8f9ff] border border-[#E2E8F0] rounded-xl p-4">
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
+                        <Icon className="text-[20px]" name="description" />
                       </div>
-
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs md:text-sm font-bold text-[#001d29] truncate">
-                          institutional_authorization_2026.pdf
+                        <p className="text-xs md:text-sm font-semibold text-slate-600">
+                          No institutional documents uploaded yet
                         </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[11px] text-[#71787c] font-mono">2.4 MB</span>
-                          <span className="w-1 h-1 rounded-full bg-[#71787c]"></span>
-                          <span className="text-[11px] text-emerald-700 font-mono font-bold flex items-center gap-1">
-                            <Icon className="text-[13px]" name="task_alt" />
-                            <span>Document Legibility Checked</span>
-                          </span>
-                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Upload official IRB approvals or institutional clearance documents to attach them to your verification profile.
+                        </p>
                       </div>
-
-                      <a
-                        href="/api/researchers/sample-doc"
-                        download="institutional_authorization_2026.pdf"
-                        className="p-2 text-[#71787c] hover:text-[#001d29] hover:bg-white rounded-lg transition-colors"
-                        title="Download Document"
-                      >
-                        <Icon className="text-[20px]" name="download" />
-                      </a>
                     </div>
                   </div>
 
-                  {/* Re-verify action box */}
-                  <div className="md:w-64 flex flex-col justify-center border-t md:border-t-0 md:border-l border-[#E2E8F0] pt-4 md:pt-0 md:pl-6 shrink-0">
-                    <p className="text-xs text-[#41484c] mb-4">
-                      Next review required by: <strong className="text-[#001d29]">Oct 14, 2026</strong>
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={() => requestVerificationMutation.mutate()}
-                      disabled={requestVerificationMutation.isPending}
-                      className="w-full px-4 py-2.5 bg-[#dde9ff] text-[#001d29] border border-[#c1c7cc]/50 rounded-full text-xs md:text-sm font-bold hover:bg-[#c0e8ff] transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  <div className="md:w-56 flex flex-col justify-center border-t md:border-t-0 md:border-l border-[#E2E8F0] pt-4 md:pt-0 md:pl-6 shrink-0">
+                    <Button
+                      onClick={() => setTab("edit")}
+                      variant="outline"
+                      icon="upload_file"
+                      className="w-full px-4 py-2.5 rounded-xl text-xs font-bold"
                     >
-                      <Icon className="text-[18px]" name="update" />
-                      <span>{requestVerificationMutation.isPending ? "Submitting…" : "Re-Verify / Update"}</span>
-                    </button>
+                      Upload Documents
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -648,6 +755,17 @@ export function ResearcherProfilePage() {
                       type="password"
                     />
                   </Field>
+                </div>
+                <div className="pt-2 flex justify-end">
+                  <Button
+                    onClick={() => updatePasswordMutation.mutate()}
+                    loading={updatePasswordMutation.isPending}
+                    disabled={!newPassword || newPassword.length < 8 || newPassword !== confirmPassword}
+                    icon="lock_reset"
+                    className="primary-gradient-btn px-4 py-2 rounded-xl text-xs font-semibold"
+                  >
+                    Save New Password
+                  </Button>
                 </div>
               </Card>
 

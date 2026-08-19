@@ -179,6 +179,7 @@ export const surveySchema = z.object({
   compliance_answer: z.boolean().nullable().optional(),
   compliance_document_path: z.string().nullable().optional(),
   status: z.enum(SURVEY_STATUSES).optional(),
+  builder_type: z.enum(["manual", "import", "ai"]).nullable().optional(),
 });
 export type SurveyInput = z.infer<typeof surveySchema>;
 

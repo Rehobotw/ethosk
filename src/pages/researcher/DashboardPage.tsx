@@ -95,7 +95,7 @@ export function DashboardPage() {
             <span className="material-symbols-outlined text-[14px] text-emerald-600 font-bold">
               trending_up
             </span>
-            <span>{ongoingSurveys.length > 0 ? "+1 since last week" : "No active studies"}</span>
+            <span>{ongoingSurveys.length > 0 ? `${ongoingSurveys.length} currently live` : "No active studies"}</span>
           </div>
         </div>
 
@@ -313,6 +313,16 @@ export function DashboardPage() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 lg:ml-4 shrink-0">
+                    {survey.status === "final_draft" ? (
+                      <Link
+                        to={`/survey-posting/${survey.id}`}
+                        className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Proceed to Posting"
+                      >
+                        <span>Launch</span>
+                        <Icon className="text-[16px]" name="arrow_forward" />
+                      </Link>
+                    ) : null}
                     <Link
                       aria-label="View Analytics"
                       className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
@@ -325,7 +335,13 @@ export function DashboardPage() {
                       aria-label="Edit Survey"
                       className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
                       title="Edit Survey"
-                      to={`/researcher/surveys/${survey.id}/edit`}
+                      to={
+                        survey.builder_type === "import"
+                          ? `/survey-builder/import/${survey.id}`
+                          : survey.builder_type === "ai"
+                          ? `/survey-builder/manual/${survey.id}?source=ai`
+                          : `/survey-builder/manual/${survey.id}`
+                      }
                     >
                       <Icon className="text-[20px]" name="edit" />
                     </Link>

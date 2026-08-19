@@ -40,11 +40,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-primary text-on-primary hover:opacity-90",
-  outline: "border border-primary text-primary hover:bg-primary/5",
-  ghost: "text-on-surface-variant hover:bg-surface-container-highest",
-  danger: "border border-error text-error hover:bg-error-container",
-  secondary: "bg-primary-container text-on-primary-container hover:opacity-80",
+  primary: "bg-primary text-white hover:bg-primary/90 shadow-sm active:scale-[0.98]",
+  outline: "border border-primary/30 text-primary hover:bg-primary/5 hover:border-primary",
+  ghost: "text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface",
+  danger: "border border-error/30 text-error hover:bg-error/10",
+  secondary: "bg-surface-container-high text-on-surface hover:bg-surface-container-highest",
 };
 
 export function Button({
@@ -59,7 +59,7 @@ export function Button({
   return (
     <button
       className={clsx(
-        "inline-flex items-center justify-center gap-stack-sm rounded-xl px-stack-md py-stack-sm font-title-sm text-body-md font-semibold transition-all",
+        "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-headline-md text-sm font-semibold transition-all whitespace-nowrap select-none",
         "disabled:cursor-not-allowed disabled:opacity-50",
         BUTTON_VARIANTS[variant],
         className,
@@ -331,22 +331,25 @@ export function EmptyState({
   icon = "inbox",
   title,
   children,
+  action,
 }: {
   icon?: string;
   title: string;
   children?: ReactNode;
+  action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl bg-gradient-to-b from-slate-50/80 to-white px-8 py-14 text-center">
-      <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#00456d]/10 to-[#00456d]/5 ring-1 ring-[#00456d]/10">
-        <Icon className="text-[28px] text-[#00456d]/50" name={icon} />
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-white/70 backdrop-blur-sm px-8 py-14 text-center shadow-xs">
+      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/5 ring-1 ring-primary/10">
+        <Icon className="text-[28px] text-primary" name={icon} />
       </div>
-      <p className="font-['Newsreader',serif] text-lg font-semibold text-[#0D253A] tracking-tight">{title}</p>
+      <h3 className="text-lg font-bold text-primary tracking-tight font-headline-md">{title}</h3>
       {children ? (
-        <p className="mt-2 max-w-sm text-[13px] leading-relaxed text-slate-500">
+        <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-500 font-normal">
           {children}
         </p>
       ) : null}
+      {action ? <div className="mt-6">{action}</div> : null}
     </div>
   );
 }

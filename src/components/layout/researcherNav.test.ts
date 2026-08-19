@@ -25,7 +25,8 @@ describe("isNavActive", () => {
     "/researcher/surveys/abc-123/edit",
     "/researcher/surveys/abc-123/dashboard",
     "/researcher/wallet",
-    "/researcher/settings",
+    "/survey-posting",
+    "/researcher/help",
   ])("highlights exactly one item on %s", (pathname) => {
     expect(activeCount(pathname)).toBe(1);
   });

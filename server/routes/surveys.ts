@@ -99,9 +99,8 @@ surveysRouter.get(
   requireAuth("researcher"),
   asyncRoute(async (req, res) => {
     const context = auth(req);
-    const client = userClient(context.accessToken);
 
-    const { data, error } = await client
+    const { data, error } = await admin
       .from("surveys")
       .select("*")
       .eq("researcher_id", context.userId)
@@ -143,12 +142,11 @@ surveysRouter.post(
     if (input.status === "final_draft") {
       finalDraftSchema.parse(input);
     }
-    const client = userClient(context.accessToken);
 
     // Free-tier enforcement: cap active survey count
     await checkFreeTierSurveyLimit(context.userId, context.subscriptionTier);
 
-    const { data, error } = await client
+    const { data, error } = await admin
       .from("surveys")
       .insert({
         researcher_id: context.userId,
@@ -159,6 +157,8 @@ surveysRouter.post(
         compliance_answer: input.compliance_answer ?? null,
         compliance_document_path: input.compliance_document_path ?? null,
         status: input.status ?? "draft",
+        builder_type: input.builder_type ?? "manual",
+        updated_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -184,8 +184,7 @@ surveysRouter.delete(
       );
     }
 
-    const client = userClient(context.accessToken);
-    const { error } = await client.from("surveys").delete().eq("id", survey.id);
+    const { error } = await admin.from("surveys").delete().eq("id", survey.id);
 
     if (error) throw new ApiError(500, "SURVEY_DELETE_FAILED", error.message);
     res.json({ success: true, message: "Survey deleted successfully." });
@@ -290,8 +289,7 @@ surveysRouter.patch(
     const translations =
       input.questions !== undefined ? {} : survey.translations;
 
-    const client = userClient(context.accessToken);
-    const { data, error } = await client
+    const { data, error } = await admin
       .from("surveys")
       .update({
         ...(input.title !== undefined && { title: input.title }),
@@ -301,6 +299,8 @@ surveysRouter.patch(
         ...(input.compliance_answer !== undefined && { compliance_answer: input.compliance_answer }),
         ...(input.compliance_document_path !== undefined && { compliance_document_path: input.compliance_document_path }),
         ...(input.status !== undefined && { status: input.status }),
+        ...(input.builder_type !== undefined && { builder_type: input.builder_type }),
+        updated_at: new Date().toISOString(),
         translations,
       })
       .eq("id", survey.id)
@@ -323,8 +323,7 @@ surveysRouter.delete(
       throw new ApiError(409, "CANNOT_DELETE_ACTIVE", "Active or closed surveys cannot be deleted.");
     }
 
-    const client = userClient(context.accessToken);
-    const { error } = await client.from("surveys").delete().eq("id", survey.id);
+    const { error } = await admin.from("surveys").delete().eq("id", survey.id);
 
     if (error) throw new ApiError(500, "SURVEY_DELETE_FAILED", error.message);
     res.json({ success: true, deleted_id: survey.id });
@@ -337,9 +336,8 @@ surveysRouter.post(
   asyncRoute(async (req, res) => {
     const context = auth(req);
     const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
-    const client = userClient(context.accessToken);
 
-    const { data, error } = await client
+    const { data, error } = await admin
       .from("surveys")
       .insert({
         researcher_id: context.userId,
@@ -416,8 +414,7 @@ surveysRouter.post(
       );
     }
 
-    const client = userClient(context.accessToken);
-    const { error } = await client
+    const { error } = await admin
       .from("surveys")
       .update({ translations })
       .eq("id", survey.id);

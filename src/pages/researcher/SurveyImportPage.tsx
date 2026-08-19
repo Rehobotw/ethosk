@@ -10,36 +10,6 @@ function generateQuestionId(): string {
   return `q_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
-const DEFAULT_SAMPLE_QUESTIONS: Question[] = [
-  {
-    id: generateQuestionId(),
-    text: "What is your primary source of household income?",
-    type: "single_choice",
-    options: ["Salary / Employment", "Business / Self-employed", "Agriculture / Farming", "Remittances / Other"],
-    required: true,
-  },
-  {
-    id: generateQuestionId(),
-    text: "Rate your satisfaction with public utility services (1–5).",
-    type: "single_choice",
-    options: ["1 - Very Poor", "2 - Poor", "3 - Neutral", "4 - Good", "5 - Excellent"],
-    required: true,
-  },
-  {
-    id: generateQuestionId(),
-    text: "Provide any additional feedback on municipal water supply.",
-    type: "text",
-    required: false,
-  },
-  {
-    id: generateQuestionId(),
-    text: "How often do you use digital wallet services (Telebirr/CBE Birr)?",
-    type: "single_choice",
-    options: ["Daily", "2–3 times per week", "Once a month", "Rarely / Never"],
-    required: true,
-  },
-];
-
 /**
  * Parses raw extracted text into structured Question objects.
  */
@@ -51,8 +21,8 @@ export function parseSurveyText(rawText: string): { title: string; questions: Qu
 
   if (lines.length === 0) {
     return {
-      title: "Addis Retail Study Draft",
-      questions: DEFAULT_SAMPLE_QUESTIONS,
+      title: "",
+      questions: [],
     };
   }
 
@@ -139,7 +109,7 @@ export function parseSurveyText(rawText: string): { title: string; questions: Qu
 
   return {
     title: title || "Imported Survey",
-    questions: questions.length > 0 ? questions : DEFAULT_SAMPLE_QUESTIONS,
+    questions,
   };
 }
 
@@ -258,9 +228,9 @@ export function SurveyImportPage() {
   const [flagUnformatted, setFlagUnformatted] = useState(true);
 
   // Extracted Survey State
-  const [title, setTitle] = useState<string>("Addis_Retail_Study_Draft_Final.docx");
-  const [fileSizeStr, setFileSizeStr] = useState<string>("1.4 MB");
-  const [questions, setQuestions] = useState<Question[]>(DEFAULT_SAMPLE_QUESTIONS);
+  const [title, setTitle] = useState<string>("");
+  const [fileSizeStr, setFileSizeStr] = useState<string>("");
+  const [questions, setQuestions] = useState<Question[]>([]);
 
   const handleFileValidationAndProcess = async (file: File) => {
     setFileError(null);
@@ -310,8 +280,7 @@ export function SurveyImportPage() {
       setQuestions(parsed.questions);
       setBanner({ tone: "success", text: "Document re-parsed with active configuration." });
     } else {
-      setQuestions([...DEFAULT_SAMPLE_QUESTIONS]);
-      setBanner({ tone: "success", text: "Sample schema re-parsed successfully." });
+      setBanner({ tone: "warning", text: "No document uploaded yet to parse." });
     }
   };
 
@@ -404,36 +373,38 @@ export function SurveyImportPage() {
           </div>
 
           {/* Active Upload Card */}
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-xs flex items-start justify-between">
-            <div className="flex items-start gap-4">
-              <div className="bg-[#eff4ff] p-3 rounded-xl text-[#001d29]">
-                <Icon className="text-[24px]" name="description" />
-              </div>
-              <div>
-                <h4 className="font-bold text-[#001d29] text-sm md:text-base mb-1">
-                  {title} <span className="text-xs text-[#71787c] font-normal font-mono ml-1">({fileSizeStr})</span>
-                </h4>
-                <div className="flex items-center gap-1.5 text-emerald-700 text-xs font-semibold mt-1">
-                  <Icon className="text-[18px]" name="check_circle" />
-                  <span>Parsed {questions.length} questions successfully.</span>
+          {title ? (
+            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-xs flex items-start justify-between">
+              <div className="flex items-start gap-4">
+                <div className="bg-[#eff4ff] p-3 rounded-xl text-[#001d29]">
+                  <Icon className="text-[24px]" name="description" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-[#001d29] text-sm md:text-base mb-1">
+                    {title} <span className="text-xs text-[#71787c] font-normal font-mono ml-1">({fileSizeStr})</span>
+                  </h4>
+                  <div className="flex items-center gap-1.5 text-emerald-700 text-xs font-semibold mt-1">
+                    <Icon className="text-[18px]" name="check_circle" />
+                    <span>Parsed {questions.length} questions successfully.</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <label className="text-xs font-semibold text-[#ba1a1a] hover:underline cursor-pointer">
-              <span>Remove / Replace File</span>
-              <input
-                type="file"
-                className="sr-only"
-                accept=".docx,.pdf,.txt,.csv,.xlsx,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    void handleFileValidationAndProcess(e.target.files[0]);
-                  }
-                }}
-              />
-            </label>
-          </div>
+              <label className="text-xs font-semibold text-[#ba1a1a] hover:underline cursor-pointer">
+                <span>Remove / Replace File</span>
+                <input
+                  type="file"
+                  className="sr-only"
+                  accept=".docx,.pdf,.txt,.csv,.xlsx,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      void handleFileValidationAndProcess(e.target.files[0]);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+          ) : null}
 
           {/* Parser Configuration */}
           <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-xs">
@@ -495,94 +466,105 @@ export function SurveyImportPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-              {questions.map((q, idx) => {
-                const isRating = q.options && q.options.length === 5 && q.options[0]?.includes("1");
-                const isOpenEnded = q.type === "text" || !q.options || q.options.length === 0;
-                const isNeedsReview = !isOpenEnded && !isRating && q.options && q.options.length === 1;
+              {questions.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-[#71787c]">
+                  <div className="w-12 h-12 rounded-full bg-[#f8f9ff] border border-[#c1c7cc]/50 flex items-center justify-center mb-3 text-on-surface-variant">
+                    <Icon className="text-[24px]" name="schema" />
+                  </div>
+                  <p className="text-sm font-semibold text-[#001d29] mb-1">No questions extracted yet</p>
+                  <p className="text-xs text-[#71787c] max-w-xs">
+                    Upload a Word, PDF, or text file on the left to parse and preview your survey questions.
+                  </p>
+                </div>
+              ) : (
+                questions.map((q, idx) => {
+                  const isRating = q.options && q.options.length === 5 && q.options[0]?.includes("1");
+                  const isOpenEnded = q.type === "text" || !q.options || q.options.length === 0;
+                  const isNeedsReview = !isOpenEnded && !isRating && q.options && q.options.length === 1;
 
-                if (isNeedsReview) {
+                  if (isNeedsReview) {
+                    return (
+                      <div
+                        key={q.id}
+                        className="bg-amber-50/60 border border-amber-300 rounded-xl p-4 relative overflow-hidden"
+                      >
+                        <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-mono text-[10px] font-bold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded flex items-center gap-1">
+                            <Icon className="text-[13px]" name="warning" />
+                            <span>NEEDS REVIEW</span>
+                          </span>
+                          <Icon className="text-[#71787c] text-[18px]" name="drag_indicator" />
+                        </div>
+                        <p className="text-xs md:text-sm font-semibold text-[#001d29] mb-1">
+                          Q{idx + 1}: {q.text}
+                        </p>
+                        <p className="text-[11px] text-amber-800 font-mono mt-1">
+                          Manual intervention required
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  if (isRating) {
+                    return (
+                      <div
+                        key={q.id}
+                        className="bg-[#f8f9ff] border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2872A1]/50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-mono text-[10px] font-bold text-[#001d29] bg-[#c0e8ff]/50 px-2 py-0.5 rounded">
+                            RATING SCALE
+                          </span>
+                          <Icon className="text-[#71787c] text-[18px]" name="drag_indicator" />
+                        </div>
+                        <p className="text-xs md:text-sm font-semibold text-[#001d29]">
+                          Q{idx + 1}: {q.text}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  if (isOpenEnded) {
+                    return (
+                      <div
+                        key={q.id}
+                        className="bg-[#f8f9ff] border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2872A1]/50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-mono text-[10px] font-bold text-[#001d29] bg-[#c0e8ff]/50 px-2 py-0.5 rounded">
+                            OPEN ENDED
+                          </span>
+                          <Icon className="text-[#71787c] text-[18px]" name="drag_indicator" />
+                        </div>
+                        <p className="text-xs md:text-sm font-semibold text-[#001d29]">
+                          Q{idx + 1}: {q.text}
+                        </p>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={q.id}
-                      className="bg-amber-50/60 border border-amber-300 rounded-xl p-4 relative overflow-hidden"
+                      className="bg-[#f8f9ff] border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2872A1]/50 transition-colors"
                     >
-                      <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-mono text-[10px] font-bold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded flex items-center gap-1">
-                          <Icon className="text-[13px]" name="warning" />
-                          <span>NEEDS REVIEW</span>
+                        <span className="font-mono text-[10px] font-bold text-[#001d29] bg-[#c0e8ff]/50 px-2 py-0.5 rounded">
+                          MULTIPLE CHOICE
                         </span>
                         <Icon className="text-[#71787c] text-[18px]" name="drag_indicator" />
                       </div>
                       <p className="text-xs md:text-sm font-semibold text-[#001d29] mb-1">
                         Q{idx + 1}: {q.text}
                       </p>
-                      <p className="text-[11px] text-amber-800 font-mono mt-1">
-                        Manual intervention required
+                      <p className="text-xs text-[#41484c]">
+                        {q.options?.length || 0} choices extracted
                       </p>
                     </div>
                   );
-                }
-
-                if (isRating) {
-                  return (
-                    <div
-                      key={q.id}
-                      className="bg-[#f8f9ff] border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2872A1]/50 transition-colors"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-mono text-[10px] font-bold text-[#001d29] bg-[#c0e8ff]/50 px-2 py-0.5 rounded">
-                          RATING SCALE
-                        </span>
-                        <Icon className="text-[#71787c] text-[18px]" name="drag_indicator" />
-                      </div>
-                      <p className="text-xs md:text-sm font-semibold text-[#001d29]">
-                        Q{idx + 1}: {q.text}
-                      </p>
-                    </div>
-                  );
-                }
-
-                if (isOpenEnded) {
-                  return (
-                    <div
-                      key={q.id}
-                      className="bg-[#f8f9ff] border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2872A1]/50 transition-colors"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-mono text-[10px] font-bold text-[#001d29] bg-[#c0e8ff]/50 px-2 py-0.5 rounded">
-                          OPEN ENDED
-                        </span>
-                        <Icon className="text-[#71787c] text-[18px]" name="drag_indicator" />
-                      </div>
-                      <p className="text-xs md:text-sm font-semibold text-[#001d29]">
-                        Q{idx + 1}: {q.text}
-                      </p>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div
-                    key={q.id}
-                    className="bg-[#f8f9ff] border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2872A1]/50 transition-colors"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-mono text-[10px] font-bold text-[#001d29] bg-[#c0e8ff]/50 px-2 py-0.5 rounded">
-                        MULTIPLE CHOICE
-                      </span>
-                      <Icon className="text-[#71787c] text-[18px]" name="drag_indicator" />
-                    </div>
-                    <p className="text-xs md:text-sm font-semibold text-[#001d29] mb-1.5">
-                      Q{idx + 1}: {q.text}
-                    </p>
-                    <p className="text-xs text-[#71787c] flex items-center gap-1 font-mono">
-                      <Icon className="text-[15px]" name="list" />
-                      <span>{q.options?.length || 0} choices extracted</span>
-                    </p>
-                  </div>
-                );
-              })}
+                })
+              )}
             </div>
           </div>
         </div>

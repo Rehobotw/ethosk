@@ -73,47 +73,11 @@ authRouter.post(
     const input = parseBody(signupSchema, req.body);
     const email = input.email.toLowerCase();
 
-    // Check if user already exists in DB
+    // Check if user already exists in DB or Supabase Auth
     try {
-      const { data: existing } = await admin
-        .from("users")
-        .select("id")
-        .eq("email", email)
-        .maybeSingle();
-
-      if (existing) {
-        const profileTable =
-          input.role === "respondent"
-            ? "respondent_profiles"
-            : input.role === "researcher"
-              ? "researcher_profiles"
-              : null;
-
-        if (profileTable) {
-          const { data: profile } = await admin
-            .from(profileTable)
-            .select("user_id")
-            .eq("user_id", existing.id)
-            .maybeSingle();
-
-          if (profile) {
-            throw new ApiError(409, "EMAIL_ALREADY_REGISTERED", "That email address is already registered.");
-          }
-
-          // User exists under another role; provision the new profile
-          await admin.from(profileTable).upsert({ user_id: existing.id }, { onConflict: "user_id" });
-
-          return res.status(201).json({
-            success: true,
-            verification_required: false,
-            email,
-            message: `Your account is now enabled as a ${input.role}.`,
-            user_id: existing.id,
-            role: input.role,
-          });
-        }
-
-        throw new ApiError(409, "EMAIL_ALREADY_REGISTERED", "That email address is already registered.");
+      const existingUser = await findUserByEmail(email);
+      if (existingUser) {
+        throw new ApiError(409, "EMAIL_ALREADY_REGISTERED", "That email address is already registered. Please sign in instead.");
       }
     } catch (e) {
       if (e instanceof ApiError) throw e;

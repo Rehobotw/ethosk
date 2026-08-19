@@ -105,6 +105,10 @@ const TEMPLATES = [
 ];
 
 function getBuilderType(survey: SurveyRecord): "Manual" | "Import" | "AI" {
+  if (survey.builder_type === "ai") return "AI";
+  if (survey.builder_type === "import") return "Import";
+  if (survey.builder_type === "manual") return "Manual";
+
   const title = (survey.title || "").toLowerCase();
   const hasAiQuestions = survey.questions?.some((q) => q.id?.includes("ai"));
   const hasImportQuestions = survey.questions?.some((q) => q.id?.includes("import") || q.id?.includes("imp"));
@@ -112,6 +116,13 @@ function getBuilderType(survey: SurveyRecord): "Manual" | "Import" | "AI" {
   if (title.startsWith("ai ") || title.includes("ai draft") || hasAiQuestions) return "AI";
   if (title.includes("import") || hasImportQuestions) return "Import";
   return "Manual";
+}
+
+export function getResumePath(survey: SurveyRecord): string {
+  const type = getBuilderType(survey);
+  if (type === "Import") return `/survey-builder/import/${survey.id}`;
+  if (type === "AI") return `/survey-builder/manual/${survey.id}?source=ai`;
+  return `/survey-builder/manual/${survey.id}`;
 }
 
 function getBuilderBadgeStyle(type: "Manual" | "Import" | "AI"): { bg: string; text: string } {
@@ -472,7 +483,7 @@ export function SurveyNewLandingPage() {
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => navigate(`/survey-builder/manual/${survey.id}`)}
+                        onClick={() => navigate(getResumePath(survey))}
                         className="px-4 py-2 bg-[#2872A1] hover:bg-[#001d29] text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
                       >
                         <Icon className="text-[16px]" name="edit" />

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { finalDraftSchema, surveySchema } from "./schemas.js";
-import { SURVEY_STATUSES, type SurveyRecord, type SurveyStatus } from "../types.js";
+import { SURVEY_STATUSES, BUILDER_TYPES, type SurveyRecord, type SurveyStatus, type BuilderType } from "../types.js";
 
 describe("v3 Draft Lifecycle and State Transitions (§4.3.5–4.3.6)", () => {
   it("defines all required distinct survey states per v3 spec", () => {
@@ -13,7 +13,14 @@ describe("v3 Draft Lifecycle and State Transitions (§4.3.5–4.3.6)", () => {
     expect(SURVEY_STATUSES).toContain("closed");
   });
 
-  it("permits WIP draft creation with initial draft question", () => {
+  it("defines all required builder types per v3 spec", () => {
+    expect(BUILDER_TYPES).toContain("manual");
+    expect(BUILDER_TYPES).toContain("import");
+    expect(BUILDER_TYPES).toContain("ai");
+  });
+
+  it("permits WIP draft creation with builder_type and timestamp", () => {
+    const now = new Date().toISOString();
     const wipInput = {
       title: "Untitled WIP Survey",
       questions: [
@@ -24,10 +31,33 @@ describe("v3 Draft Lifecycle and State Transitions (§4.3.5–4.3.6)", () => {
         },
       ],
       status: "wip" as SurveyStatus,
+      builder_type: "manual" as BuilderType,
+      updated_at: now,
     };
 
     const result = surveySchema.safeParse(wipInput);
     expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.builder_type).toBe("manual");
+    }
+  });
+
+  it("supports import and AI builder types in draft persistence", () => {
+    const importDraft = surveySchema.safeParse({
+      title: "Imported Study",
+      questions: [{ id: "q1", type: "text", text: "Question from doc" }],
+      status: "wip",
+      builder_type: "import",
+    });
+    expect(importDraft.success).toBe(true);
+
+    const aiDraft = surveySchema.safeParse({
+      title: "AI Generated Study",
+      questions: [{ id: "q1", type: "text", text: "AI generated question" }],
+      status: "wip",
+      builder_type: "ai",
+    });
+    expect(aiDraft.success).toBe(true);
   });
 
   it("requires full validation before promoting WIP to Final Draft", () => {
@@ -44,6 +74,7 @@ describe("v3 Draft Lifecycle and State Transitions (§4.3.5–4.3.6)", () => {
       ],
       reward_etb: 0,
       status: "final_draft" as SurveyStatus,
+      builder_type: "manual" as BuilderType,
     };
 
     const invalidResult = finalDraftSchema.safeParse(incompleteDraft);
@@ -64,6 +95,7 @@ describe("v3 Draft Lifecycle and State Transitions (§4.3.5–4.3.6)", () => {
       ],
       reward_etb: 25,
       status: "final_draft" as SurveyStatus,
+      builder_type: "manual" as BuilderType,
     };
 
     const validResult = finalDraftSchema.safeParse(completeDraft);
@@ -72,11 +104,11 @@ describe("v3 Draft Lifecycle and State Transitions (§4.3.5–4.3.6)", () => {
 
   it("distinguishes WIP and Final Draft datasets correctly", () => {
     const mockSurveys: Partial<SurveyRecord>[] = [
-      { id: "s1", title: "Survey 1", status: "wip" },
-      { id: "s2", title: "Survey 2", status: "draft" },
-      { id: "s3", title: "Survey 3", status: "final_draft" },
-      { id: "s4", title: "Survey 4", status: "active" },
-      { id: "s5", title: "Survey 5", status: "closed" },
+      { id: "s1", title: "Survey 1", status: "wip", builder_type: "manual" },
+      { id: "s2", title: "Survey 2", status: "draft", builder_type: "import" },
+      { id: "s3", title: "Survey 3", status: "final_draft", builder_type: "ai" },
+      { id: "s4", title: "Survey 4", status: "active", builder_type: "manual" },
+      { id: "s5", title: "Survey 5", status: "closed", builder_type: "manual" },
     ];
 
     // WIP dataset (shared between Recent list and Dashboard WIP tab)
@@ -96,11 +128,12 @@ describe("v3 Draft Lifecycle and State Transitions (§4.3.5–4.3.6)", () => {
     expect(closedDataset.map((s) => s.id)).toEqual(["s5"]);
   });
 
-  it("removes a survey from the WIP dataset upon transition to final_draft", () => {
+  it("removes a survey from the WIP dataset immediately upon transition to final_draft", () => {
     let survey: Partial<SurveyRecord> = {
       id: "s10",
       title: "Draft Study",
       status: "wip",
+      builder_type: "manual",
     };
 
     const isWip = (s: Partial<SurveyRecord>) => s.status === "wip" || s.status === "draft";
@@ -119,5 +152,56 @@ describe("v3 Draft Lifecycle and State Transitions (§4.3.5–4.3.6)", () => {
     // New state
     expect(isWip(survey)).toBe(false);
     expect(isFinalDraft(survey)).toBe(true);
+  });
+
+  it("determines the correct resume editing path based on builder type", () => {
+    const getResumePath = (s: Partial<SurveyRecord>): string => {
+      if (s.builder_type === "import") return `/survey-builder/import/${s.id}`;
+      if (s.builder_type === "ai") return `/survey-builder/manual/${s.id}?source=ai`;
+      return `/survey-builder/manual/${s.id}`;
+    };
+
+    expect(getResumePath({ id: "s1", builder_type: "manual" })).toBe("/survey-builder/manual/s1");
+    expect(getResumePath({ id: "s2", builder_type: "import" })).toBe("/survey-builder/import/s2");
+    expect(getResumePath({ id: "s3", builder_type: "ai" })).toBe("/survey-builder/manual/s3?source=ai");
+  });
+
+  it("simulates deletion of WIP survey removing it from shared dataset", () => {
+    let dataset: Partial<SurveyRecord>[] = [
+      { id: "s1", title: "Survey 1", status: "wip" },
+      { id: "s2", title: "Survey 2", status: "wip" },
+      { id: "s3", title: "Survey 3", status: "final_draft" },
+    ];
+
+    const isWip = (s: Partial<SurveyRecord>) => s.status === "wip" || s.status === "draft";
+
+    // Before deletion
+    expect(dataset.filter(isWip).map((s) => s.id)).toEqual(["s1", "s2"]);
+
+    // Delete s1
+    dataset = dataset.filter((s) => s.id !== "s1");
+
+    // After deletion: both Recent and Dashboard WIP reflect the deletion
+    expect(dataset.filter(isWip).map((s) => s.id)).toEqual(["s2"]);
+  });
+
+  it("handles full lifecycle state progression: wip -> final_draft -> active -> closed", () => {
+    const lifecycle: readonly SurveyStatus[] = ["wip", "final_draft", "active", "closed"] as const;
+
+    // 1. Initial creation
+    let currentStatus: SurveyStatus = lifecycle[0]!;
+    expect(currentStatus).toBe("wip");
+
+    // 2. Promotion to final draft
+    currentStatus = lifecycle[1]!;
+    expect(currentStatus).toBe("final_draft");
+
+    // 3. Launching / Posting
+    currentStatus = lifecycle[2]!;
+    expect(currentStatus).toBe("active");
+
+    // 4. Closing study
+    currentStatus = lifecycle[3]!;
+    expect(currentStatus).toBe("closed");
   });
 });

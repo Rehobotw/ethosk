@@ -2,15 +2,12 @@
 export const PRIMARY_NAV = [
   { label: "Dashboard", to: "/researcher", icon: "dashboard" },
   { label: "Survey Builder", to: "/survey-builder", icon: "edit_note" },
-  { label: "My Surveys", to: "/researcher/surveys", icon: "send" },
+  { label: "Survey Posting", to: "/survey-posting", icon: "send" },
   { label: "Analytics", to: "/researcher/analytics", icon: "analytics" },
   { label: "Wallet", to: "/researcher/wallet", icon: "account_balance_wallet" },
 ];
 
 export const SECONDARY_NAV = [
-  { label: "Subscription", to: "/researcher/subscription", icon: "star" },
-  { label: "Profile", to: "/researcher/profile", icon: "person" },
-  { label: "Settings", to: "/researcher/settings", icon: "settings" },
   { label: "Help Center", to: "/researcher/help", icon: "help" },
 ];
 
@@ -35,12 +32,11 @@ export function isNavActive(pathname: string, to: string): boolean {
     );
   }
 
-  if (to === "/researcher/surveys") {
-    // Editing or reviewing a survey belongs to the list; creating one (and its
-    // sub-routes: /manual, /import, /ai) has its own entry.
+  if (to === "/survey-posting" || to === "/researcher/surveys") {
     return (
-      pathname.startsWith("/researcher/surveys") &&
-      !pathname.startsWith("/researcher/surveys/new")
+      pathname.startsWith("/survey-posting") ||
+      (pathname.startsWith("/researcher/surveys") &&
+        !pathname.startsWith("/researcher/surveys/new"))
     );
   }
 

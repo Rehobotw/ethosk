@@ -68,8 +68,7 @@ respondentsRouter.post(
       ...(dob !== undefined && { dob }),
     };
 
-    const client = userClient(context.accessToken);
-    const { data, error } = await client
+    const { data, error } = await admin
       .from("respondent_profiles")
       .upsert(
         {
@@ -99,10 +98,9 @@ respondentsRouter.get(
   requireAuth("respondent"),
   asyncRoute(async (req, res) => {
     const context = auth(req);
-    const client = userClient(context.accessToken);
 
     const [{ data: profile, error }, { data: userRecord }] = await Promise.all([
-      client.from("respondent_profiles").select().eq("user_id", context.userId).maybeSingle(),
+      admin.from("respondent_profiles").select().eq("user_id", context.userId).maybeSingle(),
       admin.from("users").select("full_name").eq("id", context.userId).maybeSingle(),
     ]);
 

@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { UserRole } from "@shared/types";
@@ -12,26 +12,21 @@ import { useLanguage } from "@/lib/language";
 import { supabase } from "@/lib/supabase";
 import { AuthShell } from "./AuthShell";
 
-interface LoginPageProps {
-  role?: UserRole;
-}
-
-export function LoginPage({ role: initialRole }: LoginPageProps) {
+export function LoginPage() {
   const { login, user, loading, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { t, language } = useLanguage();
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [role, setRole] = useState<UserRole>(initialRole || "respondent");
 
-  useEffect(() => {
-    if (initialRole) setRole(initialRole);
-  }, [initialRole]);
+  const fromPath = (location.state as { from?: string })?.from || searchParams.get("from");
 
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "", role },
+    defaultValues: { email: "", password: "" },
   });
   const {
     register,
@@ -42,16 +37,19 @@ export function LoginPage({ role: initialRole }: LoginPageProps) {
 
   const watchEmail = watch("email");
 
-  // Keep form role in sync with state
-  useEffect(() => {
-    setValue("role", role);
-  }, [role, setValue]);
+  const handlePostLoginRedirect = (sessionRole: UserRole) => {
+    if (fromPath && !fromPath.startsWith("/login") && !fromPath.startsWith("/signup")) {
+      navigate(fromPath, { replace: true });
+      return;
+    }
+    navigate(homePathForRole(sessionRole), { replace: true });
+  };
 
   const onSubmit = async (values: LoginInput) => {
     setFormError(null);
     try {
-      const session = await login({ ...values, role });
-      navigate(homePathForRole(session.role), { replace: true });
+      const session = await login(values);
+      handlePostLoginRedirect(session.role);
     } catch (error) {
       if (error instanceof ApiRequestError && (error.data as Record<string, unknown>)?.verification_required) {
         const email = (error.data as Record<string, unknown>)?.email as string || values.email;
@@ -66,13 +64,13 @@ export function LoginPage({ role: initialRole }: LoginPageProps) {
 
   const { formRef, onSubmit: handleFormSubmit } = useAutofillSafeSubmit(form, onSubmit);
 
-  const handleDemoFill = async (targetRole: UserRole, email: string) => {
+  const handleDemoFill = async (email: string) => {
     setValue("email", email);
     setValue("password", "ethosk-demo-2024");
     setFormError(null);
     try {
-      const session = await login({ email, password: "ethosk-demo-2024", role: targetRole });
-      navigate(homePathForRole(session.role), { replace: true });
+      const session = await login({ email, password: "ethosk-demo-2024" });
+      handlePostLoginRedirect(session.role);
     } catch (error) {
       setFormError(
         error instanceof ApiRequestError ? error.message : "Could not sign in. Try again.",
@@ -87,7 +85,7 @@ export function LoginPage({ role: initialRole }: LoginPageProps) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/auth/callback${fromPath ? `?from=${encodeURIComponent(fromPath)}` : ""}`,
         },
       });
       if (error) throw error;
@@ -101,7 +99,7 @@ export function LoginPage({ role: initialRole }: LoginPageProps) {
     return (
       <AuthShell
         footer={
-          <button className="font-semibold text-primary hover:underline" onClick={() => logout()} type="button">
+          <button className="font-semibold text-primary hover:underline cursor-pointer" onClick={() => logout()} type="button">
             Log out to switch accounts
           </button>
         }
@@ -114,15 +112,15 @@ export function LoginPage({ role: initialRole }: LoginPageProps) {
           </p>
           <div className="flex flex-col gap-2 sm:flex-row justify-center">
             <button
-              onClick={() => navigate(homePathForRole(user.role))}
-              className="primary-gradient-btn px-6 py-2.5 rounded-full text-white font-semibold text-sm"
+              onClick={() => handlePostLoginRedirect(user.role)}
+              className="primary-gradient-btn px-6 py-2.5 rounded-full text-white font-semibold text-sm cursor-pointer"
               type="button"
             >
               Go to {user.role.charAt(0).toUpperCase() + user.role.slice(1)} Portal
             </button>
             <button
               onClick={() => logout()}
-              className="px-6 py-2.5 rounded-full border border-outline-variant text-primary font-semibold text-sm hover:bg-surface-container transition-colors"
+              className="px-6 py-2.5 rounded-full border border-outline-variant text-primary font-semibold text-sm hover:bg-surface-container transition-colors cursor-pointer"
               type="button"
             >
               Log Out &amp; Switch Account
@@ -134,9 +132,6 @@ export function LoginPage({ role: initialRole }: LoginPageProps) {
   }
 
   const isAm = language === "am";
-  const roleTitle = role === "researcher"
-    ? (isAm ? "ተመራማሪ" : "Researcher")
-    : (isAm ? "ተሳታፊ" : "Respondent");
 
   return (
     <AuthShell
@@ -145,43 +140,18 @@ export function LoginPage({ role: initialRole }: LoginPageProps) {
           {isAm ? "መለያ የለዎትም? " : "Don't have an account? "}
           <Link
             className="font-semibold text-primary hover:underline"
-            to={role === "researcher" ? "/signup/researcher" : "/signup/respondent"}
+            to="/signup"
           >
             {t("nav.signup")}
           </Link>
         </>
       }
-      role={role}
-      subtitle={isAm ? "እንኳን ደህና መጡ። እባክዎ መረጃዎን ያስገቡ::" : "Welcome back. Please enter your details."}
-      title={isAm ? `${roleTitle} መግቢያ` : `${roleTitle} Login`}
-      topRightAction={
-        role === "researcher" ? (
-          <div className="text-xs text-slate-600 flex items-center gap-1.5">
-            <span className="hidden sm:inline">{isAm ? "ተሳታፊ ነዎት?" : "Are you a Respondent?"}</span>
-            <Link
-              to="/login/respondent"
-              className="font-semibold text-primary hover:underline transition-colors"
-            >
-              {isAm ? "እንደ ተሳታፊ ይግቡ →" : "Log in as Respondent →"}
-            </Link>
-          </div>
-        ) : (
-          <div className="text-xs text-slate-600 flex items-center gap-1.5">
-            <span className="hidden sm:inline">{isAm ? "ተመራማሪ ነዎት?" : "Are you a Researcher?"}</span>
-            <Link
-              to="/login/researcher"
-              className="font-semibold text-primary hover:underline transition-colors"
-            >
-              {isAm ? "እንደ ተመራማሪ ይግቡ →" : "Log in as Researcher →"}
-            </Link>
-          </div>
-        )
-      }
+      subtitle={isAm ? "እንኳን ደህና መጡ። እባክዎ መረጃዎን ያስገቡ::" : "Welcome back. Please enter your email and password."}
+      title={isAm ? "ወደ Ethosk ይግቡ" : "Sign In to Ethosk"}
     >
-
       <div className="space-y-4">
         <button
-          className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-outline-variant/60 bg-surface-container-low hover:bg-surface-container transition-colors text-on-surface font-label-md text-sm"
+          className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-outline-variant/60 bg-surface-container-low hover:bg-surface-container transition-colors text-on-surface font-label-md text-sm cursor-pointer disabled:opacity-50"
           disabled={isGoogleLoading || isSubmitting}
           onClick={handleGoogleLogin}
           type="button"
@@ -225,7 +195,7 @@ export function LoginPage({ role: initialRole }: LoginPageProps) {
               className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant/60 rounded-lg font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50 focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
               id="email"
               inputMode="email"
-              placeholder={role === "researcher" ? "name@institution.edu" : "name@example.com"}
+              placeholder="name@example.com"
               type="email"
               {...register("email")}
             />
@@ -262,7 +232,7 @@ export function LoginPage({ role: initialRole }: LoginPageProps) {
             />
             <button
               aria-label={showPassword ? "Hide password" : "Show password"}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant hover:text-primary transition-colors"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
               onClick={() => setShowPassword((shown) => !shown)}
               type="button"
             >
@@ -280,7 +250,7 @@ export function LoginPage({ role: initialRole }: LoginPageProps) {
 
         {/* Submit Button */}
         <button
-          className="w-full primary-gradient-btn text-white font-title-lg text-base py-3.5 px-4 rounded-full flex items-center justify-center gap-2 hover:shadow-lg active:scale-95 transition-all shadow-md disabled:opacity-50 mt-2"
+          className="w-full primary-gradient-btn text-white font-title-lg text-base py-3.5 px-4 rounded-full flex items-center justify-center gap-2 hover:shadow-lg active:scale-95 transition-all shadow-md disabled:opacity-50 mt-2 cursor-pointer"
           disabled={isSubmitting || isGoogleLoading}
           type="submit"
         >
@@ -297,14 +267,22 @@ export function LoginPage({ role: initialRole }: LoginPageProps) {
         <p className="font-label-caps text-[11px] text-surface-tint uppercase tracking-wider">
           ⚡ {t("auth.demo_login_title")}
         </p>
-        <div className="mt-2 flex justify-center">
+        <div className="mt-2 flex items-center justify-center gap-3">
           <button
-            className="flex flex-col items-center justify-center rounded-lg bg-white border border-outline-variant/30 px-3 py-1.5 text-xs text-on-surface hover:bg-surface-container transition-colors shadow-xs"
-            onClick={() => void handleDemoFill(role, `${role}@ethosk.com`)}
+            className="flex flex-col items-center justify-center rounded-lg bg-white border border-outline-variant/30 px-3 py-1.5 text-xs text-on-surface hover:bg-surface-container transition-colors shadow-xs cursor-pointer"
+            onClick={() => void handleDemoFill("researcher@ethosk.com")}
             type="button"
           >
-            <span className="font-bold text-primary">{roleTitle} Demo</span>
-            <span className="text-[10px] text-on-surface-variant">{role}@ethosk.com</span>
+            <span className="font-bold text-primary">Researcher Demo</span>
+            <span className="text-[10px] text-on-surface-variant">researcher@ethosk.com</span>
+          </button>
+          <button
+            className="flex flex-col items-center justify-center rounded-lg bg-white border border-outline-variant/30 px-3 py-1.5 text-xs text-on-surface hover:bg-surface-container transition-colors shadow-xs cursor-pointer"
+            onClick={() => void handleDemoFill("respondent@ethosk.com")}
+            type="button"
+          >
+            <span className="font-bold text-primary">Respondent Demo</span>
+            <span className="text-[10px] text-on-surface-variant">respondent@ethosk.com</span>
           </button>
         </div>
       </div>
