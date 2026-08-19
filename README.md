@@ -183,8 +183,7 @@ behind it.
 
 ## What is not built
 
-Respondent withdrawals — earnings accrue and are visible, but the payout rail out
-to a respondent's own telebirr or CBE account is not connected, so the withdraw
-button is disabled. Also deferred, as the blueprint's Post-hack labels anticipate:
+Deferred, as the blueprint's Post-hack labels anticipate:
 longitudinal re-contact, the researcher marketplace and hiring flow, dataset
 licensing with consent-lineage certificates, and the USSD/voice channel.
+*(Note: Respondent mobile withdrawals via Telebirr and CBE Birr are fully built, gated by identity verification, and connected to the wallet and transaction ledger.)*

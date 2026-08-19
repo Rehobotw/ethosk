@@ -44,7 +44,7 @@ fetch("http://127.0.0.1:7633/ingest/c9e0799e-dbd9-4f3c-a083-52abf8426277", {
  * A client scoped to one end user's access token.
  */
 export function userClient(accessToken: string): SupabaseClient {
-  if (isMock) {
+  if (isMock || !accessToken || accessToken.startsWith("mock-token-")) {
     return createMockSupabaseClient() as unknown as SupabaseClient;
   }
   return createClient(env.supabaseUrl, env.supabaseAnonKey, {

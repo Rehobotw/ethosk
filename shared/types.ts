@@ -214,6 +214,9 @@ export interface Question {
   };
 }
 
+export const BUILDER_TYPES = ["manual", "import", "ai"] as const;
+export type BuilderType = (typeof BUILDER_TYPES)[number];
+
 export interface SurveyRecord {
   id: string;
   researcher_id: string;
@@ -224,10 +227,12 @@ export interface SurveyRecord {
   translations: Partial<Record<TargetLanguage, string[]>>;
   target_filters: unknown;
   status: SurveyStatus;
+  builder_type?: BuilderType | null;
   reward_etb: number | null;
   /** Funds still committed to this survey's remaining responses. */
   escrow_etb: number;
   created_at: string;
+  updated_at?: string;
   sent_at: string | null;
   compliance_answer?: boolean | null;
   compliance_document_path?: string | null;

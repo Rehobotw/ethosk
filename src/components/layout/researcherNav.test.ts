@@ -13,19 +13,29 @@ function activeCount(pathname: string): number {
 describe("isNavActive", () => {
   it.each([
     "/researcher",
+    "/survey-builder",
+    "/survey-builder/manual",
+    "/survey-builder/import",
+    "/survey-builder/ai",
     "/researcher/surveys",
     "/researcher/surveys/new",
+    "/researcher/surveys/new/manual",
+    "/researcher/surveys/new/import",
+    "/researcher/surveys/new/ai",
     "/researcher/surveys/abc-123/edit",
     "/researcher/surveys/abc-123/dashboard",
     "/researcher/wallet",
-    "/researcher/settings",
+    "/survey-posting",
+    "/researcher/help",
   ])("highlights exactly one item on %s", (pathname) => {
     expect(activeCount(pathname)).toBe(1);
   });
 
-  it("does not highlight the survey list while creating a new survey", () => {
+  it("does not highlight the survey list while on survey builder", () => {
+    expect(isNavActive("/survey-builder", "/researcher/surveys")).toBe(false);
+    expect(isNavActive("/survey-builder", "/survey-builder")).toBe(true);
     expect(isNavActive("/researcher/surveys/new", "/researcher/surveys")).toBe(false);
-    expect(isNavActive("/researcher/surveys/new", "/researcher/surveys/new")).toBe(true);
+    expect(isNavActive("/researcher/surveys/new", "/survey-builder")).toBe(true);
   });
 
   it("highlights the survey list when editing or reviewing one", () => {
@@ -37,5 +47,19 @@ describe("isNavActive", () => {
     expect(isNavActive("/researcher", "/researcher")).toBe(true);
     expect(isNavActive("/researcher/wallet", "/researcher")).toBe(false);
     expect(isNavActive("/researcher/surveys", "/researcher")).toBe(false);
+  });
+
+  it("highlights the Survey Builder for /survey-builder sub-routes (manual, import, ai)", () => {
+    for (const sub of [
+      "/survey-builder/manual",
+      "/survey-builder/import",
+      "/survey-builder/ai",
+      "/researcher/surveys/new/manual",
+      "/researcher/surveys/new/import",
+      "/researcher/surveys/new/ai",
+    ]) {
+      expect(isNavActive(sub, "/survey-builder")).toBe(true);
+      expect(isNavActive(sub, "/researcher/surveys")).toBe(false);
+    }
   });
 });

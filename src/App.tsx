@@ -42,6 +42,21 @@ const SurveyListPage = lazy(() =>
 const SurveyBuilderPage = lazy(() =>
   import("./pages/researcher/SurveyBuilderPage").then((m) => ({ default: m.SurveyBuilderPage })),
 );
+const SurveyNewLandingPage = lazy(() =>
+  import("./pages/researcher/SurveyNewLandingPage").then((m) => ({ default: m.SurveyNewLandingPage })),
+);
+const SurveyImportPage = lazy(() =>
+  import("./pages/researcher/SurveyImportPage").then((m) => ({ default: m.SurveyImportPage })),
+);
+const SurveyAiPage = lazy(() =>
+  import("./pages/researcher/SurveyAiPage").then((m) => ({ default: m.SurveyAiPage })),
+);
+const SurveyCreationSuccessPage = lazy(() =>
+  import("./pages/researcher/SurveyCreationSuccessPage").then((m) => ({ default: m.SurveyCreationSuccessPage })),
+);
+const SurveyPostingWizardPage = lazy(() =>
+  import("./pages/researcher/SurveyPostingWizardPage").then((m) => ({ default: m.SurveyPostingWizardPage })),
+);
 const SurveyAnalyticsPage = lazy(() =>
   import("./pages/researcher/SurveyAnalyticsPage").then((m) => ({
     default: m.SurveyAnalyticsPage,
@@ -52,6 +67,9 @@ const ResearcherWalletPage = lazy(() =>
 );
 const SettingsPage = lazy(() =>
   import("./pages/researcher/SettingsPage").then((m) => ({ default: m.SettingsPage })),
+);
+const HelpCenterPage = lazy(() =>
+  import("./pages/researcher/HelpCenterPage").then((m) => ({ default: m.HelpCenterPage })),
 );
 const ResearcherProfilePage = lazy(() =>
   import("./pages/researcher/ProfilePage").then((m) => ({ default: m.ProfilePage })),
@@ -99,8 +117,8 @@ export default function App() {
       </Route>
 
       <Route element={<LoginPage />} path="/login" />
-      <Route element={<LoginPage role="respondent" />} path="/login/respondent" />
-      <Route element={<LoginPage role="researcher" />} path="/login/researcher" />
+      <Route element={<LoginPage />} path="/login/respondent" />
+      <Route element={<LoginPage />} path="/login/researcher" />
 
       <Route
         element={
@@ -133,7 +151,9 @@ export default function App() {
         <Route element={<HistoryPage />} path="/history" />
         <Route element={<WalletPage />} path="/wallet" />
         <Route element={<ProfilePage />} path="/profile" />
+        <Route element={<ProfilePage />} path="/respondent/profile" />
         <Route element={<VerificationPage />} path="/verify" />
+        <Route element={<VerificationPage />} path="/respondent/profile/verification" />
         <Route element={<DocumentsPage />} path="/documents" />
       </Route>
 
@@ -174,7 +194,26 @@ export default function App() {
       >
         <Route element={<DashboardPage />} path="/researcher" />
         <Route element={<SurveyListPage />} path="/researcher/surveys" />
-        <Route element={<SurveyBuilderPage />} path="/researcher/surveys/new" />
+        <Route element={<SurveyNewLandingPage />} path="/researcher/surveys/new" />
+        <Route element={<SurveyNewLandingPage />} path="/survey-builder" />
+        <Route element={<SurveyBuilderPage />} path="/researcher/surveys/new/manual" />
+        <Route element={<SurveyBuilderPage />} path="/survey-builder/manual" />
+        <Route element={<SurveyBuilderPage />} path="/survey-builder/manual/:id" />
+        <Route element={<SurveyImportPage />} path="/researcher/surveys/new/import" />
+        <Route element={<SurveyImportPage />} path="/survey-builder/import" />
+        <Route element={<SurveyImportPage />} path="/survey-builder/import/:id" />
+        <Route element={<SurveyAiPage />} path="/researcher/surveys/new/ai" />
+        <Route element={<SurveyAiPage />} path="/survey-builder/ai" />
+        <Route element={<SurveyAiPage />} path="/survey-builder/ai/:id" />
+        <Route element={<SurveyCreationSuccessPage />} path="/survey-builder/success" />
+        <Route element={<SurveyCreationSuccessPage />} path="/survey-builder/success/:id" />
+        <Route element={<SurveyCreationSuccessPage />} path="/researcher/surveys/success" />
+        <Route element={<SurveyCreationSuccessPage />} path="/researcher/surveys/:id/success" />
+        <Route element={<SurveyPostingWizardPage />} path="/survey-posting" />
+        <Route element={<SurveyPostingWizardPage />} path="/survey-posting/:id" />
+        <Route element={<SurveyPostingWizardPage />} path="/researcher/posting" />
+        <Route element={<SurveyPostingWizardPage />} path="/researcher/posting/:id" />
+        <Route element={<SurveyPostingWizardPage />} path="/researcher/surveys/:id/post" />
         <Route element={<SurveyBuilderPage />} path="/researcher/surveys/:id/edit" />
         <Route element={<SurveyAnalyticsPage />} path="/researcher/analytics" />
         <Route element={<SurveyAnalyticsPage />} path="/researcher/surveys/:id/dashboard" />
@@ -183,6 +222,9 @@ export default function App() {
         <Route element={<SubscriptionPage />} path="/researcher/subscription" />
         <Route element={<ResearcherProfilePage />} path="/researcher/profile" />
         <Route element={<SettingsPage />} path="/researcher/settings" />
+        <Route element={<SettingsPage />} path="/profile/settings" />
+        <Route element={<HelpCenterPage />} path="/researcher/help" />
+        <Route element={<HelpCenterPage />} path="/help" />
       </Route>
 
       {/* Admin */}

@@ -86,7 +86,17 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
       // A non-JSON error body leaves the status-based defaults in place.
     }
 
-    if (response.status === 401) setToken(null);
+    if (response.status === 401) {
+      setToken(null);
+      if (typeof window !== "undefined") {
+        const path = window.location.pathname;
+        const publicPaths = ["/", "/login", "/login/researcher", "/login/respondent", "/signup", "/signup/researcher", "/signup/respondent", "/verify-email", "/forgot-password", "/admin/login", "/auth/callback"];
+        const isPublic = publicPaths.includes(path) || path.startsWith("/learn") || path.startsWith("/#");
+        if (!isPublic && path !== "/login") {
+          window.location.href = `/login?from=${encodeURIComponent(path + window.location.search)}`;
+        }
+      }
+    }
     throw new ApiRequestError(response.status, code, message, fields, errorData);
   }
 

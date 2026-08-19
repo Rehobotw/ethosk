@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import type { PayoutRecord, RespondentWallet } from "@shared/types";
 import { CashoutModal } from "@/components/CashoutModal";
@@ -9,6 +10,7 @@ import {
   Notice,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 interface WalletPayload {
   wallet: RespondentWallet;
@@ -16,6 +18,7 @@ interface WalletPayload {
 }
 
 export function WalletPage() {
+  const { user } = useAuth();
   const [isCashoutModalOpen, setIsCashoutModalOpen] = useState(false);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
@@ -28,31 +31,55 @@ export function WalletPage() {
   const wallet = data?.wallet;
   const payouts = data?.payouts ?? [];
 
-  const availableAmount = wallet?.available_etb ?? 1550;
-  const pendingAmount = wallet?.pending_etb ?? 300;
-  const lifetimeAmount = wallet?.lifetime_etb ?? 4800;
+  const availableAmount = wallet?.available_etb ?? 0;
+  const pendingAmount = wallet?.pending_etb ?? 0;
+  const lifetimeAmount = wallet?.lifetime_etb ?? 0;
   const averageReward = wallet?.paid_response_count && wallet.paid_response_count > 0
     ? Math.round(lifetimeAmount / wallet.paid_response_count)
-    : 120;
-  const canWithdraw = availableAmount >= 100;
+    : 0;
+  const isVerified = user?.verification_tier && user.verification_tier !== "0_registered";
+  const canWithdraw = availableAmount >= 100 && isVerified;
 
   return (
     <div className="space-y-8 font-body-md text-on-surface">
       {/* ── Page Header (Stitch Screen 0424ea7b43dc48e292c214d2388aaca9) ── */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="font-headline-lg text-3xl md:text-4xl text-[#0D253A] font-bold tracking-tight">
-          Wallet &amp; Payouts
-        </h1>
+        <div>
+          <h1 className="font-headline-lg text-3xl md:text-4xl text-[#0D253A] font-bold tracking-tight">
+            Wallet &amp; Payouts
+          </h1>
+          <p className="text-xs text-[#5A6E7F] mt-1">
+            Minimum cashout threshold: <span className="font-bold text-[#0D253A]">100.00 ETB</span> (Telebirr or CBE Birr)
+          </p>
+        </div>
         <button
           className="bg-[#1D5D8A] hover:bg-[#00456d] text-white transition-colors px-6 py-2.5 rounded-lg font-body-sm text-sm font-bold flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-          disabled={!canWithdraw}
+          disabled={!canWithdraw && !isVerified}
           onClick={() => setIsCashoutModalOpen(true)}
           type="button"
         >
-          <span>Withdraw to Telebirr</span>
+          <span className="material-symbols-outlined text-sm">payments</span>
+          <span>Withdraw Funds</span>
           <span className="material-symbols-outlined text-sm">arrow_forward</span>
         </button>
       </div>
+
+      {!isVerified && (
+        <Notice tone="warning" title="Identity Verification Required for Cashout">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-xs">
+              To withdraw earnings via Telebirr or CBE Birr, your account must complete Fayda or ID verification.
+            </p>
+            <Link
+              to="/verify"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#00456d] text-white text-xs font-semibold hover:bg-[#1d5d8a] transition-colors shrink-0"
+            >
+              <span>Complete Verification</span>
+              <span className="material-symbols-outlined text-xs">arrow_forward</span>
+            </Link>
+          </div>
+        </Notice>
+      )}
 
       {error ? (
         <Notice tone="error" title="Balance unavailable">
@@ -175,10 +202,10 @@ export function WalletPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E1E8EE] text-xs md:text-sm text-[#5A6E7F]">
-                {payouts.map((row) => {
-                  const isWithdrawal = row.status === "paid" || row.status === "withdrawn";
+                {payouts.map((row: any) => {
+                  const isWithdrawal = Boolean(row.is_withdrawal || row.status === "paid" || row.status === "withdrawn");
                   const isPending = row.status === "pending";
-                  const isFailed = (row.status as string) === "failed";
+                  const isFailed = row.status === "failed";
                   const displayAmount = row.net_amount_etb ?? row.amount_etb;
 
                   return (
@@ -196,7 +223,14 @@ export function WalletPage() {
                       </td>
 
                       <td className="py-4 px-4 text-on-surface font-medium">
-                        {row.survey_title || (isWithdrawal ? "Withdrawal to Telebirr" : "Consumer Research Study")}
+                        <div className="flex items-center gap-2">
+                          {isWithdrawal && (
+                            <span className="material-symbols-outlined text-[#1D5D8A] text-base">
+                              account_balance_wallet
+                            </span>
+                          )}
+                          <span>{row.survey_title || (isWithdrawal ? "Mobile Withdrawal" : "Survey Reward")}</span>
+                        </div>
                       </td>
 
                       <td
@@ -204,11 +238,15 @@ export function WalletPage() {
                           isWithdrawal ? "text-error" : "text-[#0F9B8E]"
                         }`}
                       >
-                        {isWithdrawal ? `-${displayAmount.toFixed(0)}` : `+${displayAmount.toFixed(0)}`}
+                        {isWithdrawal ? `-${displayAmount.toFixed(2)}` : `+${displayAmount.toFixed(2)}`}
                       </td>
 
                       <td className="py-4 px-4 whitespace-nowrap">
-                        {isWithdrawal ? "Mobile Wallet" : "Survey Reward"}
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                          isWithdrawal ? "bg-blue-50 text-[#00456d]" : "bg-emerald-50 text-emerald-800"
+                        }`}>
+                          {row.payout_method || (isWithdrawal ? "Telebirr / CBE" : "Survey Reward")}
+                        </span>
                       </td>
 
                       <td className="py-4 px-4 text-right whitespace-nowrap">

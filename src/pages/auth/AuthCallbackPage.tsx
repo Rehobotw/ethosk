@@ -44,7 +44,7 @@ export function AuthCallbackPage() {
               name: response.profile.name,
               email: response.profile.email,
             });
-            navigate(`/signup/respondent?${queryParams.toString()}`, { replace: true });
+            navigate(`/signup?${queryParams.toString()}`, { replace: true });
           } else {
             navigate(homePathForRole(response.role || "respondent"), { replace: true });
           }
@@ -70,8 +70,8 @@ export function AuthCallbackPage() {
           <Notice tone="error" title="Authentication Error">
             <p>{error}</p>
             <button
-              className="mt-4 text-primary font-medium hover:underline"
-              onClick={() => navigate("/login/respondent")}
+              className="mt-4 text-primary font-medium hover:underline cursor-pointer"
+              onClick={() => navigate("/login")}
             >
               Return to login
             </button>

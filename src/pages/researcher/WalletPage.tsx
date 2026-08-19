@@ -14,6 +14,8 @@ import {
   Notice,
 } from "@/components/ui";
 import { ApiRequestError, api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import type { ResearcherProfileRecord } from "@shared/types";
 
 interface Commitment {
   survey_id: string;
@@ -40,9 +42,15 @@ export function ResearcherWalletPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
 
+  const { user } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ["researcher-wallet"],
     queryFn: () => api<WalletPayload>("/wallet/researcher"),
+  });
+
+  const { data: profile } = useQuery({
+    queryKey: ["researcher-profile"],
+    queryFn: () => api<ResearcherProfileRecord>("/researchers/profile"),
   });
 
   const returningReference = searchParams.get("deposit");
@@ -393,28 +401,29 @@ export function ResearcherWalletPage() {
             <div className="space-y-5 text-sm">
               <div>
                 <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block mb-1">
-                  Organization Name
+                  Organization / Researcher
                 </span>
                 <div className="font-semibold text-[#0D253A]">
-                  Commercial Bank Research Unit
+                  {profile?.institution || user?.full_name || user?.email || "Personal Researcher Account"}
                 </div>
               </div>
 
               <div>
                 <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block mb-1">
-                  Tax Identification Number (TIN)
+                  Account Email
                 </span>
-                <div className="font-mono text-sm text-[#0D253A] font-semibold">
-                  0048291029
+                <div className="font-mono text-sm text-[#0D253A]">
+                  {profile?.institutional_email || user?.email || "Not configured"}
                 </div>
               </div>
 
               <div>
                 <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block mb-1">
-                  Billing Address
+                  Verification Status
                 </span>
-                <div className="text-on-surface">
-                  Addis Ababa, Ethiopia<br />Bole Sub City, Woreda 03
+                <div className="text-on-surface flex items-center gap-1.5 text-xs font-medium">
+                  <span className={`inline-block w-2 h-2 rounded-full ${profile?.verified || user?.verification_tier === "1_id_verified" ? "bg-emerald-500" : "bg-amber-500"}`} />
+                  <span>{profile?.verified || user?.verification_tier === "1_id_verified" ? "Verified Institutional Account" : "Standard Account (Unverified)"}</span>
                 </div>
               </div>
 
@@ -422,19 +431,19 @@ export function ResearcherWalletPage() {
                 <div className="flex items-start gap-3">
                   <span className="material-symbols-outlined text-primary text-xl">info</span>
                   <p className="text-xs text-on-surface-variant leading-relaxed">
-                    VAT invoices are automatically generated and sent to your registered billing email on the 1st of every month.
+                    VAT receipts and deposit invoices are automatically generated and linked to your transaction history upon successful clearance.
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          <button
-            className="w-full mt-6 bg-[#f8f9ff] border border-outline-variant text-primary hover:bg-primary/5 py-3 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-            type="button"
+          <Link
+            to="/researcher/profile?tab=edit"
+            className="w-full mt-6 bg-[#f8f9ff] border border-outline-variant text-primary hover:bg-primary/5 py-3 rounded-lg text-xs font-bold transition-colors cursor-pointer text-center block"
           >
-            Edit Invoicing Profile
-          </button>
+            Edit Profile &amp; Affiliation
+          </Link>
         </div>
       </section>
 

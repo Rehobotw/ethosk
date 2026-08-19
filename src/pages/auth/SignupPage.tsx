@@ -538,7 +538,7 @@ export function SignupPage({ role: initialRole }: SignupPageProps) {
                 {isAm ? "መለያ አለዎት? " : "Already have an account? "}
                 <Link
                   className="font-semibold text-[#00456d] hover:underline"
-                  to={isResearcher ? "/login/researcher" : "/login/respondent"}
+                  to="/login"
                 >
                   {isAm ? "ይግቡ" : "Log in"}
                 </Link>

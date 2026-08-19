@@ -73,47 +73,11 @@ authRouter.post(
     const input = parseBody(signupSchema, req.body);
     const email = input.email.toLowerCase();
 
-    // Check if user already exists in DB
+    // Check if user already exists in DB or Supabase Auth
     try {
-      const { data: existing } = await admin
-        .from("users")
-        .select("id")
-        .eq("email", email)
-        .maybeSingle();
-
-      if (existing) {
-        const profileTable =
-          input.role === "respondent"
-            ? "respondent_profiles"
-            : input.role === "researcher"
-              ? "researcher_profiles"
-              : null;
-
-        if (profileTable) {
-          const { data: profile } = await admin
-            .from(profileTable)
-            .select("user_id")
-            .eq("user_id", existing.id)
-            .maybeSingle();
-
-          if (profile) {
-            throw new ApiError(409, "EMAIL_ALREADY_REGISTERED", "That email address is already registered.");
-          }
-
-          // User exists under another role; provision the new profile
-          await admin.from(profileTable).upsert({ user_id: existing.id }, { onConflict: "user_id" });
-
-          return res.status(201).json({
-            success: true,
-            verification_required: false,
-            email,
-            message: `Your account is now enabled as a ${input.role}.`,
-            user_id: existing.id,
-            role: input.role,
-          });
-        }
-
-        throw new ApiError(409, "EMAIL_ALREADY_REGISTERED", "That email address is already registered.");
+      const existingUser = await findUserByEmail(email);
+      if (existingUser) {
+        throw new ApiError(409, "EMAIL_ALREADY_REGISTERED", "That email address is already registered. Please sign in instead.");
       }
     } catch (e) {
       if (e instanceof ApiError) throw e;
@@ -740,7 +704,7 @@ authRouter.post(
       });
     }
 
-    // If login requested a specific role, ensure target role profile is provisioned and set role
+    // If login requested a specific role, ensure the user legitimately owns that role profile
     if (input.role && input.role !== row.role) {
       const profileTable =
         input.role === "respondent"
@@ -750,8 +714,21 @@ authRouter.post(
             : null;
 
       if (profileTable) {
-        await admin.from(profileTable).upsert({ user_id: row.id }, { onConflict: "user_id" });
-        row.role = input.role;
+        const { data: existingProfile } = await admin
+          .from(profileTable)
+          .select("user_id")
+          .eq("user_id", row.id)
+          .maybeSingle();
+
+        if (existingProfile) {
+          row.role = input.role;
+        } else {
+          throw new ApiError(
+            403,
+            "ROLE_NOT_PROVISIONED",
+            `This account is not registered as a ${input.role}. Please sign up as a ${input.role} first to enable access.`,
+          );
+        }
       } else {
         throw new ApiError(
           403,
@@ -808,6 +785,59 @@ authRouter.get(
         subscription_tier: context.subscriptionTier ?? "free",
       }),
     });
+  }),
+);
+
+authRouter.post(
+  "/update-email",
+  requireAuth(),
+  rateLimit({ key: "update-email", max: 5, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const { email } = req.body as { email?: string };
+    if (!email || typeof email !== "string" || !email.includes("@")) {
+      throw new ApiError(400, "INVALID_EMAIL", "A valid email address is required.");
+    }
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check if email taken by another account
+    const { data: existing } = await admin.from("users").select("id").eq("email", cleanEmail).maybeSingle();
+    if (existing && existing.id !== context.userId) {
+      throw new ApiError(409, "EMAIL_ALREADY_IN_USE", "That email address is already in use.");
+    }
+
+    // Update in users table
+    await admin.from("users").update({ email: cleanEmail }).eq("id", context.userId);
+    try {
+      if (typeof admin.auth?.admin?.updateUserById === "function") {
+        await admin.auth.admin.updateUserById(context.userId, { email: cleanEmail });
+      }
+    } catch {
+      /* ignore */
+    }
+
+    res.json({ success: true, email: cleanEmail });
+  }),
+);
+
+authRouter.post(
+  "/update-password",
+  requireAuth(),
+  rateLimit({ key: "update-password", max: 5, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const { new_password } = req.body as { new_password?: string };
+    if (!new_password || new_password.length < 8) {
+      throw new ApiError(400, "INVALID_PASSWORD", "New password must be at least 8 characters.");
+    }
+    try {
+      if (typeof admin.auth?.admin?.updateUserById === "function") {
+        await admin.auth.admin.updateUserById(context.userId, { password: new_password });
+      }
+    } catch (e: any) {
+      throw new ApiError(500, "PASSWORD_UPDATE_FAILED", e.message || "Failed to update password.");
+    }
+    res.json({ success: true, message: "Password updated successfully." });
   }),
 );
 

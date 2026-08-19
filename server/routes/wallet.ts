@@ -419,9 +419,10 @@ walletRouter.get(
 
     let payouts: any[] = [];
     let pendingResponses: any[] = [];
+    let withdrawals: any[] = [];
 
     try {
-      const [{ data: pData }, { data: rData }] = await Promise.all([
+      const [{ data: pData }, { data: rData }, { data: wData }] = await Promise.all([
         admin
           .from("respondent_payouts")
           .select("id, survey_id, amount_etb, platform_fee_etb, status, created_at, surveys(title)")
@@ -434,10 +435,17 @@ walletRouter.get(
           .eq("respondent_id", context.userId)
           .eq("fraud_flag", "clean")
           .limit(50),
+        admin
+          .from("respondent_withdrawals")
+          .select("id, amount_etb, method, account_number, status, created_at")
+          .eq("respondent_id", context.userId)
+          .order("created_at", { ascending: false })
+          .limit(50),
       ]);
 
       if (pData) payouts = pData;
       if (rData) pendingResponses = rData;
+      if (wData) withdrawals = wData;
     } catch {}
 
     type PayoutRow = {
@@ -454,7 +462,7 @@ walletRouter.get(
     const existingSurveyIds = new Set(payoutRows.map((p) => p.survey_id));
 
     // Map settled/recorded payouts
-    const formattedPayouts = payoutRows.map((row) => {
+    const formattedPayouts: any[] = payoutRows.map((row) => {
       let surveyTitle: string | null = null;
       if (Array.isArray(row.surveys)) {
         surveyTitle = row.surveys[0]?.title ?? null;
@@ -475,8 +483,27 @@ walletRouter.get(
         status: row.status as "available" | "withdrawn" | "pending" | "completed" | "paid",
         created_at: row.created_at,
         survey_title: surveyTitle,
+        is_withdrawal: false,
+        payout_method: "Survey Reward",
       };
     });
+
+    // Map withdrawals into the unified ledger
+    for (const w of (withdrawals ?? [])) {
+      formattedPayouts.push({
+        id: w.id,
+        survey_id: "",
+        amount_etb: Number(w.amount_etb || 0),
+        net_amount_etb: Number(w.amount_etb || 0),
+        platform_fee_etb: 0,
+        status: w.status === "completed" ? "completed" : w.status === "failed" ? "failed" : "pending",
+        created_at: w.created_at,
+        survey_title: w.method === "telebirr" ? "Withdrawal to Telebirr" : "Withdrawal to CBE Birr",
+        is_withdrawal: true,
+        payout_method: w.method === "telebirr" ? "Telebirr" : "CBE Birr",
+        account_number: w.account_number,
+      });
+    }
 
     // Calculate pending earnings from responses not yet settled
     let pendingEtb = 0;
@@ -496,6 +523,8 @@ walletRouter.get(
             status: "pending",
             created_at: resp.completed_at,
             survey_title: survey?.title ?? "Survey Response",
+            is_withdrawal: false,
+            payout_method: "Survey Reward",
           });
         }
       }
@@ -520,6 +549,18 @@ walletRouter.post(
   asyncRoute(async (req, res) => {
     const context = auth(req);
     const input = parseBody(withdrawSchema, req.body);
+
+    if (context.verificationTier === "0_registered") {
+      throw new ApiError(
+        403,
+        "VERIFICATION_REQUIRED",
+        "You must complete ID verification before requesting a cashout.",
+      );
+    }
+
+    if (input.amount_etb < 100) {
+      throw new ApiError(400, "MINIMUM_CASHOUT", "The minimum cashout threshold is 100 ETB.");
+    }
 
     const wallet = await readRespondentWallet(context.userId);
 
