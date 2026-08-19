@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { UserRole } from "@shared/types";
 import { LoadingBlock, Notice } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, setToken } from "@/lib/api";
 import { homePathForRole, useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 
@@ -16,12 +16,25 @@ export function AuthCallbackPage() {
 
     async function handleCallback() {
       try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        let { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) throw sessionError;
+
+        // If session not ready yet, attempt to retrieve user or wait for hash parsing
+        if (!session) {
+          const { data } = await supabase.auth.getUser();
+          if (data?.user) {
+            const res = await supabase.auth.getSession();
+            session = res.data.session;
+          }
+        }
+
         if (!session) {
           throw new Error("No session established. Please try logging in again.");
         }
+
+        // Store the token immediately so subsequent api calls use it
+        setToken(session.access_token);
 
         const intendedRole = localStorage.getItem("ethosk_intended_role") as UserRole | null;
 
@@ -37,6 +50,9 @@ export function AuthCallbackPage() {
         await refresh();
 
         if (mounted) {
+          const searchParams = new URLSearchParams(window.location.search);
+          const fromPath = searchParams.get("from");
+
           if (response.exists === false && response.profile) {
             // User does not exist, and no intended role was provided
             // Route into Signup with Google profile pre-filled
@@ -45,6 +61,8 @@ export function AuthCallbackPage() {
               email: response.profile.email,
             });
             navigate(`/signup?${queryParams.toString()}`, { replace: true });
+          } else if (fromPath && !fromPath.startsWith("/login") && !fromPath.startsWith("/signup")) {
+            navigate(fromPath, { replace: true });
           } else {
             navigate(homePathForRole(response.role || "respondent"), { replace: true });
           }
