@@ -385,16 +385,16 @@ respondentsRouter.post(
     if (!file) throw new ApiError(400, "FILE_REQUIRED", "Attach a document to upload.");
 
     // The server-side check is the one that actually matters for security; the
-    // client checks the same rules only to give faster feedback (§17.2).
+    // client checks the same rules only to give faster feedback (§17.2, v4 §7.4).
     if (!ACCEPTED_UPLOAD_MIME_TYPES.includes(file.mimetype as (typeof ACCEPTED_UPLOAD_MIME_TYPES)[number])) {
       throw new ApiError(
         400,
         "UNSUPPORTED_FILE_TYPE",
-        "Upload a JPEG, PNG, or PDF file.",
+        "Upload a PDF, JPG, or PNG document.",
       );
     }
     if (file.size > MAX_UPLOAD_BYTES) {
-      throw new ApiError(413, "FILE_TOO_LARGE", "Files must be 8MB or smaller.");
+      throw new ApiError(413, "FILE_TOO_LARGE", "File is too large. Maximum allowed size is 10MB.");
     }
 
     const storagePath = `${context.userId}/${randomUUID()}-${sanitizeFileName(file.originalname)}`;

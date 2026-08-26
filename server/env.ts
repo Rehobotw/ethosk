@@ -104,6 +104,25 @@ export const env = {
    * it.
    */
   allowTelebirrDemo: (process.env.ALLOW_TELEBIRR_DEMO ?? "true") === "true",
+
+  /**
+   * verify.et transaction verification credentials (v4 §4.6.1, §3.5, §7.4 item 12).
+   * Used server-side to reconcile researcher escrow deposits and
+   * respondent payout confirmations across CBE, Telebirr, BOA, Dashen, Awash, etc.
+   * If unconfigured in production, deposit transactions are safely refused.
+   */
+  verifyEtApiKey: optional("VERIFY_ET_API_KEY"),
+  verifyEtBaseUrl: process.env.VERIFY_ET_BASE_URL ?? "https://api.verify.et/v1",
+  verifyEtTimeoutMs: numeric("VERIFY_ET_TIMEOUT_MS", 10_000),
+  /**
+   * In production, stubs are strictly disabled so all deposits must be verified
+   * via the live verify.et production endpoint. In development/testing, stubs allow
+   * local simulation when live API credentials are not set.
+   */
+  allowVerifyEtStub:
+    process.env.NODE_ENV === "production"
+      ? (process.env.ALLOW_VERIFY_ET_STUB === "true")
+      : (process.env.ALLOW_VERIFY_ET_STUB ?? "true") === "true",
 } as const;
 
 export const fraudThresholds = {

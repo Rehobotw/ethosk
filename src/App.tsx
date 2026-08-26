@@ -21,6 +21,9 @@ import { SurveyFillPage } from "./pages/respondent/SurveyFillPage";
 import { VerificationPage } from "./pages/respondent/VerificationPage";
 import { RespondentOnboardingPage } from "./pages/respondent/RespondentOnboardingPage";
 import { WalletPage } from "./pages/respondent/WalletPage";
+import { WithdrawalHistoryPage } from "./pages/respondent/WithdrawalHistoryPage";
+import { RespondentNotificationCenterPage } from "./pages/respondent/RespondentNotificationCenterPage";
+import { RespondentHelpCenterPage } from "./pages/respondent/RespondentHelpCenterPage";
 
 /**
  * The researcher and admin screens are loaded on demand. They pull in the
@@ -62,6 +65,11 @@ const SurveyAnalyticsPage = lazy(() =>
     default: m.SurveyAnalyticsPage,
   })),
 );
+const RawDataExportPage = lazy(() =>
+  import("./pages/researcher/RawDataExportPage").then((m) => ({
+    default: m.RawDataExportPage,
+  })),
+);
 const ResearcherWalletPage = lazy(() =>
   import("./pages/researcher/WalletPage").then((m) => ({ default: m.ResearcherWalletPage })),
 );
@@ -71,11 +79,136 @@ const SettingsPage = lazy(() =>
 const HelpCenterPage = lazy(() =>
   import("./pages/researcher/HelpCenterPage").then((m) => ({ default: m.HelpCenterPage })),
 );
+const ResearcherNotificationCenterPage = lazy(() =>
+  import("./pages/researcher/ResearcherNotificationCenterPage").then((m) => ({
+    default: m.ResearcherNotificationCenterPage,
+  })),
+);
 const ResearcherProfilePage = lazy(() =>
   import("./pages/researcher/ProfilePage").then((m) => ({ default: m.ProfilePage })),
 );
 const SubscriptionPage = lazy(() =>
   import("./pages/researcher/SubscriptionPage").then((m) => ({ default: m.SubscriptionPage })),
+);
+const ChooseSubscriptionPlanPage = lazy(() =>
+  import("./pages/researcher/ChooseSubscriptionPlanPage").then((m) => ({
+    default: m.ChooseSubscriptionPlanPage,
+  })),
+);
+const SubscriptionCheckoutReadyPage = lazy(() =>
+  import("./pages/researcher/SubscriptionCheckoutReadyPage").then((m) => ({
+    default: m.SubscriptionCheckoutReadyPage,
+  })),
+);
+const SubscriptionCheckoutProcessingPage = lazy(() =>
+  import("./pages/researcher/SubscriptionCheckoutProcessingPage").then((m) => ({
+    default: m.SubscriptionCheckoutProcessingPage,
+  })),
+);
+const SubscriptionCheckoutSuccessPage = lazy(() =>
+  import("./pages/researcher/SubscriptionCheckoutSuccessPage").then((m) => ({
+    default: m.SubscriptionCheckoutSuccessPage,
+  })),
+);
+const PaymentConfirmationPage = lazy(() =>
+  import("./pages/researcher/PaymentConfirmationPage").then((m) => ({
+    default: m.PaymentConfirmationPage,
+  })),
+);
+const ContactSupportPage = lazy(() =>
+  import("./pages/public/ContactSupportPage").then((m) => ({
+    default: m.ContactSupportPage,
+  })),
+);
+const ContactSupportSuccessPage = lazy(() =>
+  import("./pages/public/ContactSupportSuccessPage").then((m) => ({
+    default: m.ContactSupportSuccessPage,
+  })),
+);
+const TermsAndConditionsPage = lazy(() =>
+  import("./pages/public/TermsAndConditionsPage").then((m) => ({
+    default: m.TermsAndConditionsPage,
+  })),
+);
+const PrivacyPolicyPage = lazy(() =>
+  import("./pages/public/PrivacyPolicyPage").then((m) => ({
+    default: m.PrivacyPolicyPage,
+  })),
+);
+const AccessDeniedPage = lazy(() =>
+  import("./pages/error/AccessDeniedPage").then((m) => ({
+    default: m.AccessDeniedPage,
+  })),
+);
+const SessionExpiredPage = lazy(() =>
+  import("./pages/error/SessionExpiredPage").then((m) => ({
+    default: m.SessionExpiredPage,
+  })),
+);
+const ServerErrorPage = lazy(() =>
+  import("./pages/error/ServerErrorPage").then((m) => ({
+    default: m.ServerErrorPage,
+  })),
+);
+const NetworkErrorPage = lazy(() =>
+  import("./pages/error/NetworkErrorPage").then((m) => ({
+    default: m.NetworkErrorPage,
+  })),
+);
+const MaintenancePage = lazy(() =>
+  import("./pages/error/MaintenancePage").then((m) => ({
+    default: m.MaintenancePage,
+  })),
+);
+const NoSearchResultsPage = lazy(() =>
+  import("./pages/survey/SurveyStatePages").then((m) => ({
+    default: m.NoSearchResultsPage,
+  })),
+);
+const SurveyNotFoundPage = lazy(() =>
+  import("./pages/survey/SurveyStatePages").then((m) => ({
+    default: m.SurveyNotFoundPage,
+  })),
+);
+const SurveyClosedPage = lazy(() =>
+  import("./pages/survey/SurveyStatePages").then((m) => ({
+    default: m.SurveyClosedPage,
+  })),
+);
+const SurveyPausedPage = lazy(() =>
+  import("./pages/survey/SurveyStatePages").then((m) => ({
+    default: m.SurveyPausedPage,
+  })),
+);
+const SurveyNotEligiblePage = lazy(() =>
+  import("./pages/survey/SurveyStatePages").then((m) => ({
+    default: m.SurveyNotEligiblePage,
+  })),
+);
+const SurveyCompletedPage = lazy(() =>
+  import("./pages/survey/SurveyStatePages").then((m) => ({
+    default: m.SurveyCompletedPage,
+  })),
+);
+const SurveySubmissionErrorPage = lazy(() =>
+  import("./pages/survey/SurveyStatePages").then((m) => ({
+    default: m.SurveySubmissionErrorPage,
+  })),
+);
+const SurveySubmissionSuccessPage = lazy(() =>
+  import("./pages/survey/SurveyStatePages").then((m) => ({
+    default: m.SurveySubmissionSuccessPage,
+  })),
+);
+const EmptyStateShowcasePage = lazy(() =>
+  import("./pages/survey/SurveyStatePages").then((m) => ({
+    default: m.EmptyStateShowcasePage,
+  })),
+);
+const SurveyCompletionSuccessDesktopPage = lazy(() =>
+  import("./pages/respondent/SurveyCompletionSuccessDesktopPage").then((m) => ({
+    default: m.SurveyCompletionSuccessDesktopPage,
+  })),
 );
 const TelebirrDemoPage = lazy(() =>
   import("./pages/researcher/TelebirrDemoPage").then((m) => ({ default: m.TelebirrDemoPage })),
@@ -91,14 +224,57 @@ const AdminReviewQueuePage = lazy(() =>
 const SurveyQueuePage = lazy(() =>
   import("./pages/admin/SurveyQueuePage").then((m) => ({ default: m.SurveyQueuePage })),
 );
+const SurveyReviewDetailPage = lazy(() =>
+  import("./pages/admin/SurveyReviewDetailPage").then((m) => ({ default: m.SurveyReviewDetailPage })),
+);
+const ClearanceDocumentReviewPage = lazy(() =>
+  import("./pages/admin/ClearanceDocumentReviewPage").then((m) => ({
+    default: m.ClearanceDocumentReviewPage,
+  })),
+);
+const SurveyApprovedSuccessPage = lazy(() =>
+  import("./pages/admin/SurveyApprovedSuccessPage").then((m) => ({
+    default: m.SurveyApprovedSuccessPage,
+  })),
+);
+const SurveyRejectedSuccessPage = lazy(() =>
+  import("./pages/admin/SurveyRejectedSuccessPage").then((m) => ({
+    default: m.SurveyRejectedSuccessPage,
+  })),
+);
+const CorrectionQueuePage = lazy(() =>
+  import("./pages/admin/CorrectionQueuePage").then((m) => ({
+    default: m.CorrectionQueuePage,
+  })),
+);
+const ResubmissionReviewPage = lazy(() =>
+  import("./pages/admin/ResubmissionReviewPage").then((m) => ({
+    default: m.ResubmissionReviewPage,
+  })),
+);
 const RevenueDashboardPage = lazy(() =>
   import("./pages/admin/RevenueDashboardPage").then((m) => ({ default: m.RevenueDashboardPage })),
 );
 const ResearcherQueuePage = lazy(() =>
   import("./pages/admin/ResearcherQueuePage").then((m) => ({ default: m.AdminResearcherQueuePage })),
 );
+const ReconciliationQueuePage = lazy(() =>
+  import("./pages/admin/ReconciliationQueuePage").then((m) => ({
+    default: m.ReconciliationQueuePage,
+  })),
+);
+const DataSubjectRequestsPage = lazy(() =>
+  import("./pages/admin/DataSubjectRequestsPage").then((m) => ({
+    default: m.DataSubjectRequestsPage,
+  })),
+);
 const UserManagementPage = lazy(() =>
   import("./pages/admin/UserManagementPage").then((m) => ({ default: m.UserManagementPage })),
+);
+const AdminNotificationCenterPage = lazy(() =>
+  import("./pages/admin/AdminNotificationCenterPage").then((m) => ({
+    default: m.AdminNotificationCenterPage,
+  })),
 );
 const AdminLoginPage = lazy(() =>
   import("./pages/admin/AdminLoginPage").then((m) => ({ default: m.AdminLoginPage })),
@@ -138,6 +314,35 @@ export default function App() {
       <Route element={<ForgotPasswordPage />} path="/forgot-password" />
       <Route element={<RespondentOnboardingPage />} path="/onboarding" />
       <Route element={<RespondentOnboardingPage />} path="/respondent/onboarding" />
+      <Route element={<ContactSupportPage />} path="/contact" />
+      <Route element={<ContactSupportPage />} path="/support" />
+      <Route element={<ContactSupportPage />} path="/contact-support" />
+      <Route element={<ContactSupportSuccessPage />} path="/contact/success" />
+      <Route element={<ContactSupportSuccessPage />} path="/support/success" />
+      <Route element={<TermsAndConditionsPage />} path="/terms" />
+      <Route element={<TermsAndConditionsPage />} path="/terms-and-conditions" />
+      <Route element={<TermsAndConditionsPage />} path="/legal/terms" />
+      <Route element={<PrivacyPolicyPage />} path="/privacy" />
+      <Route element={<PrivacyPolicyPage />} path="/privacy-policy" />
+      <Route element={<PrivacyPolicyPage />} path="/legal/privacy" />
+      <Route element={<AccessDeniedPage />} path="/403" />
+      <Route element={<AccessDeniedPage />} path="/access-denied" />
+      <Route element={<SessionExpiredPage />} path="/session-expired" />
+      <Route element={<ServerErrorPage />} path="/500" />
+      <Route element={<ServerErrorPage />} path="/server-error" />
+      <Route element={<NetworkErrorPage />} path="/network-error" />
+      <Route element={<MaintenancePage />} path="/maintenance" />
+      <Route element={<NoSearchResultsPage />} path="/search/no-results" />
+      <Route element={<SurveyNotFoundPage />} path="/survey/not-found" />
+      <Route element={<SurveyClosedPage />} path="/survey/closed" />
+      <Route element={<SurveyPausedPage />} path="/survey/paused" />
+      <Route element={<SurveyNotEligiblePage />} path="/survey/not-eligible" />
+      <Route element={<SurveyCompletedPage />} path="/survey/already-completed" />
+      <Route element={<SurveySubmissionErrorPage />} path="/survey/submission-error" />
+      <Route element={<SurveySubmissionSuccessPage />} path="/survey/submission-success" />
+      <Route element={<EmptyStateShowcasePage />} path="/empty-states" />
+      <Route element={<SurveyCompletionSuccessDesktopPage />} path="/survey/completion-success" />
+      <Route element={<SurveyCompletionSuccessDesktopPage />} path="/survey/success/desktop" />
 
       {/* Respondent */}
       <Route
@@ -150,12 +355,19 @@ export default function App() {
         <Route element={<InboxPage />} path="/inbox" />
         <Route element={<HistoryPage />} path="/history" />
         <Route element={<WalletPage />} path="/wallet" />
+        <Route element={<WithdrawalHistoryPage />} path="/wallet/history" />
+        <Route element={<WithdrawalHistoryPage />} path="/respondent/wallet/history" />
         <Route element={<ProfilePage />} path="/profile" />
         <Route element={<ProfilePage />} path="/respondent/profile" />
         <Route element={<VerificationPage />} path="/verify" />
         <Route element={<VerificationPage />} path="/respondent/profile/verification" />
+        <Route element={<RespondentNotificationCenterPage />} path="/respondent/notifications" />
+        <Route element={<RespondentNotificationCenterPage />} path="/notifications/respondent" />
         <Route element={<DocumentsPage />} path="/documents" />
+        <Route element={<RespondentHelpCenterPage />} path="/respondent/help" />
+        <Route element={<RespondentHelpCenterPage />} path="/respondent/help-center" />
       </Route>
+      <Route element={<RespondentHelpCenterPage />} path="/help/respondent" />
 
       {/* The fill screen is deliberately outside the tab shell: no distractions,
           and no navigation that would abandon a partly-completed survey. */}
@@ -217,14 +429,29 @@ export default function App() {
         <Route element={<SurveyBuilderPage />} path="/researcher/surveys/:id/edit" />
         <Route element={<SurveyAnalyticsPage />} path="/researcher/analytics" />
         <Route element={<SurveyAnalyticsPage />} path="/researcher/surveys/:id/dashboard" />
+        <Route element={<RawDataExportPage />} path="/researcher/surveys/:id/export" />
+        <Route element={<RawDataExportPage />} path="/researcher/export-raw-data" />
         <Route element={<ResearcherWalletPage />} path="/researcher/wallet" />
         <Route element={<TelebirrDemoPage />} path="/researcher/wallet/telebirr-demo" />
         <Route element={<SubscriptionPage />} path="/researcher/subscription" />
+        <Route element={<ChooseSubscriptionPlanPage />} path="/subscription/plans" />
+        <Route element={<ChooseSubscriptionPlanPage />} path="/researcher/subscription/plans" />
+        <Route element={<ChooseSubscriptionPlanPage />} path="/subscription" />
+        <Route element={<SubscriptionCheckoutReadyPage />} path="/subscription/checkout" />
+        <Route element={<SubscriptionCheckoutReadyPage />} path="/researcher/subscription/checkout" />
+        <Route element={<SubscriptionCheckoutProcessingPage />} path="/subscription/checkout/processing" />
+        <Route element={<SubscriptionCheckoutProcessingPage />} path="/researcher/subscription/checkout/processing" />
+        <Route element={<SubscriptionCheckoutSuccessPage />} path="/subscription/checkout/success" />
+        <Route element={<SubscriptionCheckoutSuccessPage />} path="/researcher/subscription/checkout/success" />
+        <Route element={<PaymentConfirmationPage />} path="/subscription/confirmation" />
+        <Route element={<PaymentConfirmationPage />} path="/researcher/subscription/confirmation" />
         <Route element={<ResearcherProfilePage />} path="/researcher/profile" />
         <Route element={<SettingsPage />} path="/researcher/settings" />
         <Route element={<SettingsPage />} path="/profile/settings" />
         <Route element={<HelpCenterPage />} path="/researcher/help" />
         <Route element={<HelpCenterPage />} path="/help" />
+        <Route element={<ResearcherNotificationCenterPage />} path="/researcher/notifications" />
+        <Route element={<ResearcherNotificationCenterPage />} path="/notifications" />
       </Route>
 
       {/* Admin */}
@@ -241,8 +468,21 @@ export default function App() {
         <Route element={<AdminDashboardOverviewPage />} path="/admin/overview" />
         <Route element={<AdminReviewQueuePage />} path="/admin/review-queue" />
         <Route element={<SurveyQueuePage />} path="/admin/survey-approvals" />
+        <Route element={<CorrectionQueuePage />} path="/admin/correction-queue" />
+        <Route element={<ResubmissionReviewPage />} path="/admin/resubmission-review/:id" />
+        <Route element={<ResubmissionReviewPage />} path="/admin/resubmission-review" />
+        <Route element={<SurveyReviewDetailPage />} path="/admin/survey-approvals/:id" />
+        <Route element={<SurveyApprovedSuccessPage />} path="/admin/survey-approvals/:id/success" />
+        <Route element={<SurveyRejectedSuccessPage />} path="/admin/survey-approvals/:id/rejected" />
+        <Route element={<SurveyReviewDetailPage />} path="/admin/survey-review/:id" />
+        <Route element={<ClearanceDocumentReviewPage />} path="/admin/compliance-docs/:id" />
+        <Route element={<ClearanceDocumentReviewPage />} path="/admin/document-review/:id" />
         <Route element={<RevenueDashboardPage />} path="/admin/revenue" />
         <Route element={<ResearcherQueuePage />} path="/admin/researcher-approvals" />
+        <Route element={<ReconciliationQueuePage />} path="/admin/reconciliation" />
+        <Route element={<DataSubjectRequestsPage />} path="/admin/data-requests" />
+        <Route element={<AdminNotificationCenterPage />} path="/admin/notifications" />
+        <Route element={<AdminNotificationCenterPage />} path="/admin/notification-center" />
       </Route>
 
       {/* Super Admin only */}

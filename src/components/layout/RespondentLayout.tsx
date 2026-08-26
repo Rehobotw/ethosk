@@ -51,7 +51,13 @@ export function RespondentLayout() {
         <div className="font-['Newsreader',serif] text-xl font-bold text-[#00456d]">Ethosk</div>
         <div className="flex items-center gap-3">
           <LanguageToggle />
-          <span className="material-symbols-outlined text-[#41474f]">notifications</span>
+          <Link
+            to="/respondent/notifications"
+            className="text-[#41474f] hover:text-[#00456d] flex items-center justify-center"
+            aria-label="Notifications"
+          >
+            <span className="material-symbols-outlined">notifications</span>
+          </Link>
           <RespondentAvatar compact />
         </div>
       </header>
@@ -179,10 +185,14 @@ export function RespondentLayout() {
           {/* Right: Notifications + Language + User Info */}
           <div className="flex items-center gap-4">
             <LanguageToggle />
-            <button className="text-[#41474f] hover:text-[#00456d] transition-colors cursor-pointer relative" type="button">
+            <Link
+              to="/respondent/notifications"
+              className="text-[#41474f] hover:text-[#00456d] transition-colors cursor-pointer relative flex items-center justify-center"
+              aria-label="Notifications"
+            >
               <span className="material-symbols-outlined">notifications</span>
               <span className="absolute top-0 right-0 w-2 h-2 bg-[#ba1a1a] rounded-full" />
-            </button>
+            </Link>
 
             <div className="border-l border-[#c1c7d0] pl-4">
               <RespondentAvatar />

@@ -20,6 +20,8 @@ export function AdminLayout() {
     { label: isAm ? "የማረጋገጫ ወረፋ" : "Verification Queue", to: "/admin/review-queue", icon: "fact_check", end: false },
     { label: isAm ? "የጥናት ማጽደቆች" : "Survey Approvals", to: "/admin/survey-approvals", icon: "task_alt", end: false },
     { label: isAm ? "የተመራማሪ ማጽደቆች" : "Researcher Approvals", to: "/admin/researcher-approvals", icon: "how_to_reg", end: false },
+    { label: isAm ? "የማስታረቅ ወረፋ" : "Reconciliation Queue", to: "/admin/reconciliation", icon: "sync_alt", end: false },
+    { label: isAm ? "የመረጃ ጥያቄዎች" : "Data Requests", to: "/admin/data-requests", icon: "privacy_tip", end: false },
     { label: isAm ? "የፋይናንስ ሁኔታ" : "Financials", to: "/admin/revenue", icon: "payments", end: false },
   ];
 
@@ -157,10 +159,14 @@ export function AdminLayout() {
           {/* Right: Actions & Profile */}
           <div className="flex items-center gap-3">
             <LanguageToggle />
-            <button className="text-[#4b6078] hover:bg-[#f1f4f7] p-2 rounded-full transition-colors cursor-pointer relative" type="button">
+            <Link
+              to="/admin/notifications"
+              className="text-[#4b6078] hover:bg-[#f1f4f7] p-2 rounded-full transition-colors cursor-pointer relative flex items-center justify-center"
+              aria-label="Admin Notifications"
+            >
               <span className="material-symbols-outlined text-[20px]">notifications</span>
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#ba1a1a] rounded-full" />
-            </button>
+            </Link>
 
             <Link
               to="/#how"

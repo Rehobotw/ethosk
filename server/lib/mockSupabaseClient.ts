@@ -9,7 +9,7 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import crypto from "node:crypto";
-import { mockStore, type UserRecord, type RespondentProfileRecord, type ResearcherProfileRecord, type SurveyRecord, type DocumentRecord, type ResearcherDepositRecord, type RespondentPayoutRecord } from "./mockStore.js";
+import { mockStore, type UserRecord, type RespondentProfileRecord, type ResearcherProfileRecord, type SurveyRecord, type DocumentRecord, type ResearcherDepositRecord, type RespondentPayoutRecord, type RespondentWithdrawalRecord } from "./mockStore.js";
 
 function getTierRank(tier?: string): number {
   switch (tier) {
@@ -59,11 +59,19 @@ class QueryBuilder {
           users: mockStore.users.get(r.respondent_id) || null,
         }));
       case "researcher_deposits":
-        return [...mockStore.researcherDeposits];
+        return mockStore.researcherDeposits.map((d) => ({
+          ...d,
+          users: mockStore.users.get(d.researcher_id) || null,
+        }));
       case "respondent_payouts":
         return mockStore.respondentPayouts.map((p) => ({
           ...p,
           surveys: mockStore.surveys.get(p.survey_id) || null,
+        }));
+      case "respondent_withdrawals":
+        return mockStore.respondentWithdrawals.map((w) => ({
+          ...w,
+          users: mockStore.users.get(w.respondent_id) || null,
         }));
       case "documents":
         return mockStore.documents.map((d) => ({
@@ -71,7 +79,12 @@ class QueryBuilder {
           user: mockStore.users.get(d.user_id) || null,
         }));
       case "consent_events":
-        return [...mockStore.consentEvents] as Record<string, any>[];
+        return mockStore.consentEvents.map((c: any) => ({
+          ...c,
+          users: mockStore.users.get(c.user_id) || null,
+        }));
+      case "compliance_category_rules":
+        return Array.from(mockStore.complianceCategoryRules.values()) as Record<string, any>[];
       case "translation_cache":
         return Array.from(mockStore.translationCache.values()) as Record<string, any>[];
       case "respondent_match_view": {
@@ -333,6 +346,9 @@ class QueryBuilder {
           case "respondent_payouts":
             mockStore.respondentPayouts.push(newItem as RespondentPayoutRecord);
             break;
+          case "respondent_withdrawals":
+            mockStore.respondentWithdrawals.push(newItem as RespondentWithdrawalRecord);
+            break;
           case "documents":
             mockStore.documents.push(newItem as DocumentRecord);
             break;
@@ -382,6 +398,16 @@ class QueryBuilder {
           case "respondent_payouts": {
             const idx = mockStore.respondentPayouts.findIndex((p) => p.id === row.id);
             if (idx >= 0) mockStore.respondentPayouts[idx] = updated as RespondentPayoutRecord;
+            break;
+          }
+          case "respondent_withdrawals": {
+            const idx = mockStore.respondentWithdrawals.findIndex((w) => w.id === row.id);
+            if (idx >= 0) mockStore.respondentWithdrawals[idx] = updated as RespondentWithdrawalRecord;
+            break;
+          }
+          case "consent_events": {
+            const idx = mockStore.consentEvents.findIndex((c: any) => c.id === row.id);
+            if (idx >= 0) mockStore.consentEvents[idx] = updated as any;
             break;
           }
         }
