@@ -1,6 +1,9 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Router } from "express";
+import multer from "multer";
 import {
+  ACCEPTED_UPLOAD_MIME_TYPES,
+  MAX_UPLOAD_BYTES,
   aiDraftRequestSchema,
   chatTurnSchema,
   finalDraftSchema,
@@ -11,6 +14,16 @@ import {
   surveySchema,
   translateSchema,
 } from "@shared/validation/schemas.js";
+
+function sanitizeFileName(name: string): string {
+  return name.replace(/[^A-Za-z0-9._-]/g, "_").slice(-80);
+}
+
+const complianceUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_BYTES },
+});
+
 import type { Question, SurveyRecord, TargetLanguage } from "@shared/types.js";
 import { aggregateResponses, shouldGenerateSummary } from "@shared/analytics/aggregate.js";
 import {
@@ -23,6 +36,8 @@ import {
 import { scoreResponse } from "@shared/fraud/score.js";
 import { buildSupabaseMatchFilters, type MatchFilters } from "@shared/matching/buildQuery.js";
 import { env, fraudThresholds } from "../env.js";
+import { getComplianceCategoryRules } from "../lib/complianceRules.js";
+import { evaluateCategoryCompliance } from "@shared/compliance/rules.js";
 import { translateText } from "../lib/ai/addisai.js";
 import {
   generateSurveyDraft,
@@ -40,6 +55,57 @@ import { admin, userClient } from "../lib/supabase.js";
 import { payForResponse, readResearcherWallet, roundEtb } from "../lib/wallet.js";
 
 export const surveysRouter = Router();
+
+surveysRouter.get(
+  "/compliance-rules",
+  asyncRoute(async (_req, res) => {
+    const rules = await getComplianceCategoryRules();
+    res.json({ rules });
+  }),
+);
+
+surveysRouter.post(
+  "/compliance-document",
+  requireAuth("researcher"),
+  rateLimit({ key: "compliance-doc-upload", max: 15, windowMs: 60_000 }),
+  complianceUpload.single("file"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+    const file = req.file;
+
+    if (!file) {
+      throw new ApiError(400, "FILE_REQUIRED", "Attach a clearance or compliance document to upload.");
+    }
+
+    // Independent server-side validation (v4 §7.4 item 2, §5)
+    if (!ACCEPTED_UPLOAD_MIME_TYPES.includes(file.mimetype as (typeof ACCEPTED_UPLOAD_MIME_TYPES)[number])) {
+      throw new ApiError(
+        400,
+        "UNSUPPORTED_FILE_TYPE",
+        "Upload a PDF, JPG, or PNG document.",
+      );
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw new ApiError(413, "FILE_TOO_LARGE", "File is too large. Maximum allowed size is 10MB.");
+    }
+
+    const storagePath = `surveys/compliance/${context.userId}/${randomUUID()}-${sanitizeFileName(file.originalname)}`;
+
+    const { error: uploadError } = await admin.storage
+      .from(env.documentsBucket)
+      .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
+
+    if (uploadError) throw new ApiError(500, "UPLOAD_FAILED", uploadError.message);
+
+    res.json({
+      path: storagePath,
+      filename: file.originalname,
+      size_bytes: file.size,
+      mimetype: file.mimetype,
+    });
+  }),
+);
 
 surveysRouter.post(
   "/improve-question-text",
@@ -143,8 +209,18 @@ surveysRouter.post(
       finalDraftSchema.parse(input);
     }
 
+    if ((req.body?.format as string)?.toLowerCase() === "voice") {
+      throw new ApiError(400, "FORMAT_NOT_AVAILABLE", "Voice surveys are currently in development and coming soon (§7.4).");
+    }
+
     // Free-tier enforcement: cap active survey count
     await checkFreeTierSurveyLimit(context.userId, context.subscriptionTier);
+
+    const category = input.research_category ?? null;
+    const rules = await getComplianceCategoryRules();
+    const evalResult = category ? evaluateCategoryCompliance(category, rules) : null;
+    const compliance_required = input.compliance_required !== undefined ? input.compliance_required : (evalResult?.compliance_required ?? false);
+    const compliance_rule_triggered = input.compliance_rule_triggered !== undefined ? input.compliance_rule_triggered : (evalResult?.rule_triggered ?? null);
 
     const { data, error } = await admin
       .from("surveys")
@@ -154,6 +230,9 @@ surveysRouter.post(
         description: input.description ?? null,
         questions: input.questions,
         reward_etb: input.reward_etb ?? null,
+        research_category: category,
+        compliance_required,
+        compliance_rule_triggered,
         compliance_answer: input.compliance_answer ?? null,
         compliance_document_path: input.compliance_document_path ?? null,
         status: input.status ?? "draft",
@@ -289,6 +368,16 @@ surveysRouter.patch(
     const translations =
       input.questions !== undefined ? {} : survey.translations;
 
+    const category = input.research_category !== undefined ? input.research_category : survey.research_category;
+    const rules = await getComplianceCategoryRules();
+    const evalResult = category ? evaluateCategoryCompliance(category, rules) : null;
+    const compliance_required = input.compliance_required !== undefined 
+      ? input.compliance_required 
+      : (input.research_category !== undefined ? (evalResult?.compliance_required ?? false) : undefined);
+    const compliance_rule_triggered = input.compliance_rule_triggered !== undefined
+      ? input.compliance_rule_triggered
+      : (input.research_category !== undefined ? (evalResult?.rule_triggered ?? null) : undefined);
+
     const { data, error } = await admin
       .from("surveys")
       .update({
@@ -296,6 +385,9 @@ surveysRouter.patch(
         ...(input.description !== undefined && { description: input.description }),
         ...(input.questions !== undefined && { questions: input.questions }),
         ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
+        ...(input.research_category !== undefined && { research_category: input.research_category }),
+        ...(compliance_required !== undefined && { compliance_required }),
+        ...(compliance_rule_triggered !== undefined && { compliance_rule_triggered }),
         ...(input.compliance_answer !== undefined && { compliance_answer: input.compliance_answer }),
         ...(input.compliance_document_path !== undefined && { compliance_document_path: input.compliance_document_path }),
         ...(input.status !== undefined && { status: input.status }),
@@ -482,6 +574,11 @@ surveysRouter.post(
     const input = parseBody(sendRequestSchema, req.body);
     const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
 
+    const requestedFormat = (input.format || (input.filters?.format as string) || "").toLowerCase();
+    if (requestedFormat === "voice") {
+      throw new ApiError(400, "FORMAT_NOT_AVAILABLE", "Voice surveys are currently in development and coming soon (§7.4).");
+    }
+
     // Free-tier enforcement: cap responses per survey
     await checkFreeTierResponseLimit(survey.id, context.subscriptionTier);
 
@@ -524,6 +621,18 @@ surveysRouter.post(
       if (targetError) throw new ApiError(500, "SEND_FAILED", targetError.message);
     }
 
+    const category = input.research_category !== undefined ? input.research_category : survey.research_category;
+    const rules = await getComplianceCategoryRules();
+    const evalResult = category ? evaluateCategoryCompliance(category, rules) : null;
+    const compliance_required = input.compliance_required !== undefined 
+      ? input.compliance_required 
+      : (survey.compliance_required ?? evalResult?.compliance_required ?? false);
+    const compliance_rule_triggered = input.compliance_rule_triggered !== undefined
+      ? input.compliance_rule_triggered
+      : (survey.compliance_rule_triggered ?? evalResult?.rule_triggered ?? null);
+    const compliance_answer = input.compliance_answer !== undefined ? input.compliance_answer : survey.compliance_answer;
+    const compliance_document_path = input.compliance_document_path !== undefined ? input.compliance_document_path : survey.compliance_document_path;
+
     const { error: statusError } = await admin
       .from("surveys")
       .update({
@@ -531,6 +640,11 @@ surveysRouter.post(
         sent_at: new Date().toISOString(),
         target_filters: input.filters,
         escrow_etb: requiredEtb,
+        research_category: category,
+        compliance_required,
+        compliance_rule_triggered,
+        compliance_answer,
+        compliance_document_path,
         ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
       })
       .eq("id", survey.id);

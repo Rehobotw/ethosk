@@ -1,7 +1,13 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { SurveyRecord } from "@shared/types";
+import {
+  STARTER_COMPLIANCE_RULES,
+  evaluateCategoryCompliance,
+  type ComplianceCategoryRule,
+} from "@shared/compliance/rules";
+import { validateDocumentFile } from "@shared/validation/schemas";
 import { Icon, LoadingBlock, Notice } from "@/components/ui";
 import { api, ApiRequestError } from "@/lib/api";
 
@@ -28,6 +34,41 @@ export function SurveyPostingWizardPage() {
   // Step 2: Format
   const [format, setFormat] = useState<SurveyFormat>("web_form");
 
+  // Step 3: Research Category & Compliance (§7.4 item 1, §5, §7.1)
+  const [researchCategory, setResearchCategory] = useState<string>("market_consumer");
+  const [complianceAnswer, setComplianceAnswer] = useState<boolean | null>(true);
+  const [complianceDocName, setComplianceDocName] = useState<string | null>(null);
+  const complianceFileInputRef = useRef<HTMLInputElement>(null);
+  const [complianceUploadError, setComplianceUploadError] = useState<string | null>(null);
+  const [isUploadingCompliance, setIsUploadingCompliance] = useState(false);
+
+  const handleComplianceFileUpload = async (file: File | undefined) => {
+    setComplianceUploadError(null);
+    if (!file) return;
+
+    const validation = validateDocumentFile(file);
+    if (!validation.valid) {
+      setComplianceUploadError(validation.message || "Invalid file.");
+      if (complianceFileInputRef.current) complianceFileInputRef.current.value = "";
+      return;
+    }
+
+    setIsUploadingCompliance(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await api<{ path: string; filename: string }>("/surveys/compliance-document", {
+        body: formData,
+      });
+      setComplianceDocName(res.filename || file.name);
+    } catch (err: any) {
+      setComplianceUploadError(err.message || "Failed to upload compliance document.");
+    } finally {
+      setIsUploadingCompliance(false);
+    }
+  };
+
   // Step 3: Audience Filters
   const [minAge, setMinAge] = useState<number>(18);
   const [maxAge, setMaxAge] = useState<number>(65);
@@ -45,6 +86,22 @@ export function SurveyPostingWizardPage() {
   const totalEscrowRequired = sampleSize * ratePerRespondent;
 
   const [banner, setBanner] = useState<{ tone: "success" | "error" | "warning"; text: string } | null>(null);
+
+  // Fetch Compliance Category Rules (§7.4 item 1, data-driven)
+  const { data: complianceRulesData } = useQuery({
+    queryKey: ["compliance-rules"],
+    queryFn: () =>
+      api<{ rules: ComplianceCategoryRule[] }>("/surveys/compliance-rules").catch(() => ({
+        rules: [...STARTER_COMPLIANCE_RULES],
+      })),
+  });
+
+  const complianceRules = complianceRulesData?.rules || STARTER_COMPLIANCE_RULES;
+
+  // Auto-evaluate category compliance rule (§7.4 item 1)
+  const complianceEvaluation = useMemo(() => {
+    return evaluateCategoryCompliance(researchCategory, complianceRules);
+  }, [researchCategory, complianceRules]);
 
   // Fetch Researcher's Final Drafts & Surveys
   const { data: surveysData, isLoading: isLoadingSurveys } = useQuery({
@@ -69,10 +126,21 @@ export function SurveyPostingWizardPage() {
     return surveys.find((s) => s.id === selectedSurveyId) || null;
   }, [surveys, selectedSurveyId]);
 
-  // Set initial reward from selected survey if present
+  // Set initial reward and category from selected survey if present
   useEffect(() => {
-    if (selectedSurvey?.reward_etb) {
-      setRewardPerRespondent(selectedSurvey.reward_etb);
+    if (selectedSurvey) {
+      if (selectedSurvey.reward_etb) {
+        setRewardPerRespondent(selectedSurvey.reward_etb);
+      }
+      if (selectedSurvey.research_category) {
+        setResearchCategory(selectedSurvey.research_category);
+      }
+      if (selectedSurvey.compliance_answer !== undefined && selectedSurvey.compliance_answer !== null) {
+        setComplianceAnswer(selectedSurvey.compliance_answer);
+      }
+      if (selectedSurvey.compliance_document_path) {
+        setComplianceDocName(selectedSurvey.compliance_document_path);
+      }
     }
   }, [selectedSurvey]);
 
@@ -144,6 +212,11 @@ export function SurveyPostingWizardPage() {
           body: {
             reward_etb: rewardPerRespondent,
             filters,
+            research_category: researchCategory,
+            compliance_required: complianceEvaluation.compliance_required,
+            compliance_rule_triggered: complianceEvaluation.rule_triggered,
+            compliance_answer: complianceAnswer,
+            compliance_document_path: complianceDocName,
           },
         },
       );
@@ -574,22 +647,181 @@ export function SurveyPostingWizardPage() {
         )}
 
         {/* ════════════════════════════════════════════════════════════ */}
-        {/* STEP 3: DEMOGRAPHIC FILTERS (Stitch Screen 047333c6ac4e4ce7) ─ */}
+        {/* STEP 3: AUDIENCE & COMPLIANCE (Stitch Screen 047333c6ac4e4ce7) ─ */}
         {/* ════════════════════════════════════════════════════════════ */}
         {step === 3 && (
           <div className="w-full max-w-5xl flex flex-col gap-8">
             <div className="mb-2">
               <h2 className="font-headline font-bold text-2xl md:text-3xl text-[#001d29] mb-1 tracking-tight">
-                Audience Targeting
+                Audience Targeting &amp; Ethical Compliance
               </h2>
               <p className="text-xs md:text-sm text-[#41484c]">
-                Define your demographic parameters to reach the exact verified respondents needed for your research study.
+                Declare your research category, review ethical clearance requirements, and define demographic targeting parameters.
               </p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               {/* Left Column: Filter Fields (8 cols) */}
               <div className="lg:col-span-8 space-y-6">
+                {/* ── Research Category & Ethical Compliance Card (§7.4 item 1, §5, §7.1) ── */}
+                <div className="bg-white rounded-2xl border border-[#c1c7cc]/40 shadow-xs p-6 md:p-8 space-y-5">
+                  <div className="flex items-center gap-2 border-b border-[#c1c7cc]/20 pb-3">
+                    <Icon className="text-[#001d29] text-[20px]" name="policy" />
+                    <h3 className="font-headline text-base font-bold text-[#001d29]">
+                      Research Category &amp; Legal Compliance
+                    </h3>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#001d29] mb-1.5" htmlFor="research_category">
+                      Declared Research Category
+                    </label>
+                    <select
+                      id="research_category"
+                      value={researchCategory}
+                      onChange={(e) => setResearchCategory(e.target.value)}
+                      className="w-full bg-[#f8f9ff] border border-[#c1c7cc] rounded-lg p-2.5 text-xs md:text-sm text-[#001d29] outline-none focus:ring-1 focus:ring-[#001d29]"
+                    >
+                      {complianceRules.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name} {r.requires_document ? "(Requires Clearance Document)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-[#71787c] mt-1">
+                      {complianceEvaluation.description || "Select the primary category that best describes your research study."}
+                    </p>
+                  </div>
+
+                  {/* Auto-Determined Compliance Requirement Banner */}
+                  {complianceEvaluation.compliance_required ? (
+                    <div className="rounded-xl bg-[#fff8e6] border border-[#f59e0b]/40 p-4 space-y-3">
+                      <div className="flex items-start gap-2.5">
+                        <Icon className="text-[#d97706] text-[20px] shrink-0 mt-0.5" name="gavel" />
+                        <div>
+                          <span className="text-xs font-bold text-[#92400e] block">
+                            Ethical Clearance Required: {complianceEvaluation.rule_name}
+                          </span>
+                          <p className="text-xs text-[#78350f] mt-0.5 leading-relaxed">
+                            Under Ethosk Research Ethics &amp; Legal Compliance (§7.4), studies categorized under <strong>{complianceEvaluation.rule_name}</strong> require an institutional clearance or ethical approval document before approval.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Clearance Document Upload / Attachment */}
+                      <div className="pt-2 border-t border-[#f59e0b]/20">
+                        <label className="block text-xs font-semibold text-[#92400e] mb-1.5">
+                          Institutional Clearance / IRB Document (v4 §7.4)
+                        </label>
+                        <input
+                          ref={complianceFileInputRef}
+                          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                          className="hidden"
+                          onChange={(e) => handleComplianceFileUpload(e.target.files?.[0])}
+                          type="file"
+                        />
+                        {complianceDocName ? (
+                          <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-[#f59e0b]/40">
+                            <div className="flex items-center gap-2.5">
+                              <Icon className="text-[#001d29] text-[18px]" name="description" />
+                              <span className="text-xs font-semibold text-[#001d29]">{complianceDocName}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setComplianceDocName(null);
+                                if (complianceFileInputRef.current) complianceFileInputRef.current.value = "";
+                              }}
+                              className="text-xs text-red-600 hover:text-red-800 font-semibold cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => complianceFileInputRef.current?.click()}
+                            className="border border-dashed border-[#f59e0b]/60 bg-white/80 rounded-lg p-4 text-center hover:bg-white transition-colors cursor-pointer"
+                          >
+                            <Icon className="text-[#d97706] text-[24px] mb-1" name="upload_file" />
+                            <p className="text-xs font-semibold text-[#001d29]">
+                              {isUploadingCompliance ? "Uploading document…" : "Upload Ethical Clearance / IRB Approval"}
+                            </p>
+                            <p className="text-[11px] text-[#71787c]">PDF, JPG, or PNG up to 10MB</p>
+                          </div>
+                        )}
+                        {complianceUploadError && (
+                          <div className="mt-2 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2 font-medium">
+                            {complianceUploadError}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Attestation Question */}
+                      <div className="pt-2 border-t border-[#f59e0b]/20 flex items-center justify-between gap-4">
+                        <span className="text-xs font-medium text-[#78350f]">
+                          Do you attest that this study adheres to national research guidelines?
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setComplianceAnswer(true)}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                              complianceAnswer === true
+                                ? "bg-[#001d29] text-white border-[#001d29]"
+                                : "bg-white text-[#41484c] border-[#c1c7cc]"
+                            }`}
+                          >
+                            YES
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setComplianceAnswer(false)}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                              complianceAnswer === false
+                                ? "bg-red-600 text-white border-red-600"
+                                : "bg-white text-[#41484c] border-[#c1c7cc]"
+                            }`}
+                          >
+                            NO
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl bg-[#eff4ff]/60 border border-[#c1c7cc]/30 p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <Icon className="text-emerald-600 text-[20px]" name="check_circle" />
+                        <div>
+                          <span className="text-xs font-bold text-[#001d29]">Standard Research Category</span>
+                          <p className="text-[11px] text-[#71787c]">No mandatory clearance document required for this category.</p>
+                        </div>
+                      </div>
+                      {complianceDocName ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-[#001d29] font-medium flex items-center gap-1">
+                            <Icon className="text-[16px]" name="attach_file" /> {complianceDocName}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setComplianceDocName(null)}
+                            className="text-xs text-red-600 hover:text-red-800"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setComplianceDocName("optional_clearance_document.pdf")}
+                          className="text-xs text-[#001d29] hover:underline font-semibold cursor-pointer"
+                        >
+                          + Attach Optional Document
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Core Demographics Card */}
                 <div className="bg-white rounded-2xl border border-[#c1c7cc]/40 shadow-xs p-6 md:p-8 space-y-5">
                   <div className="flex items-center gap-2 border-b border-[#c1c7cc]/20 pb-3">

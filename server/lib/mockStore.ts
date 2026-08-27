@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { STARTER_COMPLIANCE_RULES, type ComplianceCategoryRule } from "@shared/compliance/rules.js";
 
 export interface UserRecord {
   id: string;
@@ -55,10 +56,17 @@ export interface SurveyRecord {
   questions: unknown[];
   translations: Record<string, unknown>;
   target_filters?: Record<string, unknown> | null;
-  status: "draft" | "active" | "closed";
+  status: "wip" | "draft" | "final_draft" | "pending_review" | "active" | "rejected" | "closed";
+  builder_type?: "manual" | "import" | "ai" | null;
   reward_etb: number;
   escrow_etb?: number;
+  research_category?: string | null;
+  compliance_required?: boolean | null;
+  compliance_rule_triggered?: string | null;
+  compliance_answer?: boolean | null;
+  compliance_document_path?: string | null;
   created_at: string;
+  updated_at?: string;
   sent_at?: string | null;
 }
 
@@ -87,8 +95,14 @@ export interface ResearcherDepositRecord {
   amount_etb: number;
   method: string;
   reference: string;
+  provider_ref?: string | null;
+  sender_detail?: string | null;
+  idempotency_key?: string | null;
+  verification_status?: string | null;
+  verification_response?: Record<string, unknown> | null;
   status: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface RespondentPayoutRecord {
@@ -100,6 +114,22 @@ export interface RespondentPayoutRecord {
   amount_etb: number;
   status: string;
   created_at: string;
+}
+
+export interface RespondentWithdrawalRecord {
+  id: string;
+  respondent_id: string;
+  amount_etb: number;
+  method: string;
+  account_number: string;
+  reference?: string | null;
+  provider_ref?: string | null;
+  verification_status?: string | null;
+  verification_notes?: string | null;
+  verification_response?: Record<string, unknown> | null;
+  status: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface DocumentRecord {
@@ -127,7 +157,9 @@ class MockDatabaseStore {
   surveyResponses: SurveyResponseRecord[] = [];
   researcherDeposits: ResearcherDepositRecord[] = [];
   respondentPayouts: RespondentPayoutRecord[] = [];
+  respondentWithdrawals: RespondentWithdrawalRecord[] = [];
   documents: DocumentRecord[] = [];
+  complianceCategoryRules = new Map<string, ComplianceCategoryRule>();
   consentEvents: Record<string, unknown>[] = [];
   translationCache = new Map<string, unknown>();
 
@@ -185,6 +217,45 @@ class MockDatabaseStore {
   init() {
     if (this.initialized) return;
     this.initialized = true;
+
+    // Seed compliance category rules
+    for (const rule of STARTER_COMPLIANCE_RULES) {
+      this.complianceCategoryRules.set(rule.id, { ...rule });
+    }
+
+    // Seed initial data subject requests (FR-ADM-2 / Proclamation 1321/2024 §17.7)
+    this.consentEvents.push(
+      {
+        id: "dsr-001",
+        user_id: "22222222-2222-4222-a222-222222222222",
+        event_type: "data_erasure_request",
+        details: {
+          role: "respondent",
+          email: "selam@gmail.com",
+          fullName: "Selamawit Tadesse",
+          reason: "Requesting full account erasure and removal of profile data pursuant to Proclamation 1321/2024.",
+          statute: "Proclamation 1321/2024 §17.7",
+          status: "pending",
+          submitted_at: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+        },
+        created_at: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+      },
+      {
+        id: "dsr-002",
+        user_id: "44444444-4444-4444-a444-444444444444",
+        event_type: "data_erasure_request",
+        details: {
+          role: "respondent",
+          email: "haile@gmail.com",
+          fullName: "Haile Gebre",
+          reason: "No longer active on the platform, please delete all demographic records.",
+          statute: "Proclamation 1321/2024 §17.7",
+          status: "pending",
+          submitted_at: new Date(Date.now() - 24 * 86_400_000).toISOString(),
+        },
+        created_at: new Date(Date.now() - 24 * 86_400_000).toISOString(),
+      },
+    );
 
     // 1. Researcher: Abebe Bekele
     const researcherId = "11111111-1111-4111-a111-111111111111";

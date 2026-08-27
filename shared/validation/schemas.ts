@@ -176,6 +176,9 @@ export const surveySchema = z.object({
     .min(1, "Add at least one question")
     .max(30, "The MVP builder supports up to 30 questions"),
   reward_etb: z.number().min(0).max(10_000).nullable().optional(),
+  research_category: z.string().nullable().optional(),
+  compliance_required: z.boolean().nullable().optional(),
+  compliance_rule_triggered: z.string().nullable().optional(),
   compliance_answer: z.boolean().nullable().optional(),
   compliance_document_path: z.string().nullable().optional(),
   status: z.enum(SURVEY_STATUSES).optional(),
@@ -244,15 +247,21 @@ export const matchFiltersSchema = z.object({
   department: z.string().trim().min(1).optional(),
   yearRange: z.tuple([z.number().int().min(1).max(8), z.number().int().min(1).max(8)]).optional(),
 
-  minVerificationTier: minVerificationTierSchema,
-});
+  minVerificationTier: minVerificationTierSchema.optional(),
+}).passthrough();
 export type MatchFiltersInput = z.infer<typeof matchFiltersSchema>;
 
 export const matchRequestSchema = z.object({ filters: matchFiltersSchema });
 
 export const sendRequestSchema = z.object({
-  filters: matchFiltersSchema,
+  format: z.string().optional(),
+  filters: z.record(z.unknown()).optional(),
   reward_etb: z.number().min(0).max(10_000).optional(),
+  research_category: z.string().nullable().optional(),
+  compliance_required: z.boolean().nullable().optional(),
+  compliance_rule_triggered: z.string().nullable().optional(),
+  compliance_answer: z.boolean().nullable().optional(),
+  compliance_document_path: z.string().nullable().optional(),
 });
 
 /**
@@ -272,6 +281,8 @@ export const depositSchema = z.object({
     .trim()
     .min(4, "Enter the transaction reference from your payment confirmation")
     .max(64),
+  sender_detail: z.string().trim().max(50).optional(),
+  idempotency_key: z.string().trim().max(128).optional(),
 });
 export type DepositInput = z.infer<typeof depositSchema>;
 
@@ -380,11 +391,44 @@ export const documentCheckSchema = z.object({
 export type DocumentCheck = z.infer<typeof documentCheckSchema>;
 
 export const ACCEPTED_UPLOAD_MIME_TYPES = [
+  "application/pdf",
   "image/jpeg",
   "image/png",
-  "application/pdf",
+  "image/jpg",
 ] as const;
 
-export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+export const ACCEPTED_UPLOAD_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"] as const;
+
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB (v4 §7.4 item 2, §5)
+
+export function validateDocumentFile(file: { name?: string; size: number; type?: string }): {
+  valid: boolean;
+  error?: "UNSUPPORTED_FILE_TYPE" | "FILE_TOO_LARGE";
+  message?: string;
+} {
+  const extension = file.name ? file.name.slice(file.name.lastIndexOf(".")).toLowerCase() : "";
+  const mimeType = file.type?.toLowerCase() ?? "";
+
+  const isAcceptedMime = ACCEPTED_UPLOAD_MIME_TYPES.some((t) => t === mimeType);
+  const isAcceptedExt = ACCEPTED_UPLOAD_EXTENSIONS.some((ext) => ext === extension);
+
+  if (!isAcceptedMime && !isAcceptedExt) {
+    return {
+      valid: false,
+      error: "UNSUPPORTED_FILE_TYPE",
+      message: "Unsupported file type. Please upload a PDF, JPG, or PNG document.",
+    };
+  }
+
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return {
+      valid: false,
+      error: "FILE_TOO_LARGE",
+      message: "File is too large. Maximum allowed size is 10MB.",
+    };
+  }
+
+  return { valid: true };
+}
 
 export const VERIFICATION_TIER_VALUES = VERIFICATION_TIERS;

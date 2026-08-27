@@ -164,10 +164,17 @@ export function WalletPage() {
 
       {/* ── Transaction Table Section (Exact Stitch Design) ── */}
       <div className="bg-white rounded-xl border border-[#E1E8EE] overflow-hidden shadow-[0_4px_20px_rgba(0,89,133,0.05)]">
-        <div className="p-5 border-b border-[#E1E8EE] bg-[#f8f9ff]">
+        <div className="p-5 border-b border-[#E1E8EE] bg-[#f8f9ff] flex items-center justify-between">
           <h2 className="font-headline-md text-base md:text-lg font-bold text-[#0D253A] m-0">
             Transaction &amp; Payout History
           </h2>
+          <Link
+            to="/wallet/history"
+            className="inline-flex items-center gap-1 text-xs font-bold text-[#1D5D8A] hover:underline"
+          >
+            <span>Detailed Withdrawal History</span>
+            <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+          </Link>
         </div>
 
         {payouts.length === 0 ? (
@@ -250,9 +257,19 @@ export function WalletPage() {
                       </td>
 
                       <td className="py-4 px-4 text-right whitespace-nowrap">
-                        {isPending ? (
+                        {isWithdrawal && (row.status === "completed" || row.status === "paid") ? (
+                          <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 border border-emerald-300 text-[11px] font-bold px-2.5 py-1 rounded">
+                            <span className="material-symbols-outlined text-[14px]">verified</span>
+                            <span>{row.verification_notes || "Paid — verified via verify.et"}</span>
+                          </span>
+                        ) : row.status === "needs_review" ? (
+                          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold px-2.5 py-1 rounded uppercase tracking-wider">
+                            <span className="material-symbols-outlined text-[13px]">hourglass_top</span>
+                            <span>Pending Manual Review</span>
+                          </span>
+                        ) : isPending ? (
                           <span className="inline-block bg-[#F59E0B]/10 text-[#b06000] text-[10px] font-bold px-2.5 py-1 rounded uppercase tracking-wider">
-                            Pending (Awaiting Quality Check)
+                            {isWithdrawal ? "Processing Cashout" : "Pending (Awaiting Quality Check)"}
                           </span>
                         ) : isFailed ? (
                           <span className="inline-block bg-error/10 text-error text-[10px] font-bold px-2.5 py-1 rounded uppercase tracking-wider">

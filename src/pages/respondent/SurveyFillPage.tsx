@@ -239,27 +239,25 @@ export function SurveyFillPage() {
   if (activeMode === "voice") {
     return (
       <FillFrame>
-        <VoiceMode
-          initialLanguage={language}
-          onFallback={() => setActiveMode("standard")}
-          onFinish={(voiceAnswers) => {
-            const mergedAnswers = { ...answers, ...voiceAnswers };
-            setAnswers(mergedAnswers);
-            try {
-              localStorage.removeItem(`ethosk_survey_draft_${id}`);
-            } catch {}
-            const { timePerQuestion, totalTimeSeconds } = timer.finalize();
-            submit.mutate({
-              answers: mergedAnswers,
-              time_per_question: timePerQuestion,
-              total_time_seconds: totalTimeSeconds,
-              text_metrics: textMetrics.finalize(),
-            });
-          }}
-          questions={data.questions}
-          surveyId={data.id}
-          title={data.title}
-        />
+        <div className="p-8 text-center bg-white rounded-2xl border border-outline-variant space-y-4 max-w-lg mx-auto my-12 shadow-xs">
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
+            <span className="material-symbols-outlined text-3xl">mic</span>
+          </div>
+          <h2 className="font-title-lg text-title-lg font-bold text-on-surface">Voice Survey Mode (Coming Soon)</h2>
+          <p className="text-xs sm:text-sm text-on-surface-variant leading-relaxed">
+            Automated voice interview mode is currently in development (Spec v3 §7.4). Please complete the survey using standard web form or AI chat mode.
+          </p>
+          <div className="pt-2">
+            <button
+              className="px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-all cursor-pointer inline-flex items-center gap-2"
+              onClick={() => setActiveMode("standard")}
+              type="button"
+            >
+              <span className="material-symbols-outlined text-sm">arrow_back</span>
+              <span>Return to Standard Form</span>
+            </button>
+          </div>
+        </div>
       </FillFrame>
     );
   }
@@ -298,13 +296,14 @@ export function SurveyFillPage() {
             )}
 
             <button
-              className="px-3 py-1.5 rounded-lg border border-outline-variant text-xs font-semibold hover:bg-surface-container flex items-center gap-1.5 transition-all text-primary cursor-pointer"
-              onClick={() => setActiveMode("voice")}
-              title="Switch to Voice Survey Mode"
+              aria-disabled="true"
+              className="px-3 py-1.5 rounded-lg border border-outline-variant text-xs font-semibold flex items-center gap-1.5 opacity-50 cursor-not-allowed text-on-surface-variant"
+              disabled
+              title="Voice survey mode is coming soon (§7.4)"
               type="button"
             >
               <span className="material-symbols-outlined text-[16px]">mic</span>
-              <span>Voice</span>
+              <span>Voice (Coming Soon)</span>
             </button>
 
             <button

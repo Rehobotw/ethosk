@@ -12,6 +12,7 @@ import {
   readNotification,
   TelebirrError,
 } from "../lib/payments/telebirr.js";
+import { verifyTransaction } from "../lib/payments/verifyEt.js";
 import { rateLimit } from "../lib/rateLimit.js";
 import { admin } from "../lib/supabase.js";
 import { readResearcherWallet, readRespondentWallet, roundEtb } from "../lib/wallet.js";
@@ -69,12 +70,10 @@ walletRouter.get(
 );
 
 /**
- * Records a deposit against the researcher's balance.
+ * Records and reconciles a deposit against the researcher's balance via verify.et (v4 §4.6.1, §3.5, §7.4 item 12).
  *
- * This build has no live Telebirr or CBE integration, so the researcher confirms
- * a transfer they made out of band by entering its reference. The reference is
- * unique per researcher, which is what makes submitting the same confirmation
- * twice credit the money once.
+ * Calls verify.et to verify provider, reference, amount, and sender details before
+ * crediting escrow balance.
  */
 walletRouter.post(
   "/researcher/deposits",
@@ -83,17 +82,124 @@ walletRouter.post(
   asyncRoute(async (req, res) => {
     const context = auth(req);
     const input = parseBody(depositSchema, req.body);
+    const amount = roundEtb(input.amount_etb);
+    const idempotencyKey = input.idempotency_key || `idemp_${context.userId}_${input.reference}`;
 
-    const { data, error } = await admin
+    // 1. Idempotency & Replay Protection: ensure reference isn't already credited
+    const { data: existing } = await admin
+      .from("researcher_deposits")
+      .select("id, status, reference, amount_etb, idempotency_key")
+      .eq("researcher_id", context.userId)
+      .eq("reference", input.reference)
+      .maybeSingle();
+
+    if (existing && existing.status === "completed") {
+      throw new ApiError(
+        409,
+        "DEPOSIT_ALREADY_RECORDED",
+        "That transaction reference has already been verified and credited to your balance.",
+      );
+    }
+
+    // 2. Automated Transaction Verification via verify.et
+    const verification = await verifyTransaction({
+      provider: input.method,
+      reference: input.reference,
+      expectedAmount: amount,
+      senderDetail: input.sender_detail,
+      idempotencyKey,
+    });
+
+    // 3. Handle Unsupported Provider (Soft-fail into needs_review for manual admin reconciliation)
+    if (verification.status === "UNSUPPORTED_PROVIDER") {
+      const { data: depositRecord, error: insertError } = await admin
+        .from("researcher_deposits")
+        .insert({
+          researcher_id: context.userId,
+          amount_etb: amount,
+          method: input.method,
+          reference: input.reference,
+          sender_detail: input.sender_detail ?? null,
+          idempotency_key: idempotencyKey,
+          status: "needs_review",
+          verification_status: "unsupported_provider",
+          verification_response: { note: verification.message },
+          updated_at: new Date().toISOString(),
+        })
+        .select("id, amount_etb, method, reference, status, verification_status, created_at")
+        .single();
+
+      if (insertError) throw new ApiError(500, "DEPOSIT_FAILED", insertError.message);
+
+      const wallet = await readResearcherWallet(context.userId);
+      return res.status(200).json({
+        deposit: depositRecord,
+        wallet,
+        requires_manual_review: true,
+        message: verification.message,
+      });
+    }
+
+    // 4. Handle Mismatch or Invalid Reference (No balance change)
+    if (verification.status === "MISMATCH") {
+      await admin.from("researcher_deposits").insert({
+        researcher_id: context.userId,
+        amount_etb: amount,
+        method: input.method,
+        reference: input.reference,
+        sender_detail: input.sender_detail ?? null,
+        idempotency_key: idempotencyKey,
+        status: "failed",
+        verification_status: "mismatched",
+        verification_response: verification.rawResponse ?? {},
+        updated_at: new Date().toISOString(),
+      });
+
+      throw new ApiError(422, "DEPOSIT_AMOUNT_MISMATCH", verification.message);
+    }
+
+    if (verification.status === "NOT_FOUND") {
+      await admin.from("researcher_deposits").insert({
+        researcher_id: context.userId,
+        amount_etb: amount,
+        method: input.method,
+        reference: input.reference,
+        sender_detail: input.sender_detail ?? null,
+        idempotency_key: idempotencyKey,
+        status: "failed",
+        verification_status: "not_found",
+        verification_response: verification.rawResponse ?? {},
+        updated_at: new Date().toISOString(),
+      });
+
+      throw new ApiError(404, "TRANSACTION_NOT_FOUND", verification.message);
+    }
+
+    if (verification.status === "INVALID_SENDER") {
+      throw new ApiError(422, "INVALID_SENDER", verification.message);
+    }
+
+    if (verification.status === "ERROR") {
+      throw new ApiError(502, "VERIFICATION_SERVICE_ERROR", verification.message);
+    }
+
+    // 5. Verified Match -> Credit Available/Escrowed Balance and mark Confirmed
+    const { data: deposit, error } = await admin
       .from("researcher_deposits")
       .insert({
         researcher_id: context.userId,
-        amount_etb: roundEtb(input.amount_etb),
+        amount_etb: amount,
         method: input.method,
         reference: input.reference,
+        provider_ref: verification.providerRef ?? null,
+        sender_detail: input.sender_detail ?? null,
+        idempotency_key: idempotencyKey,
         status: "completed",
+        verification_status: "verified",
+        verification_response: verification.rawResponse ?? {},
+        updated_at: new Date().toISOString(),
       })
-      .select("id, amount_etb, method, reference, status, created_at")
+      .select("id, amount_etb, method, reference, provider_ref, status, verification_status, created_at")
       .single();
 
     if (error) {
@@ -108,7 +214,12 @@ walletRouter.post(
     }
 
     const wallet = await readResearcherWallet(context.userId);
-    res.status(201).json({ deposit: data, wallet });
+    res.status(201).json({
+      deposit,
+      wallet,
+      verified: true,
+      message: verification.message,
+    });
   }),
 );
 
@@ -437,7 +548,7 @@ walletRouter.get(
           .limit(50),
         admin
           .from("respondent_withdrawals")
-          .select("id, amount_etb, method, account_number, status, created_at")
+          .select("id, amount_etb, method, account_number, reference, provider_ref, verification_status, verification_notes, status, created_at")
           .eq("respondent_id", context.userId)
           .order("created_at", { ascending: false })
           .limit(50),
@@ -488,7 +599,7 @@ walletRouter.get(
       };
     });
 
-    // Map withdrawals into the unified ledger
+    // Map withdrawals into the unified ledger with verify.et reconciliation
     for (const w of (withdrawals ?? [])) {
       formattedPayouts.push({
         id: w.id,
@@ -496,12 +607,16 @@ walletRouter.get(
         amount_etb: Number(w.amount_etb || 0),
         net_amount_etb: Number(w.amount_etb || 0),
         platform_fee_etb: 0,
-        status: w.status === "completed" ? "completed" : w.status === "failed" ? "failed" : "pending",
+        status: w.status === "completed" ? "completed" : w.status === "failed" ? "failed" : w.status === "needs_review" ? "needs_review" : "pending",
         created_at: w.created_at,
         survey_title: w.method === "telebirr" ? "Withdrawal to Telebirr" : "Withdrawal to CBE Birr",
         is_withdrawal: true,
         payout_method: w.method === "telebirr" ? "Telebirr" : "CBE Birr",
         account_number: w.account_number,
+        reference: w.reference,
+        provider_ref: w.provider_ref,
+        verification_status: w.verification_status,
+        verification_notes: w.verification_notes || (w.status === "completed" ? "Paid — verified via verify.et" : "Awaiting confirmation"),
       });
     }
 
@@ -572,18 +687,66 @@ walletRouter.post(
       );
     }
 
-    const { error: insertError } = await admin.from("respondent_withdrawals").insert({
-      respondent_id: context.userId,
-      amount_etb: input.amount_etb,
-      method: input.method,
-      account_number: input.account_number,
-      status: "pending",
+    // 1. Generate unique payout reference number
+    const payoutRef = `WD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
+    // 2. Automated Outbound Payout Reconciliation via verify.et (v4 §3.5, §4.6.1, §7.4 item 12)
+    const verification = await verifyTransaction({
+      provider: input.method as any,
+      reference: payoutRef,
+      expectedAmount: input.amount_etb,
+      senderDetail: input.account_number,
+      idempotencyKey: `wd_${payoutRef}`,
     });
+
+    let status: "completed" | "needs_review" | "pending" = "pending";
+    let verificationStatus = "manual_review";
+    let verificationNotes = "Awaiting confirmation";
+
+    if (verification.status === "MATCH") {
+      status = "completed";
+      verificationStatus = "verified";
+      verificationNotes = "Paid — verified via verify.et";
+    } else if (verification.status === "UNSUPPORTED_PROVIDER") {
+      status = "needs_review";
+      verificationStatus = "unsupported_provider";
+      verificationNotes = "Queued for manual admin reconciliation";
+    }
+
+    const { data: withdrawal, error: insertError } = await admin
+      .from("respondent_withdrawals")
+      .insert({
+        respondent_id: context.userId,
+        amount_etb: input.amount_etb,
+        method: input.method,
+        account_number: input.account_number,
+        reference: payoutRef,
+        provider_ref: verification.providerRef ?? null,
+        verification_status: verificationStatus,
+        verification_notes: verificationNotes,
+        verification_response: verification.rawResponse ?? {},
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
 
     if (insertError) {
       throw new ApiError(500, "WITHDRAWAL_FAILED", insertError.message);
     }
 
-    res.status(201).json({ status: "pending" });
+    const updatedWallet = await readRespondentWallet(context.userId);
+
+    res.status(201).json({
+      status,
+      withdrawal,
+      wallet: updatedWallet,
+      verification_notes: verificationNotes,
+      message: status === "completed"
+        ? "Withdrawal processed and verified via verify.et."
+        : status === "needs_review"
+        ? "Withdrawal queued for manual admin reconciliation."
+        : "Withdrawal request logged.",
+    });
   }),
 );

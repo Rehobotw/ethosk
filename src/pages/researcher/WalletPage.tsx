@@ -38,7 +38,9 @@ export function ResearcherWalletPage() {
 
   const [selectedAmount, setSelectedAmount] = useState<number | "custom">(10000);
   const [customAmount, setCustomAmount] = useState("10000");
-  const [selectedMethod, setSelectedMethod] = useState<"telebirr" | "cbe" | "bank_transfer">("telebirr");
+  const [selectedMethod, setSelectedMethod] = useState<DepositMethod>("telebirr");
+  const [transactionRef, setTransactionRef] = useState("");
+  const [senderDetail, setSenderDetail] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
 
@@ -91,14 +93,32 @@ export function ResearcherWalletPage() {
   });
 
   const manualDeposit = useMutation({
-    mutationFn: (body: { amount_etb: number; method: DepositMethod; reference: string }) =>
-      api<DepositRecord>("/wallet/researcher/deposits", { body }),
-    onSuccess: () => {
-      setConfirmation("Deposit request logged. Funds will clear once verified.");
+    mutationFn: (body: {
+      amount_etb: number;
+      method: DepositMethod;
+      reference: string;
+      sender_detail?: string;
+      idempotency_key?: string;
+    }) =>
+      api<{
+        deposit: DepositRecord;
+        wallet: ResearcherWallet;
+        verified?: boolean;
+        requires_manual_review?: boolean;
+        message?: string;
+      }>("/wallet/researcher/deposits", { body }),
+    onSuccess: (res) => {
+      if (res.requires_manual_review) {
+        setConfirmation(res.message || "Deposit queued for manual administrative review.");
+      } else {
+        setConfirmation("Payment verified via verify.et. Your balance has been credited immediately!");
+        setTransactionRef("");
+        setSenderDetail("");
+      }
       void queryClient.invalidateQueries({ queryKey: ["researcher-wallet"] });
     },
     onError: (err) => {
-      setFormError(err instanceof ApiRequestError ? err.message : "Deposit failed");
+      setFormError(err instanceof ApiRequestError ? err.message : "Deposit verification failed.");
     },
   });
 
@@ -106,23 +126,27 @@ export function ResearcherWalletPage() {
 
   const handleProceedPayment = () => {
     setFormError(null);
-    if (activeAmount < 100) {
-      setFormError("Minimum deposit amount is 100 ETB.");
+    setConfirmation(null);
+
+    if (activeAmount < 50) {
+      setFormError("Minimum deposit amount is 50 ETB.");
       return;
     }
 
-    if (selectedMethod === "telebirr") {
-      telebirrCheckout.mutate({
-        amount_etb: activeAmount,
-        return_url: `${window.location.origin}/researcher/wallet`,
-      });
-    } else {
-      manualDeposit.mutate({
-        amount_etb: activeAmount,
-        method: selectedMethod === "cbe" ? "cbe_birr" : "bank_transfer",
-        reference: `M-DEP-${Date.now().toString().slice(-6)}`,
-      });
+    if (!transactionRef.trim()) {
+      setFormError("Please enter the transaction reference from your payment confirmation.");
+      return;
     }
+
+    const idempotencyKey = `idemp_${user?.id || "anon"}_${transactionRef.trim()}_${Date.now()}`;
+
+    manualDeposit.mutate({
+      amount_etb: activeAmount,
+      method: selectedMethod,
+      reference: transactionRef.trim(),
+      sender_detail: senderDetail.trim() || undefined,
+      idempotency_key: idempotencyKey,
+    });
   };
 
   if (isLoading) return <LoadingBlock label="Loading institutional billing operations…" />;
@@ -159,9 +183,6 @@ export function ResearcherWalletPage() {
           <span className="material-symbols-outlined text-[18px]">add</span>
         </button>
       </header>
-
-      {confirmation ? <Notice tone="info">{confirmation}</Notice> : null}
-      {formError ? <Notice tone="error">{formError}</Notice> : null}
 
       {/* ── 4 Metric Cards Grid ── */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -290,7 +311,7 @@ export function ResearcherWalletPage() {
           </div>
 
           {/* Payment Method Radios */}
-          <div className="mb-8">
+          <div className="mb-6">
             <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block mb-3">
               Select Payment Method
             </label>
@@ -316,12 +337,12 @@ export function ResearcherWalletPage() {
                   </div>
                   <div>
                     <span className="text-sm font-bold text-[#0D253A] block">Telebirr</span>
-                    <span className="text-xs text-on-surface-variant">Instant automated mobile payment</span>
+                    <span className="text-xs text-on-surface-variant">Automated verification via verify.et</span>
                   </div>
                 </div>
               </label>
 
-              {/* CBE Birr */}
+              {/* CBE */}
               <label
                 className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${
                   selectedMethod === "cbe"
@@ -342,14 +363,42 @@ export function ResearcherWalletPage() {
                   </div>
                   <div>
                     <span className="text-sm font-bold text-[#0D253A] block">
-                      CBE Birr / Commercial Bank
+                      Commercial Bank of Ethiopia (CBE / CBE Birr)
                     </span>
-                    <span className="text-xs text-on-surface-variant">Direct bank integration</span>
+                    <span className="text-xs text-on-surface-variant">Direct bank reconciliation via verify.et</span>
                   </div>
                 </div>
               </label>
 
-              {/* Bank Transfer */}
+              {/* Bank of Abyssinia / BOA */}
+              <label
+                className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${
+                  selectedMethod === "boa"
+                    ? "border-2 border-primary bg-primary/5 shadow-xs"
+                    : "border-outline-variant/40 hover:border-primary"
+                }`}
+              >
+                <input
+                  checked={selectedMethod === "boa"}
+                  className="text-primary focus:ring-primary h-4 w-4 border-outline-variant"
+                  name="payment_method"
+                  onChange={() => setSelectedMethod("boa")}
+                  type="radio"
+                />
+                <div className="ml-4 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                    <span className="material-symbols-outlined">account_balance</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-bold text-[#0D253A] block">
+                      Bank of Abyssinia (BOA)
+                    </span>
+                    <span className="text-xs text-on-surface-variant">Automated verification via verify.et</span>
+                  </div>
+                </div>
+              </label>
+
+              {/* Other Bank / Wire */}
               <label
                 className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${
                   selectedMethod === "bank_transfer"
@@ -370,24 +419,86 @@ export function ResearcherWalletPage() {
                   </div>
                   <div>
                     <span className="text-sm font-bold text-[#0D253A] block">
-                      Local Bank Transfer / Direct Wire
+                      Other Local Bank Transfer (Manual Review)
                     </span>
-                    <span className="text-xs text-on-surface-variant">Takes 1-2 business days</span>
+                    <span className="text-xs text-on-surface-variant">Admin reconciliation</span>
                   </div>
                 </div>
               </label>
             </div>
           </div>
 
+          {/* verify.et Transaction Confirmation Details */}
+          <div className="mb-6 bg-[#f8f9ff] border border-outline-variant/50 rounded-xl p-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-lg">verified_user</span>
+              <h4 className="text-xs font-bold text-[#0D253A] uppercase tracking-wider">
+                verify.et Transaction Reconciliation
+              </h4>
+            </div>
+
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              Transfer <strong>{activeAmount.toLocaleString()} ETB</strong> using your selected banking app or Telebirr to <strong>Ethosk Research Escrow</strong>, then enter your transaction reference below for instant verification.
+            </p>
+
+            <div>
+              <label className="text-xs font-semibold text-[#0D253A] block mb-1" htmlFor="tx_reference">
+                Transaction Reference Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="tx_reference"
+                className="w-full bg-white border border-outline-variant rounded-lg px-4 py-2.5 text-xs md:text-sm font-mono font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
+                onChange={(e) => setTransactionRef(e.target.value)}
+                placeholder="e.g., FT2423490X12 or Telebirr Ref #"
+                type="text"
+                value={transactionRef}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-[#0D253A] block mb-1" htmlFor="sender_detail">
+                Sender Phone or Account Suffix <span className="text-xs font-normal text-on-surface-variant">(Optional)</span>
+              </label>
+              <input
+                id="sender_detail"
+                className="w-full bg-white border border-outline-variant rounded-lg px-4 py-2.5 text-xs md:text-sm font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
+                onChange={(e) => setSenderDetail(e.target.value)}
+                placeholder="e.g., Last 4 digits (*8901)"
+                type="text"
+                value={senderDetail}
+              />
+            </div>
+          </div>
+
+          {formError && (
+            <div className="mb-4">
+              <Notice tone="error">{formError}</Notice>
+            </div>
+          )}
+
+          {confirmation && (
+            <div className="mb-4">
+              <Notice tone="success">{confirmation}</Notice>
+            </div>
+          )}
+
           <button
-            className="w-full bg-primary hover:bg-[#003450] text-white py-3.5 rounded-lg text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer disabled:opacity-60"
-            disabled={telebirrCheckout.isPending || manualDeposit.isPending}
+            className="w-full bg-primary hover:bg-[#003450] text-white py-3.5 rounded-lg text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
+            disabled={manualDeposit.isPending}
             onClick={handleProceedPayment}
             type="button"
           >
-            {telebirrCheckout.isPending || manualDeposit.isPending
-              ? "Processing payment…"
-              : `Proceed to Payment (${activeAmount.toLocaleString()} ETB)`}
+            {manualDeposit.isPending ? (
+              <>
+                <span className="animate-spin material-symbols-outlined text-base">progress_activity</span>
+                <span>Verifying with verify.et…</span>
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-base">lock_open</span>
+                <span>Verify &amp; Credit Deposit ({activeAmount.toLocaleString()} ETB)</span>
+              </>
+            )}
           </button>
         </div>
 

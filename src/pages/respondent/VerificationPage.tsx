@@ -1,24 +1,35 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { TIER_RANK } from "@shared/types";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { Notice } from "@/components/ui";
+import { validateDocumentFile } from "@shared/validation/schemas";
+import { useLanguage } from "@/lib/language";
 
 export function VerificationPage() {
   const { user, refresh } = useAuth();
+  const { language } = useLanguage();
+  const isAm = language === "am";
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [faydaNumber, setFaydaNumber] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifySuccess, setVerifySuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [dragActive, setDragActive] = useState(false);
 
   const [formData, setFormData] = useState({
     fullName: user?.full_name || "",
     phone: "",
     dob: "",
     gender: "",
-    region: "Addis Ababa",
+    region: "addis_ababa",
+    city: "",
     education: "bachelors",
     employment: "employed",
   });
@@ -26,9 +37,38 @@ export function VerificationPage() {
   const currentRank = user ? TIER_RANK[user.verification_tier] : 0;
   const isTier1Verified = currentRank >= TIER_RANK["1_id_verified"];
 
+  const handleFileChange = (file: File) => {
+    const validation = validateDocumentFile(file);
+    if (!validation.valid) {
+      setErrorMsg(validation.error || "Invalid document file");
+      return;
+    }
+    setErrorMsg("");
+    setSelectedFile(file);
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileChange(e.dataTransfer.files[0]);
+    }
+  };
+
   const handleVerifyFayda = async () => {
     if (!faydaNumber || faydaNumber.length < 6) {
-      setErrorMsg("Please enter a valid Fayda National ID number.");
+      setErrorMsg(isAm ? "እባክዎ ትክክለኛ የፋይዳ መታወቂያ ቁጥር ያስገቡ።" : "Please enter a valid Fayda National ID number.");
       return;
     }
     setIsVerifying(true);
@@ -40,288 +80,387 @@ export function VerificationPage() {
       setVerifySuccess(true);
       if (refresh) await refresh();
     } catch (err: any) {
-      setErrorMsg(err?.message || "Fayda verification failed. Please check your credentials and retry.");
+      setErrorMsg(err?.message || (isAm ? "የፋይዳ ማረጋገጫ አልተሳካም። እባክዎ እንደገና ይሞክሩ።" : "Fayda verification failed. Please check your credentials and retry."));
     } finally {
       setIsVerifying(false);
     }
   };
 
-  const handleSaveAndContinue = async () => {
-    if (!isTier1Verified && !verifySuccess) {
-      setErrorMsg("Please complete Fayda ID verification to proceed.");
-      return;
+  const handleSubmitForm = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSubmitting(true);
+    setErrorMsg("");
+
+    try {
+      // Save demographic profile
+      await api("/respondents/profile", {
+        body: {
+          full_name: formData.fullName,
+          phone: formData.phone,
+          dob: formData.dob,
+          gender: formData.gender,
+          region: formData.region,
+          city: formData.city,
+          education_level: formData.education,
+          employment_status: formData.employment,
+        },
+      });
+
+      // If document was uploaded, submit it
+      if (selectedFile) {
+        await api("/respondents/verify-document", {
+          body: {
+            document_type: "kebele_id",
+            file_name: selectedFile.name,
+            file_size: selectedFile.size,
+            mime_type: selectedFile.type,
+          },
+        });
+      }
+
+      if (refresh) await refresh();
+      navigate("/documents");
+    } catch (err: any) {
+      setErrorMsg(err?.message || (isAm ? "መረጃውን ማስገባት አልተሳካም። እባክዎ እንደገና ይሞክሩ።" : "Failed to save verification profile. Please try again."));
+    } finally {
+      setIsSubmitting(false);
     }
-    navigate("/documents");
   };
 
   return (
-    <div className="space-y-10 font-body-md text-on-surface pb-16">
-      {/* ── Page Header (Stitch Screen 3829637714337328559) ── */}
-      <header>
-        <h1 className="text-3xl md:text-4xl lg:text-5xl font-headline-lg font-bold text-primary mb-2 tracking-tight">
-          Identity Verification &amp; Profile
-        </h1>
-        <p className="text-base md:text-lg text-on-surface-variant">
-          Complete your profile to unlock Tier 1 verified status and access premium surveys.
-        </p>
-      </header>
-
-      {/* ── 6-Step Horizontal Stepper ── */}
-      <div className="overflow-x-auto pb-4">
-        <div className="min-w-[800px] flex items-center justify-between relative px-6">
-          {/* Connecting Lines */}
-          <div className="absolute top-6 left-12 right-12 h-[2px] bg-outline-variant/40 -translate-y-1/2 z-0" />
-          <div
-            className="absolute top-6 left-12 h-[2px] bg-primary -translate-y-1/2 z-0 transition-all duration-500"
-            style={{ width: isTier1Verified ? "40%" : "20%" }}
-          />
-
-          {/* Step 1: Completed */}
-          <div className="relative z-10 flex flex-col items-center gap-2">
-            <div className="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center shadow-md border-4 border-[#f8f9ff]">
-              <span className="material-symbols-outlined font-bold text-xl">check</span>
-            </div>
-            <span className="text-xs font-label-md text-primary font-bold text-center">
-              Basic Profile
-            </span>
-          </div>
-
-          {/* Step 2: Active (Fayda ID) */}
-          <div className="relative z-10 flex flex-col items-center gap-2">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-md border-4 border-[#f8f9ff] ring-2 ring-primary ring-offset-2 ${
-              isTier1Verified ? "bg-primary text-white" : "bg-secondary-container text-primary"
-            }`}>
-              <span className="material-symbols-outlined font-bold text-xl">
-                {isTier1Verified ? "check" : "badge"}
-              </span>
-            </div>
-            <span className="text-xs font-label-md text-primary font-bold text-center">
-              National ID<br />(Fayda)
-            </span>
-          </div>
-
-          {/* Step 3: Upcoming */}
-          <div className={`relative z-10 flex flex-col items-center gap-2 ${isTier1Verified ? "opacity-100" : "opacity-60"}`}>
-            <div className="w-12 h-12 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center border-4 border-[#f8f9ff]">
-              <span className="material-symbols-outlined text-xl">verified</span>
-            </div>
-            <span className="text-xs font-label-md text-on-surface-variant text-center font-medium">
-              Tier 1<br />Verified
-            </span>
-          </div>
-
-          {/* Step 4: Upcoming */}
-          <div className="relative z-10 flex flex-col items-center gap-2 opacity-60">
-            <div className="w-12 h-12 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center border-4 border-[#f8f9ff]">
-              <span className="material-symbols-outlined text-xl">corporate_fare</span>
-            </div>
-            <span className="text-xs font-label-md text-on-surface-variant text-center font-medium">
-              Institutional<br />Info
-            </span>
-          </div>
-
-          {/* Step 5: Upcoming */}
-          <div className="relative z-10 flex flex-col items-center gap-2 opacity-60">
-            <div className="w-12 h-12 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center border-4 border-[#f8f9ff]">
-              <span className="material-symbols-outlined text-xl">upload_file</span>
-            </div>
-            <span className="text-xs font-label-md text-on-surface-variant text-center font-medium">
-              Document<br />Upload
-            </span>
-          </div>
-
-          {/* Step 6: Upcoming */}
-          <div className="relative z-10 flex flex-col items-center gap-2 opacity-60">
-            <div className="w-12 h-12 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center border-4 border-[#f8f9ff]">
-              <span className="material-symbols-outlined text-xl">gpp_good</span>
-            </div>
-            <span className="text-xs font-label-md text-on-surface-variant text-center font-medium">
-              Tier 2<br />Verified
-            </span>
-          </div>
+    <div className="space-y-8 font-body-md text-on-surface pb-16 max-w-4xl mx-auto">
+      {/* ── Page Header (Stitch Screen 5501739850a0499db043b3e4d2267711) ── */}
+      <div className="text-center pt-2">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary-container text-on-primary-container mb-4 shadow-[0_12px_24px_rgba(0,75,99,0.08)]">
+          <span className="material-symbols-outlined text-3xl">verified_user</span>
         </div>
+        <h1 className="font-headline font-bold text-2xl md:text-3xl lg:text-4xl text-primary mb-3">
+          {isAm ? "ደረጃ 1 ማረጋገጫ፡ የማንነት ዋስትና" : "Tier 1 Verification: Identity Guaranteed"}
+        </h1>
+        <p className="font-body text-sm md:text-base text-on-surface-variant max-w-2xl mx-auto">
+          {isAm
+            ? "የማንነት መረጃዎን በማጠናቀቅ ከፍተኛ ሽልማት ያላቸው ጥናቶችን ያግኙ። መረጃዎ የተመሰጠረ ሲሆን ለተመራማሪዎች አይጋራም።"
+            : "Unlock premium surveys, high-value rewards, and instant payouts by completing your identity profile. Your data is encrypted and used only for researcher matching."}
+        </p>
       </div>
 
       {errorMsg ? <Notice tone="error">{errorMsg}</Notice> : null}
       {verifySuccess || isTier1Verified ? (
-        <Notice tone="info" title="Fayda ID Verified">
-          Your national identity has been successfully validated via eSignet. You now have Tier 1 access.
+        <Notice tone="info" title={isAm ? "የፋይዳ መታወቂያ ተረጋግጧል" : "Fayda ID Verified"}>
+          {isAm
+            ? "ብሔራዊ ማንነትዎ በeSignet በኩል ተረጋግጧል። አሁን የደረጃ 1 መዳረሻ አለዎት።"
+            : "Your national identity has been successfully validated via eSignet. You now have Tier 1 access."}
         </Notice>
       ) : null}
 
-      {/* ── Form Area (Tier 1 Fayda ID) ── */}
-      <section className="bg-white rounded-xl p-6 md:p-8 shadow-[0_4px_20px_rgba(0,89,133,0.06)] border border-outline-variant/40 relative overflow-hidden">
-        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-primary" />
+      {/* ── Form Container ── */}
+      <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/40 shadow-[0_12px_24px_rgba(0,75,99,0.05)] p-6 md:p-8 relative overflow-hidden">
+        {/* Decorative subtle corner accent */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-primary-fixed/30 rounded-bl-full -mr-8 -mt-8 pointer-events-none" />
 
-        <div className="flex items-center gap-4 mb-8">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-            <span className="material-symbols-outlined text-3xl font-bold">verified_user</span>
-          </div>
-          <div>
-            <h2 className="text-xl md:text-2xl font-title-lg text-primary font-bold">
-              Basic Demographics &amp; National ID
-            </h2>
-            <p className="text-sm text-on-surface-variant">
-              Complete your profile and verify your identity using Fayda National ID.
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-8">
-          {/* Basic Profile Form */}
+        <form onSubmit={handleSubmitForm} className="space-y-8 relative z-10">
+          {/* Form Input Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-on-surface uppercase tracking-wider">
-                Full Legal Name
+            {/* Full Legal Name */}
+            <div className="col-span-1 md:col-span-2">
+              <label className="block font-body text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider" htmlFor="fullName">
+                {isAm ? "ሙሉ ህጋዊ ስም (በመታወቂያው ላይ እንዳለው)" : "Full Legal Name (as per official records)"}
               </label>
               <input
-                className="w-full bg-[#f2f3f9] border border-transparent rounded-lg px-4 py-3 text-sm text-on-surface focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
-                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                placeholder="Enter your full name"
+                id="fullName"
+                name="fullName"
                 type="text"
+                placeholder={isAm ? "ምሳሌ፡ አበበ በቀለ" : "e.g., Abebe Bekele"}
                 value={formData.fullName}
+                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                className="w-full bg-surface-bright border border-outline-variant text-on-surface text-sm rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-container focus:border-primary-container focus:outline-none transition-shadow"
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-on-surface uppercase tracking-wider">
-                Phone Number
+            {/* Phone Number */}
+            <div>
+              <label className="block font-body text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider" htmlFor="phone">
+                {isAm ? "ስልክ ቁጥር" : "Phone Number"}
               </label>
-              <input
-                className="w-full bg-[#f2f3f9] border border-transparent rounded-lg px-4 py-3 text-sm text-on-surface focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="+251 9..."
-                type="tel"
-                value={formData.phone}
-              />
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-on-surface-variant pointer-events-none">
+                  <span className="material-symbols-outlined text-[20px]">phone_iphone</span>
+                </span>
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  placeholder="+251 9..."
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="w-full bg-surface-bright border border-outline-variant text-on-surface text-sm rounded-lg pl-12 pr-4 py-3 focus:ring-2 focus:ring-primary-container focus:border-primary-container focus:outline-none transition-shadow"
+                />
+              </div>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-on-surface uppercase tracking-wider">
-                Date of Birth
+            {/* Date of Birth */}
+            <div>
+              <label className="block font-body text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider" htmlFor="dob">
+                {isAm ? "የትውልድ ቀን" : "Date of Birth"}
               </label>
-              <input
-                className="w-full bg-[#f2f3f9] border border-transparent rounded-lg px-4 py-3 text-sm text-on-surface focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
-                onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                type="date"
-                value={formData.dob}
-              />
+              <div className="relative">
+                <input
+                  id="dob"
+                  name="dob"
+                  type="date"
+                  value={formData.dob}
+                  onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                  className="w-full bg-surface-bright border border-outline-variant text-on-surface text-sm rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-container focus:border-primary-container focus:outline-none transition-shadow"
+                />
+              </div>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-on-surface uppercase tracking-wider">
-                Gender
+            {/* Gender */}
+            <div className="col-span-1 md:col-span-2">
+              <label className="block font-body text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider" htmlFor="gender">
+                {isAm ? "ጾታ" : "Gender"}
               </label>
-              <select
-                className="w-full bg-[#f2f3f9] border border-transparent rounded-lg px-4 py-3 text-sm text-on-surface focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                value={formData.gender}
-              >
-                <option value="">Select Gender</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="other">Other</option>
-                <option value="prefer-not-to-say">Prefer not to say</option>
-              </select>
+              <div className="relative">
+                <select
+                  id="gender"
+                  name="gender"
+                  value={formData.gender}
+                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                  className="w-full bg-surface-bright border border-outline-variant text-on-surface text-sm rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-container focus:border-primary-container focus:outline-none transition-shadow appearance-none pr-9 cursor-pointer"
+                >
+                  <option disabled value="">{isAm ? "ጾታ ይምረጡ" : "Select Gender"}</option>
+                  <option value="male">{isAm ? "ወንድ" : "Male"}</option>
+                  <option value="female">{isAm ? "ሴት" : "Female"}</option>
+                  <option value="other">{isAm ? "መግለጽ አልፈልግም" : "Prefer not to say"}</option>
+                </select>
+                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[18px]">
+                  expand_more
+                </span>
+              </div>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-on-surface uppercase tracking-wider">
-                Region / City
+            {/* Region */}
+            <div>
+              <label className="block font-body text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider" htmlFor="region">
+                {isAm ? "ክልል" : "Region"}
+              </label>
+              <div className="relative">
+                <select
+                  id="region"
+                  name="region"
+                  value={formData.region}
+                  onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+                  className="w-full bg-surface-bright border border-outline-variant text-on-surface text-sm rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-container focus:border-primary-container focus:outline-none transition-shadow appearance-none pr-9 cursor-pointer"
+                >
+                  <option value="addis_ababa">{isAm ? "አዲስ አበባ" : "Addis Ababa"}</option>
+                  <option value="amhara">{isAm ? "አማራ" : "Amhara"}</option>
+                  <option value="oromia">{isAm ? "ኦሮሚያ" : "Oromia"}</option>
+                  <option value="tigray">{isAm ? "ትግራይ" : "Tigray"}</option>
+                  <option value="sidama">{isAm ? "ሲዳማ" : "Sidama"}</option>
+                  <option value="snnpr">{isAm ? "ደቡብ" : "SNNPR"}</option>
+                  <option value="somali">{isAm ? "ሶማሌ" : "Somali"}</option>
+                  <option value="dire_dawa">{isAm ? "ድሬዳዋ" : "Dire Dawa"}</option>
+                  <option value="other">{isAm ? "ሌላ" : "Other"}</option>
+                </select>
+                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[18px]">
+                  expand_more
+                </span>
+              </div>
+            </div>
+
+            {/* City */}
+            <div>
+              <label className="block font-body text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider" htmlFor="city">
+                {isAm ? "ከተማ" : "City"}
               </label>
               <input
-                className="w-full bg-[#f2f3f9] border border-transparent rounded-lg px-4 py-3 text-sm text-on-surface focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
-                onChange={(e) => setFormData({ ...formData, region: e.target.value })}
-                placeholder="e.g. Addis Ababa"
+                id="city"
+                name="city"
                 type="text"
-                value={formData.region}
+                placeholder={isAm ? "ምሳሌ፡ ሀዋሳ" : "e.g., Hawassa"}
+                value={formData.city}
+                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                className="w-full bg-surface-bright border border-outline-variant text-on-surface text-sm rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-container focus:border-primary-container focus:outline-none transition-shadow"
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-on-surface uppercase tracking-wider">
-                Education Level
+            {/* Highest Education Level */}
+            <div>
+              <label className="block font-body text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider" htmlFor="education">
+                {isAm ? "የትምህርት ደረጃ" : "Highest Education Level"}
               </label>
-              <select
-                className="w-full bg-[#f2f3f9] border border-transparent rounded-lg px-4 py-3 text-sm text-on-surface focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
-                onChange={(e) => setFormData({ ...formData, education: e.target.value })}
-                value={formData.education}
-              >
-                <option value="high-school">High School</option>
-                <option value="bachelors">Bachelor's Degree</option>
-                <option value="masters">Master's Degree</option>
-                <option value="phd">PhD</option>
-              </select>
+              <div className="relative">
+                <select
+                  id="education"
+                  name="education"
+                  value={formData.education}
+                  onChange={(e) => setFormData({ ...formData, education: e.target.value })}
+                  className="w-full bg-surface-bright border border-outline-variant text-on-surface text-sm rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-container focus:border-primary-container focus:outline-none transition-shadow appearance-none pr-9 cursor-pointer"
+                >
+                  <option value="secondary">{isAm ? "ሁለተኛ ደረጃ" : "Secondary School"}</option>
+                  <option value="bachelors">{isAm ? "የመጀመሪያ ዲግሪ" : "Bachelor's Degree"}</option>
+                  <option value="masters">{isAm ? "ሁለተኛ ዲግሪ" : "Master's Degree"}</option>
+                  <option value="phd">{isAm ? "ዶክትሬት / PhD" : "Doctorate / PhD"}</option>
+                </select>
+                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[18px]">
+                  expand_more
+                </span>
+              </div>
             </div>
 
-            <div className="flex flex-col gap-1.5 md:col-span-2">
-              <label className="text-xs font-semibold text-on-surface uppercase tracking-wider">
-                Employment Status
+            {/* Current Employment Status */}
+            <div>
+              <label className="block font-body text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider" htmlFor="employment">
+                {isAm ? "የስራ ሁኔታ" : "Employment Status"}
               </label>
-              <select
-                className="w-full bg-[#f2f3f9] border border-transparent rounded-lg px-4 py-3 text-sm text-on-surface focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none"
-                onChange={(e) => setFormData({ ...formData, employment: e.target.value })}
-                value={formData.employment}
-              >
-                <option value="employed">Employed (Full-Time / Part-Time)</option>
-                <option value="self-employed">Self-employed / Freelancer</option>
-                <option value="student">Student</option>
-                <option value="unemployed">Unemployed / Seeking</option>
-              </select>
+              <div className="relative">
+                <select
+                  id="employment"
+                  name="employment"
+                  value={formData.employment}
+                  onChange={(e) => setFormData({ ...formData, employment: e.target.value })}
+                  className="w-full bg-surface-bright border border-outline-variant text-on-surface text-sm rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-container focus:border-primary-container focus:outline-none transition-shadow appearance-none pr-9 cursor-pointer"
+                >
+                  <option value="employed">{isAm ? "ሙሉ ጊዜ ተቀጣሪ" : "Employed Full-Time"}</option>
+                  <option value="part_time">{isAm ? "የትርፍ ጊዜ ተቀጣሪ" : "Employed Part-Time"}</option>
+                  <option value="self_employed">{isAm ? "የግል ስራ" : "Self-Employed / Freelance"}</option>
+                  <option value="student">{isAm ? "ተማሪ" : "Student"}</option>
+                  <option value="unemployed">{isAm ? "ስራ ፈላጊ" : "Unemployed"}</option>
+                </select>
+                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[18px]">
+                  expand_more
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Fayda National ID Integration */}
-          <div className="p-6 bg-[#f2f3f9] rounded-xl border border-outline-variant/30">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="material-symbols-outlined text-primary text-2xl font-bold">badge</span>
-              <h3 className="text-lg font-title-md text-primary font-bold">
-                Fayda National ID Verification
+          {/* ── Fayda National ID Integration Box ── */}
+          <div className="mt-8 bg-[#f2f6fa]/60 border border-primary-container/20 rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="bg-primary-container text-white p-2 rounded-lg">
+                <span className="material-symbols-outlined">badge</span>
+              </div>
+              <h3 className="font-headline font-semibold text-lg text-primary">
+                {isAm ? "ብሔራዊ መታወቂያ ማረጋገጫ (ፋይዳ)" : "National ID Verification (Fayda)"}
               </h3>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-4 items-end">
-              <div className="flex-1 flex flex-col gap-1.5 w-full">
-                <label className="text-xs font-semibold text-on-surface uppercase tracking-wider">
-                  Fayda ID Number
+            <div className="space-y-5">
+              <div>
+                <label className="block font-body text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider" htmlFor="fayda_id">
+                  {isAm ? "12-ዲጂት የፋይዳ መለያ ቁጥር (FIN)" : "12-Digit Fayda Identification Number (FIN)"}
                 </label>
                 <input
-                  className="w-full bg-white border border-outline-variant/40 rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none font-mono"
+                  id="fayda_id"
+                  name="fayda_id"
+                  type="text"
+                  placeholder={isAm ? "የ12-ዲጂት መለያ ቁጥር ያስገቡ" : "Enter 12-digit ID"}
+                  value={isTier1Verified ? "FAN-VERIFIED-eSIGNET" : faydaNumber}
                   disabled={isTier1Verified}
                   onChange={(e) => setFaydaNumber(e.target.value)}
-                  placeholder="Enter your 12-digit Fayda ID (e.g., FAN-1234567890)"
-                  type="text"
-                  value={isTier1Verified ? "FAN-VERIFIED-eSIGNET" : faydaNumber}
+                  className="w-full bg-surface-container-lowest border border-outline-variant text-on-surface text-sm rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-container focus:border-primary-container focus:outline-none transition-shadow font-mono tracking-widest"
                 />
               </div>
 
               <button
-                className="bg-primary hover:bg-[#003450] text-white px-8 py-3 rounded-lg text-xs font-bold shadow-xs hover:shadow-md transition-all active:scale-95 cursor-pointer whitespace-nowrap disabled:opacity-60"
-                disabled={isVerifying || isTier1Verified}
-                onClick={handleVerifyFayda}
                 type="button"
+                onClick={handleVerifyFayda}
+                disabled={isVerifying || isTier1Verified}
+                className="w-full flex items-center justify-center gap-2 bg-primary text-white hover:bg-surface-tint font-body font-semibold text-sm rounded-full px-6 py-3 transition-colors duration-200 shadow-sm cursor-pointer disabled:opacity-50"
               >
-                {isVerifying ? "Verifying with eSignet…" : isTier1Verified ? "Identity Guaranteed" : "Verify with eSignet"}
+                <span className="material-symbols-outlined text-[20px]">how_to_reg</span>
+                <span>
+                  {isVerifying
+                    ? (isAm ? "በeSignet በመረጋገጥ ላይ..." : "Verifying with eSignet...")
+                    : isTier1Verified
+                    ? (isAm ? "ማንነት ተረጋግጧል" : "Identity Guaranteed")
+                    : (isAm ? "በፋይዳ eSignet አረጋግጥ" : "Authorize with Fayda eSignet")}
+                </span>
               </button>
+
+              <div className="flex items-center gap-4 py-1">
+                <div className="flex-1 h-px bg-outline-variant/40" />
+                <span className="font-label text-xs uppercase tracking-wider text-on-surface-variant font-semibold">
+                  {isAm ? "ወይም" : "or"}
+                </span>
+                <div className="flex-1 h-px bg-outline-variant/40" />
+              </div>
+
+              {/* Document Upload Fallback */}
+              <div>
+                <label className="block font-body text-xs font-semibold text-on-surface-variant mb-2 uppercase tracking-wider">
+                  {isAm ? "የመታወቂያ ፎቶ ይጫኑ" : "Upload physical ID photo"}
+                </label>
+                <div
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer group ${
+                    dragActive
+                      ? "border-primary bg-surface-container-low"
+                      : selectedFile
+                      ? "border-emerald-500 bg-emerald-50/50"
+                      : "border-outline-variant/60 hover:bg-surface-container-low hover:border-primary"
+                  }`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleFileChange(e.target.files[0]);
+                      }
+                    }}
+                  />
+                  <span className={`material-symbols-outlined text-4xl mb-2 transition-colors ${selectedFile ? "text-emerald-600" : "text-outline-variant group-hover:text-primary"}`}>
+                    {selectedFile ? "task_alt" : "cloud_upload"}
+                  </span>
+                  <p className="font-body text-xs sm:text-sm font-semibold text-on-surface mb-1">
+                    {selectedFile ? selectedFile.name : (isAm ? "ለመጫን ይጫኑ ወይም ፋይሉን ይጎትቱ" : "Drag and drop or click to browse")}
+                  </p>
+                  <p className="font-body text-[11px] text-on-surface-variant">
+                    {selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : "JPG, PNG, or PDF under 10MB"}
+                  </p>
+                </div>
+              </div>
             </div>
-            <p className="mt-3 text-xs text-on-surface-variant">
-              Automated deterministic verification via the Ethiopian National ID system (eSignet).
-            </p>
           </div>
 
-          {/* Action Area */}
-          <div className="pt-6 border-t border-outline-variant/30 flex justify-end">
+          {/* ── Actions ── */}
+          <div className="pt-6 border-t border-outline-variant/40 flex flex-col-reverse md:flex-row items-center justify-end gap-4">
             <button
-              className="bg-gradient-to-r from-primary to-primary-container hover:from-[#003450] hover:to-[#005985] text-white rounded-full px-8 py-3.5 font-semibold text-sm flex items-center gap-3 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer"
-              onClick={handleSaveAndContinue}
               type="button"
+              onClick={() => navigate("/inbox")}
+              className="w-full md:w-auto px-6 py-3 font-body font-semibold text-sm text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
             >
-              <span>Save &amp; Continue</span>
-              <span className="material-symbols-outlined text-lg">arrow_forward</span>
+              {isAm ? "ለጊዜው ይለፉ" : "Skip for now"}
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full md:w-auto flex items-center justify-center gap-2 bg-primary text-white hover:bg-surface-tint font-body font-bold text-sm rounded-full px-8 py-3.5 transition-colors duration-200 shadow-[0_4px_12px_rgba(0,75,99,0.15)] cursor-pointer disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : (
+                <>
+                  <span>{isAm ? "ለግምገማ አስገባ" : "Submit for Verification Review"}</span>
+                  <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+                </>
+              )}
             </button>
           </div>
-        </div>
-      </section>
+        </form>
+      </div>
+
+      <p className="text-center font-body text-xs text-on-surface-variant/70 pt-2">
+        <span className="material-symbols-outlined text-[16px] align-middle mr-1">lock</span>
+        {isAm ? "በኤቶስክ የተቋም እምነት ፕሮቶኮል የተጠበቀ" : "Secured by Ethosk Institutional Trust Protocol"}
+      </p>
     </div>
   );
 }

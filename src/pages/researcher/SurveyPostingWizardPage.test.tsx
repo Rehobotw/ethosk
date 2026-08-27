@@ -86,9 +86,10 @@ describe("SurveyPostingWizardPage (§4.3.5–4.3.6 Survey Posting Flow)", () => 
     const nextBtn = screen.getByText("Next Step");
     fireEvent.click(nextBtn);
 
-    // Step 3: Audience
+    // Step 3: Audience & Compliance
     await waitFor(() => {
-      expect(screen.getByText("Audience Targeting")).toBeDefined();
+      expect(screen.getByText("Audience Targeting & Ethical Compliance")).toBeDefined();
+      expect(screen.getByText("Research Category & Legal Compliance")).toBeDefined();
       expect(screen.getByText("Core Demographics")).toBeDefined();
       expect(screen.getByText("Geography & Economics")).toBeDefined();
       expect(screen.getByText("Live Audience Match")).toBeDefined();
@@ -104,6 +105,40 @@ describe("SurveyPostingWizardPage (§4.3.5–4.3.6 Survey Posting Flow)", () => 
       expect(screen.getByText("Budget Breakdown")).toBeDefined();
       expect(screen.getByText("Total Escrow Required")).toBeDefined();
       expect(screen.getByText("Confirm & Fund Escrow")).toBeDefined();
+    });
+  });
+
+  it("Step 3 auto-determines compliance requirement based on declared research category (§7.4 item 1)", async () => {
+    renderPostingWizard(["/survey-posting/survey-1"]);
+
+    // Go to Step 3
+    await waitFor(() => expect(screen.getByText("Next Step")).toBeDefined());
+    fireEvent.click(screen.getByText("Next Step"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Research Category & Legal Compliance")).toBeDefined();
+      expect(screen.getByLabelText("Declared Research Category")).toBeDefined();
+      // Default market_consumer is standard
+      expect(screen.getByText("Standard Research Category")).toBeDefined();
+    });
+
+    // Select Health/medical studies
+    const categorySelect = screen.getByLabelText("Declared Research Category") as HTMLSelectElement;
+    fireEvent.change(categorySelect, { target: { value: "health_medical" } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Ethical Clearance Required: Health\/medical studies/i)).toBeDefined();
+      expect(screen.getByText(/require an institutional clearance or ethical approval document/i)).toBeDefined();
+      expect(screen.getByText("Upload Ethical Clearance / IRB Approval")).toBeDefined();
+      expect(screen.getByText("YES")).toBeDefined();
+      expect(screen.getByText("NO")).toBeDefined();
+    });
+
+    // Select Studies involving minors
+    fireEvent.change(categorySelect, { target: { value: "minors" } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Ethical Clearance Required: Studies involving minors/i)).toBeDefined();
     });
   });
 });

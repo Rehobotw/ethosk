@@ -153,22 +153,39 @@ export const PRIMARY_LANGUAGE_LABEL: Record<PrimaryLanguage, string> = {
 // Payments
 // ---------------------------------------------------------------------------
 
-export const DEPOSIT_METHODS = ["telebirr", "cbe_birr", "bank_transfer"] as const;
+export const DEPOSIT_METHODS = [
+  "telebirr",
+  "cbe",
+  "cbe_birr",
+  "boa",
+  "dashen",
+  "awash",
+  "siinqee",
+  "kaafi_ebirr",
+  "bank_transfer",
+] as const;
 export type DepositMethod = (typeof DEPOSIT_METHODS)[number];
 
 export const DEPOSIT_METHOD_LABEL: Record<DepositMethod, string> = {
   telebirr: "Telebirr",
+  cbe: "Commercial Bank of Ethiopia (CBE)",
   cbe_birr: "CBE Birr",
+  boa: "Bank of Abyssinia",
+  dashen: "Dashen Bank / Amole",
+  awash: "Awash Bank",
+  siinqee: "Siinqee Bank",
+  kaafi_ebirr: "Kaafi Ebirr",
   bank_transfer: "Bank transfer",
 };
 
-export const DEPOSIT_STATUSES = ["pending", "completed", "failed"] as const;
+export const DEPOSIT_STATUSES = ["pending", "completed", "failed", "needs_review"] as const;
 export type DepositStatus = (typeof DEPOSIT_STATUSES)[number];
 
 export const DEPOSIT_STATUS_LABEL: Record<DepositStatus, string> = {
   pending: "Awaiting confirmation",
   completed: "Credited",
   failed: "Not completed",
+  needs_review: "Pending manual review",
 };
 
 export const WITHDRAWAL_METHODS = ["telebirr", "cbe_birr"] as const;
@@ -179,8 +196,24 @@ export const WITHDRAWAL_METHOD_LABEL: Record<WithdrawalMethod, string> = {
   cbe_birr: "CBE Birr",
 };
 
-export const WITHDRAWAL_STATUSES = ["pending", "completed", "failed"] as const;
+export const WITHDRAWAL_STATUSES = [
+  "pending",
+  "processing",
+  "completed",
+  "paid",
+  "failed",
+  "needs_review",
+] as const;
 export type WithdrawalStatus = (typeof WITHDRAWAL_STATUSES)[number];
+
+export const WITHDRAWAL_STATUS_LABEL: Record<WithdrawalStatus, string> = {
+  pending: "Pending",
+  processing: "Processing",
+  completed: "Paid",
+  paid: "Paid",
+  failed: "Failed",
+  needs_review: "Pending Manual Review",
+};
 
 /** Tier ordering, used for `min_verification_tier` comparisons. */
 export const TIER_RANK: Record<VerificationTier, number> = {
@@ -234,12 +267,17 @@ export interface SurveyRecord {
   created_at: string;
   updated_at?: string;
   sent_at: string | null;
+  research_category?: string | null;
+  compliance_required?: boolean | null;
+  compliance_rule_triggered?: string | null;
   compliance_answer?: boolean | null;
   compliance_document_path?: string | null;
   review_notes?: string | null;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
 }
+
+export type { ComplianceCategoryRule } from "./compliance/rules.js";
 
 export interface ResearcherProfileRecord {
   user_id: string;
@@ -309,11 +347,14 @@ export interface DepositRecord {
   id: string;
   amount_etb: number;
   method: DepositMethod;
-  /** Our order number. Unique per researcher, so one payment credits once. */
+  /** Our order number or transaction reference from bank/telecom. */
   reference: string;
   status: DepositStatus;
   /** The gateway's own transaction number, once it has settled. */
   provider_ref?: string | null;
+  sender_detail?: string | null;
+  idempotency_key?: string | null;
+  verification_status?: "verified" | "mismatched" | "not_found" | "unsupported_provider" | "manual_review" | null;
   created_at: string;
 }
 
@@ -331,6 +372,10 @@ export interface WithdrawalRecord {
   amount_etb: number;
   method: WithdrawalMethod;
   account_number: string;
+  reference?: string | null;
+  provider_ref?: string | null;
+  verification_status?: string | null;
+  verification_notes?: string | null;
   status: WithdrawalStatus;
   created_at: string;
 }
@@ -341,9 +386,16 @@ export interface PayoutRecord {
   amount_etb: number;
   net_amount_etb?: number;
   platform_fee_etb?: number;
-  status: "available" | "withdrawn" | "pending" | "completed" | "paid";
+  status: "available" | "withdrawn" | "pending" | "completed" | "paid" | "needs_review";
   created_at: string;
   survey_title: string | null;
+  is_withdrawal?: boolean;
+  payout_method?: string;
+  account_number?: string;
+  reference?: string | null;
+  provider_ref?: string | null;
+  verification_status?: string | null;
+  verification_notes?: string | null;
 }
 
 export interface UserRecord {

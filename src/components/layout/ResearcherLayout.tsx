@@ -38,6 +38,8 @@ export function ResearcherLayout() {
     { label: isAm ? "የማረጋገጫ ወረፋ" : "Review Queue", to: "/admin/review-queue", icon: "rule" },
     { label: isAm ? "የጥናት ማጽደቆች" : "Survey Approvals", to: "/admin/survey-approvals", icon: "task_alt" },
     { label: isAm ? "የተመራማሪ ማጽደቆች" : "Researcher Approvals", to: "/admin/researcher-approvals", icon: "how_to_reg" },
+    { label: isAm ? "የማስታረቅ ወረፋ" : "Reconciliation", to: "/admin/reconciliation", icon: "sync_alt" },
+    { label: isAm ? "የመረጃ ጥያቄዎች" : "Data Requests", to: "/admin/data-requests", icon: "privacy_tip" },
   ];
 
   const superAdminPrimaryNav = [
@@ -46,6 +48,8 @@ export function ResearcherLayout() {
     { label: isAm ? "የማረጋገጫ ወረፋ" : "Review Queue", to: "/admin/review-queue", icon: "rule" },
     { label: isAm ? "የጥናት ማጽደቆች" : "Survey Approvals", to: "/admin/survey-approvals", icon: "task_alt" },
     { label: isAm ? "የተመራማሪ ማጽደቆች" : "Researcher Approvals", to: "/admin/researcher-approvals", icon: "how_to_reg" },
+    { label: isAm ? "የማስታረቅ ወረፋ" : "Reconciliation", to: "/admin/reconciliation", icon: "sync_alt" },
+    { label: isAm ? "የመረጃ ጥያቄዎች" : "Data Requests", to: "/admin/data-requests", icon: "privacy_tip" },
     { label: isAm ? "የተጠቃሚዎች አስተዳደር" : "User Management", to: "/admin/users", icon: "group" },
   ];
 
@@ -147,14 +151,14 @@ export function ResearcherLayout() {
           <div className="flex items-center gap-3">
             <LanguageToggle />
             <ThemeToggle />
-            <button
+            <Link
+              to="/researcher/notifications"
               aria-label="Notifications"
-              className="p-2 text-on-surface-variant hover:bg-[#eff4ff] rounded-full transition-colors relative cursor-pointer"
-              type="button"
+              className="p-2 text-on-surface-variant hover:bg-[#eff4ff] rounded-full transition-colors relative cursor-pointer flex items-center justify-center"
             >
               <span className="material-symbols-outlined text-[22px]">notifications</span>
               <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
-            </button>
+            </Link>
             <ResearcherAvatar />
           </div>
         </header>

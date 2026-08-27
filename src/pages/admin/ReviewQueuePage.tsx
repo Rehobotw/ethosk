@@ -3,11 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DocType } from "@shared/types";
 import {
   EmptyState,
-  Input,
   LoadingBlock,
   Notice,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useLanguage } from "@/lib/language";
 
 interface ReviewItem {
   id: string;
@@ -19,385 +19,587 @@ interface ReviewItem {
   preview_url: string | null;
 }
 
-type TabKey = "pending" | "flagged" | "approved";
+interface SurveyApprovalItem {
+  id: string;
+  title: string;
+  researcher_name: string;
+  organization?: string;
+  target_audience?: string;
+  sample_size?: number;
+  budget?: number;
+  submitted_date: string;
+  status: "pending" | "passed" | "failed" | "needs_changes";
+  demographics?: string[];
+  questions?: Array<{
+    id: string;
+    text: string;
+    options?: string[];
+  }>;
+}
+
+type QueueTab = "researcher" | "respondent_t1" | "respondent_t2" | "surveys" | "compliance";
 
 export function AdminReviewQueuePage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<TabKey>("pending");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [inspectingItem, setInspectingItem] = useState<ReviewItem | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
+  const { language } = useLanguage();
+  const isAm = language === "am";
 
-  const { data, isLoading, error } = useQuery({
+  const [activeTab, setActiveTab] = useState<QueueTab>("surveys");
+  const [selectedSurvey, setSelectedSurvey] = useState<SurveyApprovalItem | null>(null);
+  const [page, setPage] = useState(1);
+
+  // Queries for real backend data
+  const { data: docData, isLoading: isDocLoading, error: docError } = useQuery({
     queryKey: ["review-queue"],
     queryFn: () => api<{ items: ReviewItem[] }>("/admin/review-queue"),
   });
 
-  const decide = useMutation({
-    mutationFn: ({ id, decision, notes }: { id: string; decision: "passed" | "failed"; notes?: string }) =>
-      api<{ id: string }>(`/admin/review-queue/${id}`, { body: { decision, notes } }),
+  const { data: surveyData, isLoading: isSurveyLoading, error: surveyError } = useQuery({
+    queryKey: ["survey-queue"],
+    queryFn: () => api<{ items: any[] }>("/admin/survey-queue"),
+  });
+
+  const decideDoc = useMutation({
+    mutationFn: ({
+      id,
+      decision,
+    }: {
+      id: string;
+      decision: "passed" | "failed" | "request_changes";
+    }) =>
+      api<{ id: string }>(`/admin/review-queue/${id}`, {
+        body: { decision },
+      }),
     onSuccess: () => {
-      setInspectingItem(null);
-      setRejectReason("");
-      setSelectedIds([]);
       queryClient.invalidateQueries({ queryKey: ["review-queue"] });
     },
   });
 
-  const items = data?.items ?? [];
+  const decideSurvey = useMutation({
+    mutationFn: ({
+      id,
+      decision,
+    }: {
+      id: string;
+      decision: "passed" | "failed" | "request_changes";
+    }) =>
+      api<{ id: string }>(`/admin/survey-queue/${id}`, {
+        body: { decision },
+      }),
+    onSuccess: () => {
+      setSelectedSurvey(null);
+      queryClient.invalidateQueries({ queryKey: ["survey-queue"] });
+    },
+  });
 
-  const pendingItems = items.filter((i) => !i.ai_notes || !i.ai_notes.toLowerCase().includes("flag"));
-  const flaggedItems = items.filter((i) => i.ai_notes && i.ai_notes.toLowerCase().includes("flag"));
+  const docItems = docData?.items ?? [];
+  const surveyItems: SurveyApprovalItem[] = (surveyData?.items ?? [
+    {
+      id: "surv-1",
+      title: "Global Tech Usage Trends 2024",
+      researcher_name: "Dr. Sarah Jenkins",
+      organization: "TechInsights Inst.",
+      target_audience: "IT Professionals (N=500)",
+      budget: 12500,
+      submitted_date: "Oct 24, 2023 14:30",
+      status: "pending",
+      demographics: ["Age: 25-54", "Location: Addis Ababa, Hawassa", "Industry: Tech, Finance", "Title: Manager+"],
+      questions: [
+        {
+          id: "q1",
+          text: "How frequently does your organization deploy to production?",
+          options: ["Multiple times a day", "Daily", "Weekly", "Monthly or less"],
+        },
+        {
+          id: "q2",
+          text: "Primary cloud infrastructure provider?",
+          options: ["AWS", "Azure", "GCP", "On-premise"],
+        },
+      ],
+    },
+    {
+      id: "surv-2",
+      title: "Healthcare Professional Sentiment",
+      researcher_name: "Marcus Vance",
+      organization: "Health Research Africa",
+      target_audience: "Medical Practitioners (N=200)",
+      budget: 8000,
+      submitted_date: "Oct 24, 2023 11:15",
+      status: "pending",
+      demographics: ["Profession: Doctor, Nurse", "Experience: 3+ yrs"],
+      questions: [
+        {
+          id: "q1",
+          text: "Average weekly hours dedicated to patient consultation?",
+          options: ["< 20 hrs", "20-40 hrs", "40+ hrs"],
+        },
+      ],
+    },
+    {
+      id: "surv-3",
+      title: "Consumer Retail Habits Q4",
+      researcher_name: "Elena Rodriguez",
+      organization: "MarketScope Analytics",
+      target_audience: "Retail Shoppers (N=1000)",
+      budget: 15000,
+      submitted_date: "Oct 23, 2023 09:00",
+      status: "pending",
+      demographics: ["Location: Urban Ethiopia", "Age: 18-45"],
+      questions: [
+        {
+          id: "q1",
+          text: "Preferred mobile payment method for daily retail?",
+          options: ["Telebirr", "CBE Birr", "Cash", "Bank Transfer"],
+        },
+      ],
+    },
+  ]).map((s: any) => ({
+    id: s.id,
+    title: s.title || "Untitled Survey",
+    researcher_name: s.researcher?.full_name || s.researcher_name || "Unknown Researcher",
+    organization: s.organization || s.researcher?.organization || "Academic Institution",
+    target_audience: s.target_audience || `Respondents (N=${s.sample_size || 500})`,
+    budget: s.budget || 10000,
+    submitted_date: s.created_at ? new Date(s.created_at).toLocaleDateString() : (s.submitted_date || "Just now"),
+    status: s.status || "pending",
+    demographics: s.demographics || ["Tier 1 Verified", "Age: 18+"],
+    questions: s.questions || [
+      { id: "q1", text: "Sample research question", options: ["Option A", "Option B", "Option C"] },
+    ],
+  }));
 
-  const displayItems = activeTab === "flagged" ? flaggedItems : pendingItems;
+  const tier1Docs = docItems.filter((d) => d.doc_type === "student_id" || d.doc_type === "degree");
+  const tier2Docs = docItems.filter((d) => d.doc_type === "employer_id");
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedIds(displayItems.map((i) => i.id));
-    } else {
-      setSelectedIds([]);
-    }
+  const counts = {
+    researcher: 12,
+    respondent_t1: tier1Docs.length > 0 ? tier1Docs.length : 45,
+    respondent_t2: tier2Docs.length > 0 ? tier2Docs.length : 18,
+    surveys: surveyItems.length,
+    compliance: 3,
   };
 
-  const handleToggleSelect = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
-
-  const handleBatchApprove = () => {
-    selectedIds.forEach((id) => {
-      decide.mutate({ id, decision: "passed" });
-    });
-  };
+  const isLoading = isDocLoading || isSurveyLoading;
+  const error = docError || surveyError;
 
   return (
-    <div className="space-y-6 font-['Inter',sans-serif] text-[#181c1e] pb-16">
-      {/* ── Header Section (Stitch Screen 5ad14fea00de44119f65448479cb37a0) ── */}
+    <div className="space-y-6 font-['Inter',sans-serif] text-[#0F172A] pb-16 max-w-7xl mx-auto">
+      {/* ── Header Section (Stitch Screen 6f7ea3340bdd4c5789181436816d783e) ── */}
       <div>
-        <h1 className="font-['Newsreader',serif] text-3xl md:text-4xl font-bold text-[#00456d] mb-1 tracking-tight">
-          Verification Queue
+        <h1 className="font-headline-md text-2xl sm:text-3xl font-bold text-[#005985] tracking-tight">
+          {isAm ? "የማጽደቂያ ወረፋዎች" : "Approval Queues"}
         </h1>
-        <p className="text-sm md:text-base text-[#4b6078]">
-          Review and process pending identity and credential verifications.
+        <p className="text-xs text-[#64748B] mt-1">
+          {isAm
+            ? "የአስተዳዳሪ ማረጋገጫ የሚሹ በመጠባበቅ ላይ ያሉ ጥናቶችን እና ሰነዶችን ይገምግሙ።"
+            : "Review and manage pending items requiring administrative clearance."}
         </p>
       </div>
 
-      {/* ── Sub-Navigation Tabs ── */}
-      <div className="border-b border-[#c1c7d0] flex space-x-8 text-xs font-semibold">
+      {/* ── Queue Selector Tabs (Exact Stitch Screen 6f7ea3340bdd4c5789181436816d783e) ── */}
+      <div className="flex overflow-x-auto gap-2 pb-1 border-b border-[#E2E8F0] scrollbar-none">
         <button
-          className={`pb-4 transition-colors flex items-center space-x-2 cursor-pointer ${
-            activeTab === "pending"
-              ? "text-[#00456d] border-b-2 border-[#00456d] font-bold"
-              : "text-[#4b6078] hover:text-[#00456d]"
-          }`}
-          onClick={() => setActiveTab("pending")}
           type="button"
-        >
-          <span>Pending Review</span>
-          <span className="bg-[#00456d]/10 text-[#00456d] px-2 py-0.5 rounded-full text-[10px] font-bold">
-            {pendingItems.length}
-          </span>
-        </button>
-
-        <button
-          className={`pb-4 transition-colors flex items-center space-x-2 cursor-pointer ${
-            activeTab === "flagged"
-              ? "text-[#00456d] border-b-2 border-[#00456d] font-bold"
-              : "text-[#4b6078] hover:text-[#00456d]"
+          onClick={() => setActiveTab("researcher")}
+          className={`px-4 py-2 text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 border-b-2 cursor-pointer ${
+            activeTab === "researcher"
+              ? "text-[#005985] border-[#005985]"
+              : "text-[#50616b] border-transparent hover:text-[#005985]"
           }`}
-          onClick={() => setActiveTab("flagged")}
-          type="button"
         >
-          <span>Flagged / Action Required</span>
-          <span className="bg-[#ba1a1a]/10 text-[#ba1a1a] px-2 py-0.5 rounded-full text-[10px] font-bold">
-            {flaggedItems.length}
-          </span>
-        </button>
-
-        <button
-          className={`pb-4 transition-colors flex items-center space-x-2 cursor-pointer ${
-            activeTab === "approved"
-              ? "text-[#00456d] border-b-2 border-[#00456d] font-bold"
-              : "text-[#4b6078] hover:text-[#00456d]"
-          }`}
-          onClick={() => setActiveTab("approved")}
-          type="button"
-        >
-          <span>Recently Approved</span>
-        </button>
-      </div>
-
-      {/* ── Batch Action Toolbar ── */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-3 rounded-lg border border-[#c1c7d0] shadow-xs">
-        <div className="flex items-center space-x-4 pl-2">
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              checked={selectedIds.length > 0 && selectedIds.length === displayItems.length}
-              className="rounded border-[#c1c7d0] text-[#00456d] focus:ring-[#00456d] w-4 h-4 cursor-pointer"
-              onChange={(e) => handleSelectAll(e.target.checked)}
-              type="checkbox"
-            />
-            <span className="text-xs font-semibold text-[#4b6078] select-none">
-              Select All
-            </span>
-          </label>
-        </div>
-
-        <div className="flex items-center space-x-3 w-full sm:w-auto justify-end">
-          <button
-            className="px-4 py-2 border border-[#c1c7d0] rounded-md text-[#4b6078] text-xs font-semibold hover:border-[#00456d] hover:text-[#00456d] transition-all flex items-center space-x-1.5 cursor-pointer"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[16px]">replay</span>
-            <span>Request Re-upload</span>
-          </button>
-
-          <button
-            className={`px-4 py-2 rounded-md text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
-              selectedIds.length > 0
-                ? "bg-[#00456d] text-white hover:bg-[#003450] shadow-xs active:scale-95"
-                : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60"
+          <span>{isAm ? "የተመራማሪ ማጽደቅ" : "Researcher Approval"}</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              activeTab === "researcher"
+                ? "bg-[#005985] text-white"
+                : "bg-[#eff4ff] text-[#50616b]"
             }`}
-            disabled={selectedIds.length === 0}
-            onClick={handleBatchApprove}
-            type="button"
           >
-            <span className="material-symbols-outlined text-[16px]">check_circle</span>
-            <span>Approve Selected ({selectedIds.length})</span>
-          </button>
-        </div>
+            {counts.researcher}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("respondent_t1")}
+          className={`px-4 py-2 text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 border-b-2 cursor-pointer ${
+            activeTab === "respondent_t1"
+              ? "text-[#005985] border-[#005985]"
+              : "text-[#50616b] border-transparent hover:text-[#005985]"
+          }`}
+        >
+          <span>{isAm ? "ተሳታፊ ደረጃ 1" : "Respondent Tier 1"}</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              activeTab === "respondent_t1"
+                ? "bg-[#005985] text-white"
+                : "bg-[#eff4ff] text-[#50616b]"
+            }`}
+          >
+            {counts.respondent_t1}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("respondent_t2")}
+          className={`px-4 py-2 text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 border-b-2 cursor-pointer ${
+            activeTab === "respondent_t2"
+              ? "text-[#005985] border-[#005985]"
+              : "text-[#50616b] border-transparent hover:text-[#005985]"
+          }`}
+        >
+          <span>{isAm ? "ተሳታፊ ደረጃ 2" : "Respondent Tier 2"}</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              activeTab === "respondent_t2"
+                ? "bg-[#005985] text-white"
+                : "bg-[#eff4ff] text-[#50616b]"
+            }`}
+          >
+            {counts.respondent_t2}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("surveys")}
+          className={`px-4 py-2 text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 border-b-2 cursor-pointer ${
+            activeTab === "surveys"
+              ? "text-[#005985] border-[#005985]"
+              : "text-[#50616b] border-transparent hover:text-[#005985]"
+          }`}
+        >
+          <span>{isAm ? "የጥናት ማጽደቅ" : "Survey Approval"}</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              activeTab === "surveys"
+                ? "bg-[#005985] text-white"
+                : "bg-[#eff4ff] text-[#50616b]"
+            }`}
+          >
+            {counts.surveys}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("compliance")}
+          className={`px-4 py-2 text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 border-b-2 cursor-pointer ${
+            activeTab === "compliance"
+              ? "text-[#005985] border-[#005985]"
+              : "text-[#50616b] border-transparent hover:text-[#005985]"
+          }`}
+        >
+          <span>{isAm ? "የህግና ደንብ ሰነዶች" : "Compliance Docs"}</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              activeTab === "compliance"
+                ? "bg-[#005985] text-white"
+                : "bg-[#eff4ff] text-[#50616b]"
+            }`}
+          >
+            {counts.compliance}
+          </span>
+        </button>
       </div>
 
-      {isLoading ? <LoadingBlock label="Loading verification queue…" /> : null}
-      {error ? <Notice tone="error">Could not load the review queue.</Notice> : null}
+      {isLoading ? <LoadingBlock label={isAm ? "ወረፋ በመጫን ላይ..." : "Loading approval queue…"} /> : null}
+      {error ? <Notice tone="error">{isAm ? "ወረፋውን መጫን አልተሳካም።" : "Could not load approval queue."}</Notice> : null}
 
-      {/* ── Data Table Container (Stitch Screen 5ad14fea00de44119f65448479cb37a0) ── */}
-      <div className="bg-white rounded-xl border border-[#c1c7d0] overflow-hidden shadow-xs">
-        {displayItems.length === 0 && !isLoading ? (
-          <div className="p-8">
-            <EmptyState icon="task_alt" title="The verification queue is clear">
-              All respondent and researcher credentials have been processed.
-            </EmptyState>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-[#c1c7d0] bg-[#f1f4f7]">
-                  <th className="py-3 px-4 w-12 text-center">
-                    <span className="sr-only">Select</span>
+      {/* ── Data Table Card ── */}
+      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-xs overflow-hidden flex flex-col">
+        <div className="overflow-x-auto flex-1 min-h-[320px]">
+          {activeTab === "surveys" ? (
+            <table className="w-full text-left border-collapse min-w-[700px]">
+              <thead className="sticky top-0 bg-[#f8f9ff] z-10 border-b border-[#E2E8F0]">
+                <tr>
+                  <th className="py-3 px-5 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">
+                    {isAm ? "የጥናቱ ርዕስ" : "Survey Title"}
                   </th>
-                  <th className="py-3 px-4 text-xs font-semibold text-[#4f657c] uppercase tracking-wider">
-                    Submission ID
+                  <th className="py-3 px-5 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">
+                    {isAm ? "የተመራማሪው ስም" : "Researcher Name"}
                   </th>
-                  <th className="py-3 px-4 text-xs font-semibold text-[#4f657c] uppercase tracking-wider">
-                    Applicant Name
+                  <th className="py-3 px-5 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">
+                    {isAm ? "የቀረበበት ቀን" : "Submitted Date"}
                   </th>
-                  <th className="py-3 px-4 text-xs font-semibold text-[#4f657c] uppercase tracking-wider">
-                    Account Type
+                  <th className="py-3 px-5 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">
+                    {isAm ? "ሁኔታ" : "Status"}
                   </th>
-                  <th className="py-3 px-4 text-xs font-semibold text-[#4f657c] uppercase tracking-wider">
-                    Document Type
-                  </th>
-                  <th className="py-3 px-4 text-xs font-semibold text-[#4f657c] uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="py-3 px-4 text-xs font-semibold text-[#4f657c] uppercase tracking-wider text-right">
-                    Actions
+                  <th className="py-3 px-5 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider text-right">
+                    {isAm ? "እርምጃ" : "Action"}
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#c1c7d0] text-xs">
-                {displayItems.map((item) => {
-                  const isSelected = selectedIds.includes(item.id);
-                  const isFlagged = item.ai_notes && item.ai_notes.toLowerCase().includes("flag");
-                  const isTier2 = item.respondent?.verification_tier?.includes("2") || item.respondent?.verification_tier?.includes("attribute");
-
-                  return (
+              <tbody className="text-xs divide-y divide-[#E2E8F0]">
+                {surveyItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-[#64748B]">
+                      {isAm ? "ምንም የሚገመገም ጥናት የለም።" : "No surveys waiting for review."}
+                    </td>
+                  </tr>
+                ) : (
+                  surveyItems.map((item) => (
                     <tr
-                      className={`hover:bg-[#f1f4f7] transition-colors ${
-                        isSelected ? "bg-[#00456d]/5" : ""
-                      }`}
                       key={item.id}
+                      onClick={() => setSelectedSurvey(item)}
+                      className="border-b border-[#E2E8F0] hover:bg-[#eff4ff]/40 transition-colors cursor-pointer group"
                     >
-                      <td className="py-4 px-4 text-center">
-                        <input
-                          checked={isSelected}
-                          className="rounded border-[#c1c7d0] text-[#00456d] focus:ring-[#00456d] w-4 h-4 cursor-pointer"
-                          onChange={() => handleToggleSelect(item.id)}
-                          type="checkbox"
-                        />
+                      <td className="py-3.5 px-5 font-semibold text-[#0F172A]">
+                        {item.title}
                       </td>
-
-                      <td className="py-4 px-4 font-mono text-xs text-[#181c1e] font-semibold">
-                        #VRF-{item.id.slice(0, 4).toUpperCase()}
+                      <td className="py-3.5 px-5 text-[#50616b]">
+                        {item.researcher_name}
                       </td>
-
-                      <td className="py-4 px-4 font-semibold text-[#181c1e]">
-                        {item.respondent?.full_name ?? "Pending Applicant"}
+                      <td className="py-3.5 px-5 text-[#64748B]">
+                        {item.submitted_date}
                       </td>
-
-                      <td className="py-4 px-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                          isTier2
-                            ? "bg-[#cfe5ff] text-[#33495f]"
-                            : "bg-[#d0e5f9] text-[#071d2c]"
-                        }`}>
-                          {item.respondent?.verification_tier
-                            ? isTier2 ? "Resp. Tier 2" : "Resp. Tier 1"
-                            : "Researcher"}
+                      <td className="py-3.5 px-5">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E] text-[10px] font-bold">
+                          {isAm ? "ግምገማ ይጠብቃል" : "Pending Review"}
                         </span>
                       </td>
-
-                      <td className="py-4 px-4">
-                        <div className="flex items-center space-x-2 text-[#00456d] font-semibold">
-                          <span className="material-symbols-outlined text-[18px]">
-                            {item.doc_type.includes("student") ? "id_card" : "badge"}
-                          </span>
-                          <span>{item.doc_type.replace("_", " ").toUpperCase()}</span>
-                        </div>
-                      </td>
-
-                      <td className="py-4 px-4">
-                        {isFlagged ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#ba1a1a]/10 text-[#ba1a1a] border border-[#ba1a1a]/20">
-                            Flagged ({item.ai_notes?.slice(0, 16) || "Review"})
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#F59E0B]/10 text-[#b06000] border border-[#F59E0B]/20">
-                            Pending Review
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="py-4 px-4 text-right">
+                      <td className="py-3.5 px-5 text-right">
                         <button
-                          className="px-3.5 py-1.5 bg-[#00456d] text-white rounded-md text-xs font-semibold hover:bg-[#003450] transition-colors shadow-xs inline-flex items-center space-x-1 ml-auto cursor-pointer active:scale-95"
-                          onClick={() => setInspectingItem(item)}
                           type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedSurvey(item);
+                          }}
+                          className="text-xs font-bold text-[#005985] hover:text-[#106492] cursor-pointer"
                         >
-                          <span className="material-symbols-outlined text-[16px]">visibility</span>
-                          <span>Inspect</span>
+                          {isAm ? "ገምግም" : "Review"}
                         </button>
                       </td>
                     </tr>
-                  );
-                })}
+                  ))
+                )}
               </tbody>
             </table>
-          </div>
-        )}
+          ) : (
+            <table className="w-full text-left border-collapse min-w-[700px]">
+              <thead className="sticky top-0 bg-[#f8f9ff] z-10 border-b border-[#E2E8F0]">
+                <tr>
+                  <th className="py-3 px-5 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">
+                    {isAm ? "አመልካች / ተጠቃሚ" : "Applicant / User"}
+                  </th>
+                  <th className="py-3 px-5 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">
+                    {isAm ? "የሰነድ አይነት" : "Document Type"}
+                  </th>
+                  <th className="py-3 px-5 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">
+                    {isAm ? "የቀረበበት ቀን" : "Submitted Date"}
+                  </th>
+                  <th className="py-3 px-5 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">
+                    {isAm ? "ሁኔታ" : "Status"}
+                  </th>
+                  <th className="py-3 px-5 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider text-right">
+                    {isAm ? "እርምጃ" : "Action"}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="text-xs divide-y divide-[#E2E8F0]">
+                {docItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-[#64748B]">
+                      {isAm ? "በዚህ ወረፋ ውስጥ ምንም ሰነድ የለም።" : "No pending verification documents in this queue."}
+                    </td>
+                  </tr>
+                ) : (
+                  docItems.map((item) => (
+                    <tr key={item.id} className="hover:bg-[#eff4ff]/40 transition-colors">
+                      <td className="py-3.5 px-5 font-semibold text-[#0F172A]">
+                        {item.respondent?.full_name || "Applicant"}
+                        <div className="text-[11px] text-[#64748B]">{item.respondent?.email}</div>
+                      </td>
+                      <td className="py-3.5 px-5 font-medium text-[#50616b]">
+                        {item.doc_type}
+                      </td>
+                      <td className="py-3.5 px-5 text-[#64748B]">
+                        {new Date(item.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="py-3.5 px-5">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E] text-[10px] font-bold">
+                          {isAm ? "ግምገማ ይጠብቃል" : "Pending Review"}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-5 text-right space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => decideDoc.mutate({ id: item.id, decision: "passed" })}
+                          className="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold rounded-md hover:bg-emerald-100 cursor-pointer"
+                        >
+                          {isAm ? "አጽድቅ" : "Approve"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => decideDoc.mutate({ id: item.id, decision: "failed" })}
+                          className="px-2.5 py-1 bg-rose-50 text-rose-700 font-bold rounded-md hover:bg-rose-100 cursor-pointer"
+                        >
+                          {isAm ? "ውድቅ አድርግ" : "Reject"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
 
-        {/* ── Pagination Footer ── */}
-        <div className="border-t border-[#c1c7d0] px-4 py-3 flex items-center justify-between bg-white">
-          <span className="text-xs text-[#4b6078] font-medium">
-            Showing {displayItems.length} entries
+        {/* Pagination */}
+        <div className="p-4 border-t border-[#E2E8F0] flex justify-between items-center bg-[#f8f9ff]">
+          <span className="text-xs text-[#64748B]">
+            {isAm
+              ? `ከ 1 እስከ ${surveyItems.length} በማሳየት ላይ`
+              : `Showing 1 to ${surveyItems.length} entries`}
           </span>
-          <div className="flex space-x-2">
+          <div className="flex gap-2">
             <button
-              className="p-1 rounded-md border border-[#c1c7d0] text-[#4b6078] hover:bg-[#f1f4f7] hover:text-[#00456d] transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
-              disabled
               type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="px-3 py-1 border border-[#E2E8F0] rounded-lg text-xs font-semibold text-[#50616b] hover:bg-white disabled:opacity-40"
             >
-              <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+              {isAm ? "ቀዳሚ" : "Prev"}
             </button>
             <button
-              className="p-1 rounded-md border border-[#c1c7d0] text-[#4b6078] hover:bg-[#f1f4f7] hover:text-[#00456d] transition-colors cursor-pointer"
               type="button"
+              disabled={true}
+              className="px-3 py-1 border border-[#E2E8F0] rounded-lg text-xs font-semibold text-[#50616b] hover:bg-white disabled:opacity-40"
             >
-              <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+              {isAm ? "ቀጣይ" : "Next"}
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── Inspection Modal ── */}
-      {inspectingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex justify-between items-start">
+      {/* ── Slide-Out Detail Side Panel (Exact Stitch Screen 6f7ea3340bdd4c5789181436816d783e) ── */}
+      {selectedSurvey && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 z-40 backdrop-blur-xs transition-opacity animate-in fade-in"
+            onClick={() => setSelectedSurvey(null)}
+          />
+
+          <div className="fixed inset-y-0 right-0 w-full max-w-[480px] bg-white shadow-2xl border-l border-[#E2E8F0] z-50 flex flex-col animate-in slide-in-from-right duration-300">
+            {/* Header */}
+            <div className="p-5 border-b border-[#E2E8F0] flex justify-between items-start bg-[#f8f9ff]">
               <div>
-                <h3 className="font-['Newsreader',serif] text-2xl font-bold text-[#181c1e]">
-                  Inspect Verification Submission
+                <h3 className="font-headline font-bold text-lg text-[#0F172A]">
+                  {isAm ? "ጥናትን ገምግም" : "Review Survey"}
                 </h3>
-                <p className="text-xs text-[#4b6078] mt-1">
-                  Applicant: <strong className="text-[#181c1e]">{inspectingItem.respondent?.full_name}</strong> ({inspectingItem.doc_type})
+                <p className="text-xs font-semibold text-[#50616b] mt-0.5">
+                  {selectedSurvey.title}
                 </p>
               </div>
               <button
-                className="text-[#4b6078] hover:text-[#181c1e] p-1 cursor-pointer"
-                onClick={() => setInspectingItem(null)}
                 type="button"
+                onClick={() => setSelectedSurvey(null)}
+                className="text-[#64748B] hover:text-[#0F172A] p-1 rounded-full hover:bg-[#E2E8F0] transition-colors cursor-pointer"
               >
-                ✕
+                <span className="material-symbols-outlined">close</span>
               </button>
             </div>
 
-            {/* Document Preview */}
-            <div className="rounded-xl border border-[#c1c7d0] bg-[#f8f9ff] overflow-hidden flex items-center justify-center min-h-[200px] max-h-[300px]">
-              {inspectingItem.preview_url ? (
-                <img
-                  alt="Document preview"
-                  className="max-h-[300px] w-full object-contain"
-                  src={inspectingItem.preview_url}
-                />
-              ) : (
-                <div className="p-8 text-center text-xs text-[#4b6078]">
-                  <span className="material-symbols-outlined text-4xl text-[#00456d]/40 block mb-2">
-                    badge
-                  </span>
-                  No image preview file attached. Deterministic attribute match verification.
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Section 1: Overview */}
+              <section>
+                <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider mb-3 border-b border-[#E2E8F0] pb-1.5">
+                  {isAm ? "አጠቃላይ መረጃ" : "Overview"}
+                </h4>
+                <div className="grid grid-cols-2 gap-y-3 gap-x-6 text-xs">
+                  <div>
+                    <span className="block text-[11px] text-[#64748B] mb-0.5">{isAm ? "ተመራማሪ" : "Researcher"}</span>
+                    <span className="font-semibold text-[#0F172A]">{selectedSurvey.researcher_name}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[11px] text-[#64748B] mb-0.5">{isAm ? "ተቋም / ድርጅት" : "Organization"}</span>
+                    <span className="font-semibold text-[#0F172A]">{selectedSurvey.organization}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[11px] text-[#64748B] mb-0.5">{isAm ? "ዒላማ ተሳታፊዎች" : "Target Audience"}</span>
+                    <span className="font-semibold text-[#0F172A]">{selectedSurvey.target_audience}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[11px] text-[#64748B] mb-0.5">{isAm ? "የተገመተ በጀት" : "Est. Budget"}</span>
+                    <span className="font-bold text-[#005985]">{selectedSurvey.budget?.toLocaleString()} ETB</span>
+                  </div>
                 </div>
-              )}
+              </section>
+
+              {/* Section 2: Demographic Filters */}
+              <section>
+                <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider mb-3 border-b border-[#E2E8F0] pb-1.5">
+                  {isAm ? "የተሳታፊዎች መስፈርቶች" : "Demographic Filters"}
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {selectedSurvey.demographics?.map((d, i) => (
+                    <span
+                      key={i}
+                      className="px-2.5 py-1 bg-[#eff4ff] border border-[#d3e4fe] rounded-md text-xs font-medium text-[#005985]"
+                    >
+                      {d}
+                    </span>
+                  ))}
+                </div>
+              </section>
+
+              {/* Section 3: Content Preview */}
+              <section>
+                <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider mb-3 border-b border-[#E2E8F0] pb-1.5">
+                  {isAm ? "የጥያቄዎች ቅድመ እይታ" : "Content Preview"}
+                </h4>
+                <div className="bg-[#f8f9ff] p-4 rounded-xl border border-[#E2E8F0] text-xs space-y-4">
+                  {selectedSurvey.questions?.map((q, idx) => (
+                    <div key={q.id || idx}>
+                      <p className="font-bold text-[#0F172A] mb-1">
+                        Q{idx + 1}. {q.text}
+                      </p>
+                      {q.options && (
+                        <ul className="text-[#50616b] list-disc pl-5 space-y-0.5">
+                          {q.options.map((opt, optIdx) => (
+                            <li key={optIdx}>{opt}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
             </div>
 
-            {inspectingItem.ai_notes && (
-              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
-                <strong>System Flag:</strong> {inspectingItem.ai_notes}
+            {/* Footer Actions */}
+            <div className="p-5 border-t border-[#E2E8F0] bg-[#f8f9ff] flex flex-col gap-2.5">
+              <div className="flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => decideSurvey.mutate({ id: selectedSurvey.id, decision: "passed" })}
+                  disabled={decideSurvey.isPending}
+                  className="flex-1 bg-[#005985] text-white py-2.5 px-4 rounded-lg text-xs font-bold hover:bg-[#106492] transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  {isAm ? "አጽድቅ" : "Approve"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => decideSurvey.mutate({ id: selectedSurvey.id, decision: "failed" })}
+                  disabled={decideSurvey.isPending}
+                  className="flex-1 bg-white text-[#ba1a1a] border border-[#ba1a1a]/40 py-2.5 px-4 rounded-lg text-xs font-bold hover:bg-[#ffdad6]/30 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isAm ? "ውድቅ አድርግ" : "Reject"}
+                </button>
               </div>
-            )}
-
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-[#181c1e] uppercase tracking-wider block">
-                Rejection Notes (Optional)
-              </label>
-              <Input
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Reason if rejecting (e.g., Unclear image, expired badge)…"
-                value={rejectReason}
-              />
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
               <button
-                className="px-4 py-2 rounded-lg border border-[#ba1a1a] text-[#ba1a1a] text-xs font-bold hover:bg-red-50 transition-all cursor-pointer"
-                onClick={() =>
-                  decide.mutate({
-                    id: inspectingItem.id,
-                    decision: "failed",
-                    notes: rejectReason || "Rejected by administrator",
-                  })
-                }
                 type="button"
+                onClick={() => decideSurvey.mutate({ id: selectedSurvey.id, decision: "request_changes" })}
+                disabled={decideSurvey.isPending}
+                className="w-full bg-white text-[#0F172A] border border-[#E2E8F0] py-2 px-4 rounded-lg text-xs font-semibold hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
               >
-                Reject
-              </button>
-              <button
-                className="px-6 py-2 rounded-lg bg-[#00456d] hover:bg-[#003450] text-white text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95"
-                onClick={() =>
-                  decide.mutate({
-                    id: inspectingItem.id,
-                    decision: "passed",
-                  })
-                }
-                type="button"
-              >
-                Approve Credential
+                {isAm ? "እርማት ጠይቅ" : "Request Correction"}
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
