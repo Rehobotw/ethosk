@@ -122,7 +122,7 @@ describe("Ethosk - Resubmission Review (Stitch Screen 13605bbe317c455aa5611d113d
     expect(screen.getByText("Survey Details for Confirmation")).toBeDefined();
 
     const confirmBtns = screen.getAllByRole("button", { name: /Approve Survey/i });
-    fireEvent.click(confirmBtns[confirmBtns.length - 1]);
+    fireEvent.click(confirmBtns[confirmBtns.length - 1]!);
 
     await waitFor(() => {
       expect(apiMock).toHaveBeenCalledWith(
@@ -155,7 +155,7 @@ describe("Ethosk - Resubmission Review (Stitch Screen 13605bbe317c455aa5611d113d
     fireEvent.change(textarea, { target: { value: "Institutional IRB authorization was not valid." } });
 
     const submitBtns = screen.getAllByRole("button", { name: /Reject Survey/i });
-    fireEvent.click(submitBtns[submitBtns.length - 1]);
+    fireEvent.click(submitBtns[submitBtns.length - 1]!);
 
     await waitFor(() => {
       expect(apiMock).toHaveBeenCalledWith(

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Button, Field, Input } from "@/components/ui";
 import { useLanguage } from "@/lib/language";
 
 export interface ReviewChecklistState {
@@ -30,7 +29,8 @@ export function DocumentReviewChecklist({
   initialChecklist,
   onSubmitDecision,
 }: DocumentReviewChecklistProps) {
-  const { isAm } = useLanguage();
+  const { language } = useLanguage();
+  const isAm = language === "am";
 
   const [checklist, setChecklist] = useState<ReviewChecklistState>({
     relevance: initialChecklist?.relevance ?? false,
@@ -144,11 +144,22 @@ export function DocumentReviewChecklist({
               {isAm ? "የሰነድ ማረጋገጫ 4-ነጥብ ዝርዝር (v4 §7.4 §5)" : "4-Point Document Review Checklist (v4 §7.4, §5)"}
             </h4>
           </div>
+          <p className="text-[11px] text-[#5A6E7F] mt-0.5">{documentTitle}</p>
           <p className="text-[11px] text-[#5A6E7F] mt-0.5">
             {isAm
               ? "ውሳኔ ከመስጠትዎ በፊት እያንዳንዱን መስፈርት ይገምግሙ።"
               : "Reviewers must assess all 4 points per document before submitting a review decision."}
           </p>
+          {previewUrl && (
+            <a
+              className="text-[11px] font-bold text-[#00456d] hover:underline"
+              href={previewUrl}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {isAm ? "ሰነዱን ይመልከቱ" : "View document"}
+            </a>
+          )}
         </div>
 
         {/* Score & Quick Toggles */}

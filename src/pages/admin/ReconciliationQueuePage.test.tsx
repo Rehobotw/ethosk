@@ -147,7 +147,7 @@ describe("Manual Admin Reconciliation Queue (Spec v4 §8 Known Gaps, §4.6.1, RE
     });
 
     const confirmButtons = screen.getAllByRole("button", { name: /^Confirm/i });
-    fireEvent.click(confirmButtons[0]);
+    fireEvent.click(confirmButtons[0]!);
 
     await waitFor(() => {
       expect(screen.getByText(/Manually Confirm Deposit/i)).toBeDefined();
@@ -178,7 +178,7 @@ describe("Manual Admin Reconciliation Queue (Spec v4 §8 Known Gaps, §4.6.1, RE
     });
 
     const rejectButtons = screen.getAllByRole("button", { name: /^Reject/i });
-    fireEvent.click(rejectButtons[0]);
+    fireEvent.click(rejectButtons[0]!);
 
     await waitFor(() => {
       expect(screen.getByText(/Reject Deposit/i)).toBeDefined();

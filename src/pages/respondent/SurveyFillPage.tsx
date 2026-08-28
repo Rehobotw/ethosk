@@ -10,7 +10,6 @@ import { Button, Card, Icon, LoadingBlock, Notice, Select } from "@/components/u
 import { ApiRequestError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { ChatMode } from "./ChatMode";
-import { VoiceMode } from "./VoiceMode";
 
 interface FillPayload {
   id: string;

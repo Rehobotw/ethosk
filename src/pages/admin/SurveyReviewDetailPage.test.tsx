@@ -148,7 +148,7 @@ describe("Ethosk - Admin Survey Review Detail (Stitch Screen 89fd9c83b7624eb6a06
 
     const confirmBtns = screen.getAllByRole("button", { name: /Approve Survey/i });
     // Click the modal's confirm button
-    fireEvent.click(confirmBtns[confirmBtns.length - 1]);
+    fireEvent.click(confirmBtns[confirmBtns.length - 1]!);
 
     await waitFor(() => {
       expect(apiMock).toHaveBeenCalledWith(
@@ -218,7 +218,7 @@ describe("Ethosk - Admin Survey Review Detail (Stitch Screen 89fd9c83b7624eb6a06
     });
 
     const modalSubmitBtns = screen.getAllByRole("button", { name: /Reject Survey/i });
-    fireEvent.click(modalSubmitBtns[modalSubmitBtns.length - 1]);
+    fireEvent.click(modalSubmitBtns[modalSubmitBtns.length - 1]!);
 
     await waitFor(() => {
       expect(apiMock).toHaveBeenCalledWith(

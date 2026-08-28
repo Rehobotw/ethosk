@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth";
 import { useLanguage } from "@/lib/language";

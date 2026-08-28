@@ -35,7 +35,8 @@ interface DataSubjectRequestsResponse {
 }
 
 export function DataSubjectRequestsPage() {
-  const { isAm } = useLanguage();
+  const { language } = useLanguage();
+  const isAm = language === "am";
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<"all" | "pending" | "completed" | "rejected">("pending");
@@ -311,19 +312,15 @@ export function DataSubjectRequestsPage() {
 
       {/* ── Requests Table ── */}
       {filteredRequests.length === 0 ? (
-        <EmptyState
-          description={
-            searchTerm
-              ? isAm
-                ? "የተሰጠውን ፍለጋ የሚያሟላ የመረጃ ጥያቄ አልተገኘም።"
-                : "No data subject requests matched your search criteria."
-              : isAm
-              ? "ምንም በመጠባበቅ ላይ ያለ የመረጃ ጥያቄ የለም።"
-              : "No data subject requests in this status."
-          }
-          icon="verified_user"
-          title={isAm ? "ምንም ጥያቄዎች የሉም" : "No Requests Found"}
-        />
+        <EmptyState icon="verified_user" title={isAm ? "ምንም ጥያቄዎች የሉም" : "No Requests Found"}>
+          {searchTerm
+            ? isAm
+              ? "የተሰጠውን ፍለጋ የሚያሟላ የመረጃ ጥያቄ አልተገኘም።"
+              : "No data subject requests matched your search criteria."
+            : isAm
+            ? "ምንም በመጠባበቅ ላይ ያለ የመረጃ ጥያቄ የለም።"
+            : "No data subject requests in this status."}
+        </EmptyState>
       ) : (
         <div className="bg-white rounded-xl border border-[#E1E8EE] overflow-hidden shadow-xs">
           <div className="overflow-x-auto">

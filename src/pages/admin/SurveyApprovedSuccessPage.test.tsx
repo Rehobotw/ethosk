@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { SurveyApprovedSuccessPage } from "./SurveyApprovedSuccessPage";
 import { LanguageProvider } from "@/lib/language";

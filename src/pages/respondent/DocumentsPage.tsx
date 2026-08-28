@@ -18,7 +18,7 @@ import {
   LoadingBlock,
   Notice,
 } from "@/components/ui";
-import { ApiRequestError, api } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useLanguage } from "@/lib/language";
 
@@ -93,13 +93,13 @@ export function DocumentsPage() {
   // Document upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const [docType, setDocType] = useState<DocType>("student_id");
   const [clientError, setClientError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
 
   const currentRank = user ? TIER_RANK[user.verification_tier] : 0;
   const isTier1Completed = currentRank >= TIER_RANK["1_id_verified"];
   const isTier2Verified = currentRank >= TIER_RANK["2_attribute_verified"];
+  const docType: DocType = institutionType === "corporate" ? "employer_id" : "student_id";
 
   const { data: profile } = useQuery({
     queryKey: ["respondent-profile"],
@@ -117,7 +117,7 @@ export function DocumentsPage() {
         setInstitutionType("corporate");
         setInstitutionName(profile.employer);
         setDepartment(profile.department ?? "");
-        setPositionOrYear(profile.job_title ?? "");
+        setPositionOrYear(profile.occupation ?? "");
       }
     }
   }, [profile]);
@@ -387,6 +387,9 @@ export function DocumentsPage() {
                   />
                 </div>
               </div>
+
+              {instFormSuccess && <Notice tone="success">{instFormSuccess}</Notice>}
+              {instFormError && <Notice tone="error">{instFormError}</Notice>}
 
               {/* ── Institutional Email & OTP Module ── */}
               <div className="bg-[#f0f5fb]/70 rounded-xl p-5 md:p-6 border border-outline-variant/40 space-y-4">
