@@ -63,21 +63,6 @@ app.use(errorHandler);
 
 app.listen(env.port, () => {
   console.log(`[ethosk] API listening on http://localhost:${env.port}`);
-  // #region agent log
-  fetch("http://127.0.0.1:7633/ingest/c9e0799e-dbd9-4f3c-a083-52abf8426277", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "fc5c0e" },
-    body: JSON.stringify({
-      sessionId: "fc5c0e",
-      runId: "pre-fix",
-      hypothesisId: "C",
-      location: "server/index.ts:listen",
-      message: "API server listening",
-      data: { port: env.port },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
   if (!isClaudeConfigured()) {
     console.warn("[ethosk] ANTHROPIC_API_KEY not set — AI features will use their fallbacks.");
   }

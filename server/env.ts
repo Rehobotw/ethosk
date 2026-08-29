@@ -46,6 +46,18 @@ export const env = {
   addisAiApiKey: optional("ADDIS_AI_API_KEY"),
   addisAiBaseUrl: process.env.ADDIS_AI_API_BASE_URL ?? "https://api.addisai.com/v1",
 
+  /**
+   * SMTP credentials used to email 6-digit verification/reset codes to users.
+   * Without these, codes are only written to the server log (development
+   * affordance) and no email is actually delivered.
+   */
+  smtpHost: optional("SMTP_HOST"),
+  smtpPort: numeric("SMTP_PORT", 587),
+  smtpSecure: (process.env.SMTP_SECURE ?? "false") === "true",
+  smtpUser: optional("SMTP_USER"),
+  smtpPass: optional("SMTP_PASSWORD"),
+  smtpFrom: process.env.SMTP_FROM ?? "Ethosk <no-reply@ethosk.app>",
+
   /** Pepper for national-ID hashing, so a leaked hash is not brute-forceable. */
   nationalIdPepper: process.env.NATIONAL_ID_PEPPER ?? "ethosk-dev-pepper",
 
