@@ -326,6 +326,17 @@ export function ForgotPasswordPage() {
                   {resetForm.formState.errors.code && (
                     <p className="text-xs text-red-600 mt-1">{resetForm.formState.errors.code.message}</p>
                   )}
+                  <p className="text-xs text-[#71787c] pt-0.5">
+                    Didn't get a code or has it expired?{" "}
+                    <button
+                      type="button"
+                      onClick={handleResend}
+                      disabled={isResending || cooldown > 0}
+                      className="font-bold text-[#001d29] hover:underline cursor-pointer disabled:opacity-50 disabled:no-underline"
+                    >
+                      {isResending ? "Sending…" : cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend code"}
+                    </button>
+                  </p>
                 </div>
 
                 {/* New Password Field */}
