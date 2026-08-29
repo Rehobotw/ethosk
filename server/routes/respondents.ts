@@ -17,7 +17,7 @@ import { env } from "../env.js";
 import { checkDocument } from "../lib/ai/features.js";
 import { auth, requireAuth } from "../lib/auth.js";
 import { hashNationalId, recordConsentEvent } from "../lib/consent.js";
-import { isFaydaConfigured, verifyFayda } from "../lib/fayda.js";
+import { isFaydaConfigured, verifyFayda, verifyFaydaQrPayload, type FaydaOutcome } from "../lib/fayda.js";
 import { ApiError, asyncRoute, parseBody } from "../lib/http.js";
 import { rateLimit } from "../lib/rateLimit.js";
 import { admin, userClient } from "../lib/supabase.js";
@@ -33,15 +33,13 @@ const upload = multer({
 });
 
 function calculateAgeFromDob(dob: string): number | null {
-  const birthDate = new Date(dob);
-  if (isNaN(birthDate.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age >= 0 ? age : null;
+  const birth = new Date(dob);
+  if (Number.isNaN(birth.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const m = now.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+  return age >= 0 && age <= 130 ? age : null;
 }
 
 respondentsRouter.post(
@@ -143,104 +141,184 @@ respondentsRouter.get(
  * one identity registering twice while keeping the sensitive number out of our
  * database entirely.
  */
+const handleFaydaVerification = async (req: any, res: any) => {
+  const context = auth(req);
+  const input = parseBody(faydaVerifySchema, req.body);
+
+  let outcome: FaydaOutcome;
+  let identifierForHash = input.fayda_id || "";
+
+  if (input.qr_payload) {
+    outcome = await verifyFaydaQrPayload(input.qr_payload);
+    if (outcome.status === "verified" && outcome.fan) {
+      identifierForHash = outcome.fan;
+    }
+  } else if (input.fayda_id) {
+    outcome = await verifyFayda(input.fayda_id);
+    if (outcome.status === "verified" && outcome.fan) {
+      identifierForHash = outcome.fan;
+    }
+  } else {
+    throw new ApiError(400, "INVALID_INPUT", "Either Fayda ID or QR payload is required");
+  }
+
+  if (outcome.status === "unavailable") {
+    await recordConsentEvent(context.userId, "fayda_verification", {
+      result: "unavailable",
+      detail: outcome.detail,
+    });
+    throw new ApiError(
+      503,
+      "FAYDA_UNAVAILABLE",
+      outcome.detail || "Fayda could not be reached right now. Please try again shortly.",
+    );
+  }
+
+  if (outcome.status === "not_found") {
+    await recordConsentEvent(context.userId, "fayda_verification", { result: "not_found" });
+    throw new ApiError(
+      404,
+      "FAYDA_ID_NOT_FOUND",
+      outcome.detail || "Fayda did not recognise that ID or QR payload. Check the card and try again.",
+    );
+  }
+
+  if (outcome.status === "inactive") {
+    await recordConsentEvent(context.userId, "fayda_verification", { result: "inactive" });
+    throw new ApiError(
+      403,
+      "FAYDA_ID_INACTIVE",
+      "That Fayda ID is not currently active. Please contact Fayda support.",
+    );
+  }
+
+  const idHash = hashNationalId(identifierForHash || `QR_${context.userId}`);
+
+  // Reject an identity already bound to another account.
+  const { data: existing, error: lookupError } = await admin
+    .from("users")
+    .select("id")
+    .eq("national_id_hash", idHash)
+    .maybeSingle();
+
+  if (lookupError) throw new ApiError(500, "VERIFICATION_FAILED", lookupError.message);
+
+  if (existing && existing.id !== context.userId) {
+    throw new ApiError(
+      409,
+      "ID_ALREADY_USED",
+      "This Fayda ID is already linked to another Ethosk account.",
+    );
+  }
+
+  const nextTier: VerificationTier =
+    TIER_RANK[context.verificationTier] >= TIER_RANK["1_id_verified"]
+      ? context.verificationTier
+      : "1_id_verified";
+
+  const userUpdates: Record<string, unknown> = {
+    verification_tier: nextTier,
+    national_id_hash: idHash,
+    fayda_verified_at: outcome.verifiedAt,
+  };
+
+  if (outcome.fullName) {
+    userUpdates.full_name = outcome.fullName;
+  }
+
+  const { error } = await admin
+    .from("users")
+    .update(userUpdates)
+    .eq("id", context.userId);
+
+  if (error) throw new ApiError(500, "VERIFICATION_FAILED", error.message);
+
+  // Sync profile demographics if extracted from QR
+  try {
+    const { data: currentProfile } = await admin
+      .from("respondent_profiles")
+      .select("*")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    const currentAttrs = (currentProfile?.attributes || {}) as Record<string, unknown>;
+    const profileUpdates: Record<string, unknown> = {
+      user_id: context.userId,
+      attributes: {
+        ...currentAttrs,
+        fayda_verified: true,
+        fayda_method: outcome.method,
+        signature_verified: outcome.signatureVerified ?? null,
+        ...(outcome.dateOfBirth ? { dob: outcome.dateOfBirth } : {}),
+      },
+    };
+
+    if (outcome.gender) {
+      profileUpdates.gender = outcome.gender === "M" ? "male" : outcome.gender === "F" ? "female" : "other";
+    }
+
+    if (outcome.dateOfBirth) {
+      const calculatedAge = calculateAgeFromDob(outcome.dateOfBirth);
+      if (calculatedAge !== null) {
+        profileUpdates.age = calculatedAge;
+      }
+    }
+
+    await admin
+      .from("respondent_profiles")
+      .upsert(profileUpdates, { onConflict: "user_id" });
+  } catch (profErr) {
+    console.warn("[Fayda] Error auto-populating respondent profile:", profErr);
+  }
+
+  try {
+    if (typeof admin.auth?.admin?.updateUserById === "function") {
+      await admin.auth.admin.updateUserById(context.userId, {
+        user_metadata: {
+          verification_tier: nextTier,
+          ...(outcome.fullName ? { full_name: outcome.fullName } : {}),
+        },
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
+  await recordConsentEvent(context.userId, "fayda_verification", {
+    result: "verified",
+    method: outcome.method,
+    live: isFaydaConfigured() || outcome.method === "qr_crypto",
+    signature_verified: outcome.signatureVerified,
+  });
+
+  res.json({
+    verification_tier: nextTier,
+    verified_at: outcome.verifiedAt,
+    live: isFaydaConfigured() || outcome.method === "qr_crypto",
+    method: outcome.method,
+    decoded: {
+      full_name: outcome.fullName ?? null,
+      gender: outcome.gender ?? null,
+      date_of_birth: outcome.dateOfBirth ?? null,
+      fan: outcome.fan ? `${outcome.fan.slice(0, 4)} **** **** ${outcome.fan.slice(-4)}` : null,
+      face_base64: outcome.faceBase64 ?? null,
+      signature_verified: outcome.signatureVerified ?? null,
+    },
+  });
+};
+
 respondentsRouter.post(
   "/verify-fayda",
   requireAuth("respondent"),
-  // Tight limit: this endpoint would otherwise let someone probe which FINs exist.
-  rateLimit({ key: "fayda-verify", max: 5, windowMs: 15 * 60_000 }),
-  asyncRoute(async (req, res) => {
-    const context = auth(req);
-    const { fayda_id: faydaId } = parseBody(faydaVerifySchema, req.body);
+  rateLimit({ key: "fayda-verify", max: 10, windowMs: 15 * 60_000 }),
+  asyncRoute(handleFaydaVerification),
+);
 
-    const idHash = hashNationalId(faydaId);
-
-    // Reject a FIN already bound to another account before spending a Fayda call.
-    const { data: existing, error: lookupError } = await admin
-      .from("users")
-      .select("id")
-      .eq("national_id_hash", idHash)
-      .maybeSingle();
-
-    if (lookupError) throw new ApiError(500, "VERIFICATION_FAILED", lookupError.message);
-
-    if (existing && existing.id !== context.userId) {
-      throw new ApiError(
-        409,
-        "ID_ALREADY_USED",
-        "This Fayda ID is already linked to another Ethosk account.",
-      );
-    }
-
-    const outcome = await verifyFayda(faydaId);
-
-    if (outcome.status === "unavailable") {
-      await recordConsentEvent(context.userId, "fayda_verification", {
-        result: "unavailable",
-        detail: outcome.detail,
-      });
-      throw new ApiError(
-        503,
-        "FAYDA_UNAVAILABLE",
-        "Fayda could not be reached right now. Please try again shortly.",
-      );
-    }
-
-    if (outcome.status === "not_found") {
-      await recordConsentEvent(context.userId, "fayda_verification", { result: "not_found" });
-      throw new ApiError(
-        404,
-        "FAYDA_ID_NOT_FOUND",
-        "Fayda did not recognise that ID number. Check the digits and try again.",
-      );
-    }
-
-    if (outcome.status === "inactive") {
-      await recordConsentEvent(context.userId, "fayda_verification", { result: "inactive" });
-      throw new ApiError(
-        403,
-        "FAYDA_ID_INACTIVE",
-        "That Fayda ID is not currently active. Please contact Fayda support.",
-      );
-    }
-
-    const nextTier: VerificationTier =
-      TIER_RANK[context.verificationTier] >= TIER_RANK["1_id_verified"]
-        ? context.verificationTier
-        : "1_id_verified";
-
-    const { error } = await admin
-      .from("users")
-      .update({
-        verification_tier: nextTier,
-        national_id_hash: idHash,
-        fayda_verified_at: outcome.verifiedAt,
-      })
-      .eq("id", context.userId);
-
-    if (error) throw new ApiError(500, "VERIFICATION_FAILED", error.message);
-
-    try {
-      if (typeof admin.auth?.admin?.updateUserById === "function") {
-        await admin.auth.admin.updateUserById(context.userId, {
-          user_metadata: { verification_tier: nextTier },
-        });
-      }
-    } catch {
-      /* ignore */
-    }
-
-    await recordConsentEvent(context.userId, "fayda_verification", {
-      result: "verified",
-      live: isFaydaConfigured(),
-    });
-
-    res.json({
-      verification_tier: nextTier,
-      verified_at: outcome.verifiedAt,
-      /** False when the demo fallback answered instead of the live Fayda service. */
-      live: isFaydaConfigured(),
-    });
-  }),
+respondentsRouter.post(
+  "/verify/fayda",
+  requireAuth("respondent"),
+  rateLimit({ key: "fayda-verify", max: 10, windowMs: 15 * 60_000 }),
+  asyncRoute(handleFaydaVerification),
 );
 
 respondentsRouter.post(

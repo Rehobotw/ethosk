@@ -207,7 +207,7 @@ authRouter.post(
     const context = auth(req);
     const input = parseBody(syncOAuthSchema, req.body);
     
-    // Check if user already exists in our tables
+    // Check if user already exists in our tables by auth ID
     const { data: existing } = await admin
       .from("users")
       .select("id, role")
@@ -228,6 +228,46 @@ authRouter.post(
 
     const email = authData.user.email ?? "";
     const fullName = authData.user.user_metadata?.full_name ?? email.split("@")[0] ?? "User";
+
+    // Check if a user row already exists with this email (account linking scenario:
+    // e.g. user signed up with email/password, now logging in with Google OAuth)
+    if (email) {
+      const { data: existingByEmail } = await admin
+        .from("users")
+        .select("id, role")
+        .ilike("email", email)
+        .maybeSingle();
+
+      if (existingByEmail) {
+        // Link the old account to the new OAuth auth ID by updating the row's id
+        const { error: linkError } = await admin
+          .from("users")
+          .update({ id: context.userId, email_verified: true })
+          .eq("id", existingByEmail.id);
+
+        if (linkError) {
+          // If we can't update the id (e.g. foreign key constraints), just return the existing role
+          // The user can still use their account
+          console.warn(`[sync-oauth] Could not link accounts for ${email}: ${linkError.message}. Returning existing role.`);
+        }
+
+        // Update profile table foreign key too
+        const profileTable = existingByEmail.role === "respondent"
+          ? "respondent_profiles"
+          : existingByEmail.role === "researcher"
+            ? "researcher_profiles"
+            : null;
+        if (profileTable && !linkError) {
+          await admin
+            .from(profileTable)
+            .update({ user_id: context.userId })
+            .eq("user_id", existingByEmail.id);
+        }
+
+        res.json({ success: true, exists: true, role: existingByEmail.role });
+        return;
+      }
+    }
 
     if (!input.role) {
       // User doesn't exist, and no role was provided (they clicked Continue with Google on Login)

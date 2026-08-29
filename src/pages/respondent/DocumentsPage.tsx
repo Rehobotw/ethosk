@@ -18,7 +18,7 @@ import {
   LoadingBlock,
   Notice,
 } from "@/components/ui";
-import { ApiRequestError, api } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useLanguage } from "@/lib/language";
 
@@ -117,7 +117,7 @@ export function DocumentsPage() {
         setInstitutionType("corporate");
         setInstitutionName(profile.employer);
         setDepartment(profile.department ?? "");
-        setPositionOrYear(profile.job_title ?? "");
+        setPositionOrYear(profile.occupation ?? "");
       }
     }
   }, [profile]);
@@ -486,10 +486,30 @@ export function DocumentsPage() {
               </div>
 
               {/* ── Document Evidence Upload ── */}
-              <div>
-                <h3 className="font-headline font-semibold text-base text-primary mb-2">
-                  {isAm ? "የማረጋገጫ ሰነድ" : "Supporting Document"}
-                </h3>
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <h3 className="font-headline font-semibold text-base text-primary">
+                    {isAm ? "የማረጋገጫ ሰነድ" : "Supporting Document"}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-on-surface-variant font-medium" htmlFor="docTypeSelect">
+                      {isAm ? "የሰነድ አይነት:" : "Document Type:"}
+                    </label>
+                    <select
+                      id="docTypeSelect"
+                      value={docType}
+                      onChange={(e) => setDocType(e.target.value as DocType)}
+                      className="bg-surface-bright border border-outline-variant rounded-lg py-1.5 px-2.5 font-body text-xs text-on-surface focus:ring-2 focus:ring-primary-container focus:outline-none cursor-pointer"
+                    >
+                      {Object.entries(DOC_TYPE_LABELS).map(([val, label]) => (
+                        <option key={val} value={val}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div
                   onDragEnter={handleDrag}
                   onDragLeave={handleDrag}
@@ -528,6 +548,8 @@ export function DocumentsPage() {
                   </p>
                 </div>
 
+                {instFormSuccess && <div className="mt-3"><Notice tone="success">{instFormSuccess}</Notice></div>}
+                {instFormError && <div className="mt-3"><Notice tone="error">{instFormError}</Notice></div>}
                 {uploadSuccess && <div className="mt-3"><Notice tone="success">{uploadSuccess}</Notice></div>}
                 {clientError && <div className="mt-3"><Notice tone="error">{clientError}</Notice></div>}
               </div>

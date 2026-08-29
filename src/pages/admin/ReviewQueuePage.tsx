@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DocType } from "@shared/types";
 import {
-  EmptyState,
   LoadingBlock,
   Notice,
 } from "@/components/ui";

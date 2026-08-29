@@ -555,7 +555,7 @@ surveysRouter.post(
     const { filters } = parseBody(matchRequestSchema, req.body);
     await loadOwnedSurvey(routeParam(req, "id"), context.userId);
 
-    const matchedCount = await countMatches(filters);
+    const matchedCount = await countMatches(filters as MatchFilters);
 
     res.json({
       matched_count: matchedCount,
@@ -589,7 +589,7 @@ surveysRouter.post(
 
     // The count is always recomputed server-side; a client-cached number is never
     // trusted to decide who receives a survey.
-    const respondentIds = await findMatches(input.filters);
+    const respondentIds = await findMatches(input.filters as MatchFilters);
 
     // Sending is the point of no return for money: respondents are about to be
     // promised a reward, so the full cost is checked against the researcher's
@@ -659,7 +659,7 @@ surveysRouter.post(
   }),
 );
 
-async function countMatches(filters: MatchFilters): Promise<number> {
+async function countMatches(filters: MatchFilters = {}): Promise<number> {
   let query = admin
     .from("respondent_match_view")
     .select("user_id", { count: "exact", head: true });
@@ -673,7 +673,7 @@ async function countMatches(filters: MatchFilters): Promise<number> {
   return count ?? 0;
 }
 
-async function findMatches(filters: MatchFilters): Promise<string[]> {
+async function findMatches(filters: MatchFilters = {}): Promise<string[]> {
   let query = admin.from("respondent_match_view").select("user_id");
 
   for (const filter of buildSupabaseMatchFilters(filters)) {

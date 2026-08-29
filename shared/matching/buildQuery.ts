@@ -26,7 +26,7 @@ export interface MatchFilters {
   university?: string;
   department?: string;
   yearRange?: [number, number];
-  minVerificationTier: "1_id_verified" | "2_attribute_verified" | "3_institution_attested";
+  minVerificationTier?: "1_id_verified" | "2_attribute_verified" | "3_institution_attested";
 }
 
 export interface BuiltQuery {
@@ -78,7 +78,8 @@ export function buildMatchQuery(filters: MatchFilters): BuiltQuery {
     return `$${params.length}`;
   };
 
-  clauses.push(`tier_rank >= ${bind(TIER_RANK[filters.minVerificationTier])}`);
+  const minTier = filters.minVerificationTier || "1_id_verified";
+  clauses.push(`tier_rank >= ${bind(TIER_RANK[minTier])}`);
 
   for (const { key, column } of EQUALITY_FILTERS) {
     const value = filters[key];
@@ -89,19 +90,23 @@ export function buildMatchQuery(filters: MatchFilters): BuiltQuery {
     const range = filters[key];
     if (!range) continue;
     const [low, high] = normalizeRange(range);
-    clauses.push(`${column} between ${bind(low)} and ${bind(high)}`);
+    clauses.push(`${column} >= ${bind(low)}`);
+    clauses.push(`${column} <= ${bind(high)}`);
   }
 
-  const sql = `select user_id from respondent_match_view where ${clauses.join(" and ")}`;
-  return { sql, params };
+  const where = clauses.length > 0 ? ` WHERE ${clauses.join(" AND ")}` : "";
+  return {
+    sql: `SELECT user_id FROM respondent_match_view${where}`,
+    params,
+  };
 }
 
 /** Count variant of the same predicate, used by the live match endpoint. */
 export function buildMatchCountQuery(filters: MatchFilters): BuiltQuery {
-  const { sql, params } = buildMatchQuery(filters);
+  const query = buildMatchQuery(filters);
   return {
-    sql: sql.replace("select user_id from", "select count(*)::int as matched_count from"),
-    params,
+    sql: query.sql.replace(/^SELECT user_id FROM/, "SELECT count(*)::int AS count FROM"),
+    params: query.params,
   };
 }
 
@@ -111,7 +116,7 @@ function normalizeRange([a, b]: [number, number]): [number, number] {
 }
 
 /**
- * The same predicate expressed for the Supabase JS query builder, which the
+ * Mirrors `buildMatchQuery` for the Supabase JavaScript client, which the
  * server uses in practice. Kept beside `buildMatchQuery` so the SQL form and the
  * client form can be diffed against each other and unit-tested together.
  */
@@ -121,9 +126,10 @@ export interface SupabaseMatchFilter {
   value: unknown;
 }
 
-export function buildSupabaseMatchFilters(filters: MatchFilters): SupabaseMatchFilter[] {
+export function buildSupabaseMatchFilters(filters: MatchFilters = {}): SupabaseMatchFilter[] {
+  const minTier = filters.minVerificationTier || "1_id_verified";
   const out: SupabaseMatchFilter[] = [
-    { column: "tier_rank", op: "gte", value: TIER_RANK[filters.minVerificationTier] },
+    { column: "tier_rank", op: "gte", value: TIER_RANK[minTier] },
   ];
 
   for (const { key, column } of EQUALITY_FILTERS) {
