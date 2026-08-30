@@ -182,8 +182,9 @@ export function homePathForRole(role: UserRole): string {
     case "researcher":
       return "/researcher";
     case "admin":
-    case "super_admin":
       return "/admin/review-queue";
+    case "super_admin":
+      return "/admin";
     case "respondent":
     default:
       return "/inbox";
@@ -197,7 +198,7 @@ export function isPathAllowedForRole(pathname: string | null | undefined, role: 
   }
 
   // Normalize path
-  const cleanPath = pathname.split("?")[0].split("#")[0];
+  const cleanPath = pathname.split(/[?#]/, 1)[0] ?? "/";
 
   if (role === "respondent") {
     // Respondents must not access researcher or admin portals
@@ -227,7 +228,11 @@ export function isPathAllowedForRole(pathname: string | null | undefined, role: 
   }
 
   if (role === "admin") {
-    if (cleanPath === "/admin/users" || cleanPath === "/admin/revenue") {
+    if (
+      cleanPath === "/admin/users" ||
+      cleanPath === "/admin/revenue" ||
+      cleanPath === "/admin/settings"
+    ) {
       return false;
     }
     return true;
@@ -239,4 +244,3 @@ export function isPathAllowedForRole(pathname: string | null | undefined, role: 
 
   return true;
 }
-
