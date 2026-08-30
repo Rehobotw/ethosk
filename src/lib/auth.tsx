@@ -1,6 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { UserRole, VerificationTier, ResearcherVerificationLevel, SubscriptionTier } from "@shared/types";
+import type {
+  UserRole,
+  VerificationTier,
+  ResearcherVerificationLevel,
+  SubscriptionTier,
+} from "@shared/types";
 import type {
   ForgotPasswordInput,
   LoginInput,
@@ -164,7 +169,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       refresh,
     }),
-    [user, loading, login, signup, verifyEmail, resendCode, forgotPassword, resetPassword, logout, refresh],
+    [
+      user,
+      loading,
+      login,
+      signup,
+      verifyEmail,
+      resendCode,
+      forgotPassword,
+      resetPassword,
+      logout,
+      refresh,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

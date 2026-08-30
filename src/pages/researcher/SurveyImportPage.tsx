@@ -36,7 +36,8 @@ export function parseSurveyText(rawText: string): { title: string; questions: Qu
   } | null = null;
 
   const questionHeaderRegex = /^(?:(?:Q|Question)\s*\d+[:.]?|\d+[\).:-]|\d+\s+)\s*(.+)/i;
-  const optionHeaderRegex = /^(?:[a-zA-Z][\).:-]|[•\-\*○●]|\(\s*[a-zA-Z0-9]?\s*\)|\[\s*[a-zA-Z0-9]?\s*\])\s*(.+)/;
+  const optionHeaderRegex =
+    /^(?:[a-zA-Z][\).:-]|[•\-\*○●]|\(\s*[a-zA-Z0-9]?\s*\)|\[\s*[a-zA-Z0-9]?\s*\])\s*(.+)/;
 
   let firstLine = true;
 
@@ -188,8 +189,13 @@ export async function extractTextFromFile(file: File): Promise<string> {
       }
       return extracted.replace(/([?.!])\s+(?=[0-9A-Z])/g, "$1\n").trim();
     }
-    const stripped = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-    return stripped.length > 0 ? stripped : "1. Sample imported survey question\nA) Option A\nB) Option B";
+    const stripped = content
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return stripped.length > 0
+      ? stripped
+      : "1. Sample imported survey question\nA) Option A\nB) Option B";
   }
 
   if (extension === "pdf") {
@@ -205,7 +211,10 @@ export async function extractTextFromFile(file: File): Promise<string> {
         .replace(/\\([()\\])/g, "$1");
       return extracted.replace(/([?.!])\s+(?=[0-9A-Z])/g, "$1\n").trim();
     }
-    const clean = content.replace(/[^\x20-\x7E\n\r]/g, " ").replace(/\s+/g, " ").trim();
+    const clean = content
+      .replace(/[^\x20-\x7E\n\r]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
     return clean.slice(0, 3000) || "1. Sample PDF imported question\nA) Yes\nB) No";
   }
 
@@ -219,8 +228,13 @@ export function SurveyImportPage() {
   const [, setUploadedFile] = useState<File | null>(null);
   const [extractedRawText, setExtractedRawText] = useState<string>("");
   const [isExtracting, setIsExtracting] = useState(false);
+  const [googleFormUrl, setGoogleFormUrl] = useState("");
+  const [isGoogleFormImport, setIsGoogleFormImport] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [banner, setBanner] = useState<{ tone: "success" | "error" | "warning"; text: string } | null>(null);
+  const [banner, setBanner] = useState<{
+    tone: "success" | "error" | "warning";
+    text: string;
+  } | null>(null);
 
   // Parser Configuration
   const [autoDetectOptions, setAutoDetectOptions] = useState(true);
@@ -240,11 +254,14 @@ export function SurveyImportPage() {
     const ext = file.name.split(".").pop()?.toLowerCase() || "";
 
     if (!validExtensions.includes(ext)) {
-      setFileError("Invalid file type. Only .docx, .pdf, .csv, .xlsx, and .txt files are accepted.");
+      setFileError(
+        "Invalid file type. Only .docx, .pdf, .csv, .xlsx, and .txt files are accepted.",
+      );
       return;
     }
 
     setUploadedFile(file);
+    setIsGoogleFormImport(false);
     setTitle(file.name);
     setFileSizeStr(`${(file.size / (1024 * 1024)).toFixed(1)} MB`);
     setIsExtracting(true);
@@ -274,7 +291,41 @@ export function SurveyImportPage() {
     }
   };
 
+  const importGoogleForm = useMutation({
+    mutationFn: () =>
+      api<{ title: string; questions: Question[] }>("/surveys/import-google-form", {
+        body: { url: googleFormUrl },
+      }),
+    onSuccess: (imported) => {
+      setUploadedFile(null);
+      setIsGoogleFormImport(true);
+      setExtractedRawText("");
+      setTitle(imported.title);
+      setFileSizeStr("Google Forms");
+      setQuestions(imported.questions);
+      setFileError(null);
+      setBanner({
+        tone: "success",
+        text: `Imported ${imported.questions.length} question${imported.questions.length === 1 ? "" : "s"} from Google Forms. Review the platform-format preview and confirm.`,
+      });
+    },
+    onError: (error: unknown) => {
+      setBanner({
+        tone: "error",
+        text:
+          error instanceof ApiRequestError ? error.message : "Could not import the Google Form.",
+      });
+    },
+  });
+
   const reparseDocument = () => {
+    if (isGoogleFormImport) {
+      setBanner({
+        tone: "warning",
+        text: "This Google Form is already converted to Ethosk question blocks. Use the manual builder to review or refine the imported questions.",
+      });
+      return;
+    }
     if (extractedRawText) {
       const parsed = parseSurveyText(extractedRawText);
       setQuestions(parsed.questions);
@@ -330,7 +381,8 @@ export function SurveyImportPage() {
           Import Questionnaire from Document
         </h1>
         <p className="text-sm md:text-base text-[#41484c] max-w-3xl">
-          Upload your existing survey document to automatically extract questions and answer structures using our AI parser.
+          Upload your existing survey document to automatically extract questions and answer
+          structures using our AI parser.
         </p>
       </div>
 
@@ -354,7 +406,7 @@ export function SurveyImportPage() {
               Drag and drop your survey document here
             </h3>
             <p className="text-xs text-[#41484c] mb-6 max-w-sm">
-              Supports .DOCX, .PDF, .CSV, .XLSX, and Google Forms exports (Max 25MB)
+              Supports .DOCX, .PDF, .CSV, .XLSX, and .TXT files (Max 25MB)
             </p>
 
             <label className="px-6 py-2.5 border border-[#001d29] text-[#001d29] hover:bg-[#001d29] hover:text-white rounded-xl font-semibold text-xs md:text-sm transition-colors shadow-xs bg-white cursor-pointer active:scale-95">
@@ -372,6 +424,52 @@ export function SurveyImportPage() {
             </label>
           </div>
 
+          <div className="rounded-2xl border border-[#d9e2ea] bg-white p-5 shadow-xs">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#eaf3fb] text-[#176f9f]">
+                <Icon className="text-[21px]" name="link" />
+              </div>
+              <div>
+                <h3 className="font-headline text-base font-bold text-[#001d29]">
+                  Import from Google Forms
+                </h3>
+                <p className="mt-1 text-xs leading-5 text-[#5a6e7f]">
+                  Paste a published Google Forms link and we will convert its supported questions
+                  into Ethosk survey blocks.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <label className="sr-only" htmlFor="google-form-url">
+                Google Forms link
+              </label>
+              <input
+                id="google-form-url"
+                className="min-w-0 flex-1 rounded-lg border border-[#c1c7cc] px-3 py-2.5 text-sm outline-none placeholder:text-[#7a8791] focus:border-[#176f9f] focus:ring-2 focus:ring-[#176f9f]/10"
+                onChange={(event) => setGoogleFormUrl(event.target.value)}
+                placeholder="https://docs.google.com/forms/.../viewform"
+                type="url"
+                value={googleFormUrl}
+              />
+              <button
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#176f9f] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#00456d] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={importGoogleForm.isPending || !googleFormUrl.trim()}
+                onClick={() => importGoogleForm.mutate()}
+                type="button"
+              >
+                <Icon
+                  className="text-[18px]"
+                  name={importGoogleForm.isPending ? "progress_activity" : "download"}
+                />
+                {importGoogleForm.isPending ? "Importing…" : "Import form"}
+              </button>
+            </div>
+            <p className="mt-3 text-[11px] text-[#5a6e7f]">
+              The form must be published and available to anyone with the link. Unsupported Google
+              Forms question types are imported as text fields for review in the builder.
+            </p>
+          </div>
+
           {/* Active Upload Card */}
           {title ? (
             <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-xs flex items-start justify-between">
@@ -381,7 +479,10 @@ export function SurveyImportPage() {
                 </div>
                 <div>
                   <h4 className="font-bold text-[#001d29] text-sm md:text-base mb-1">
-                    {title} <span className="text-xs text-[#71787c] font-normal font-mono ml-1">({fileSizeStr})</span>
+                    {title}{" "}
+                    <span className="text-xs text-[#71787c] font-normal font-mono ml-1">
+                      ({fileSizeStr})
+                    </span>
                   </h4>
                   <div className="flex items-center gap-1.5 text-emerald-700 text-xs font-semibold mt-1">
                     <Icon className="text-[18px]" name="check_circle" />
@@ -391,7 +492,7 @@ export function SurveyImportPage() {
               </div>
 
               <label className="text-xs font-semibold text-[#ba1a1a] hover:underline cursor-pointer">
-                <span>Remove / Replace File</span>
+                <span>{isGoogleFormImport ? "Replace Import" : "Remove / Replace File"}</span>
                 <input
                   type="file"
                   className="sr-only"
@@ -471,16 +572,21 @@ export function SurveyImportPage() {
                   <div className="w-12 h-12 rounded-full bg-[#f8f9ff] border border-[#c1c7cc]/50 flex items-center justify-center mb-3 text-on-surface-variant">
                     <Icon className="text-[24px]" name="schema" />
                   </div>
-                  <p className="text-sm font-semibold text-[#001d29] mb-1">No questions extracted yet</p>
+                  <p className="text-sm font-semibold text-[#001d29] mb-1">
+                    No questions extracted yet
+                  </p>
                   <p className="text-xs text-[#71787c] max-w-xs">
-                    Upload a Word, PDF, or text file on the left to parse and preview your survey questions.
+                    Upload a document or paste a Google Forms link on the left to parse and preview
+                    your survey questions.
                   </p>
                 </div>
               ) : (
                 questions.map((q, idx) => {
-                  const isRating = q.options && q.options.length === 5 && q.options[0]?.includes("1");
+                  const isRating =
+                    q.options && q.options.length === 5 && q.options[0]?.includes("1");
                   const isOpenEnded = q.type === "text" || !q.options || q.options.length === 0;
-                  const isNeedsReview = !isOpenEnded && !isRating && q.options && q.options.length === 1;
+                  const isNeedsReview =
+                    !isOpenEnded && !isRating && q.options && q.options.length === 1;
 
                   if (isNeedsReview) {
                     return (
@@ -594,7 +700,9 @@ export function SurveyImportPage() {
             disabled={confirmAndOpenMutation.isPending}
             className="px-6 py-2.5 bg-[#001d29] hover:bg-[#003345] text-white rounded-full font-bold text-xs md:text-sm transition-colors shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            <span>{confirmAndOpenMutation.isPending ? "Opening…" : "Confirm & Open in Manual Builder"}</span>
+            <span>
+              {confirmAndOpenMutation.isPending ? "Opening…" : "Confirm & Open in Manual Builder"}
+            </span>
             <Icon className="text-[18px]" name="arrow_forward" />
           </button>
         </div>
