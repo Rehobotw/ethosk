@@ -114,14 +114,149 @@ function googleFormTitle(html: string): string {
       htmlAttribute(tag, "name") === "og:title"
     ) {
       const title = htmlAttribute(tag, "content");
-      if (title) return title.replace(/\s*-\s*Google Forms$/i, "").trim();
+      if (title) {
+        const cleaned = title
+          .split(/\r?\n/)[0]
+          ?.replace(/\s*(?:Purpose|Description):[\s\S]*/i, "")
+          .replace(/\s*-\s*Google Forms$/i, "")
+          .replace(/\s*\(Google Forms\)$/i, "")
+          .trim();
+        if (cleaned) return cleaned.slice(0, 150);
+      }
     }
   }
   return "Imported Google Form";
 }
 
-function parseGoogleForm(html: string): { title: string; questions: Question[] } {
+function parseFbPublicLoadData(html: string): { title: string; questions: Question[] } | null {
+  const match =
+    html.match(/FB_PUBLIC_LOAD_DATA_\s*=\s*([\s\S]+?);\s*<\/script>/i) ||
+    html.match(/FB_PUBLIC_LOAD_DATA_\s*=\s*([\s\S]+?);/i);
+  if (!match || !match[1]) return null;
+
+  let rawData: unknown;
+  try {
+    rawData = JSON.parse(match[1].trim());
+  } catch {
+    return null;
+  }
+
+  if (!Array.isArray(rawData) || !rawData[1] || !Array.isArray(rawData[1])) {
+    return null;
+  }
+
+  const formData = rawData[1] as unknown[];
+  let rawTitle =
+    typeof formData[1] === "string" && formData[1].trim()
+      ? formData[1].trim()
+      : typeof formData[0] === "string" && formData[0].trim()
+        ? formData[0].trim()
+        : "";
+  rawTitle = rawTitle.split(/\r?\n/)[0]?.trim() || rawTitle;
+  rawTitle = rawTitle
+    .replace(/\s*(?:Purpose|Description):[\s\S]*/i, "")
+    .replace(/\s*-\s*Google Forms$/i, "")
+    .replace(/\s*\(Google Forms\)$/i, "")
+    .trim();
+  const title = rawTitle ? rawTitle.slice(0, 150) : googleFormTitle(html);
+
+  let itemsArray: unknown[] | null = null;
+  for (const entry of formData) {
+    if (Array.isArray(entry) && entry.length > 0 && Array.isArray(entry[0])) {
+      itemsArray = entry;
+      break;
+    }
+  }
+
+  if (!itemsArray) return null;
+
   const questions: Question[] = [];
+
+  for (const item of itemsArray) {
+    if (!Array.isArray(item)) continue;
+
+    const itemTitle = typeof item[1] === "string" ? item[1].trim() : "";
+    const itemDesc = typeof item[2] === "string" ? item[2].trim() : "";
+    const itemType = item[3] as number | undefined;
+
+    // Item Type 8 or 6: Section Header / Page Break or Title Block
+    if (itemType === 8 || itemType === 6) {
+      if (itemTitle) {
+        const text = itemDesc ? `[Section] ${itemTitle}: ${itemDesc}` : `[Section] ${itemTitle}`;
+        questions.push({
+          id: `google_${randomUUID()}`,
+          text: text.slice(0, 500),
+          type: "text",
+          required: false,
+        });
+      }
+      continue;
+    }
+
+    if (!itemTitle) continue;
+
+    const details = Array.isArray(item[4]) ? (item[4] as unknown[]) : [];
+    const subEntry = details[0];
+
+    const options: string[] = [];
+    let isRequired = false;
+
+    if (subEntry && Array.isArray(subEntry)) {
+      const rawOptions = Array.isArray(subEntry[1]) ? (subEntry[1] as unknown[]) : [];
+      for (const opt of rawOptions) {
+        if (Array.isArray(opt) && typeof opt[0] === "string" && opt[0].trim()) {
+          const optText = opt[0].trim();
+          if (!options.includes(optText)) {
+            options.push(optText.slice(0, 200));
+          }
+        }
+      }
+      isRequired = subEntry[2] === 1 || subEntry[2] === true;
+    }
+
+    let type: QuestionType = "text";
+    if (itemType === 4) {
+      type = "multi_choice";
+    } else if (itemType === 2 || itemType === 3 || itemType === 5) {
+      type = options.length > 0 ? "single_choice" : "text";
+    } else if (options.length > 0) {
+      type = "single_choice";
+    }
+
+    const validOptions = options.length > 0 ? options.slice(0, 12) : undefined;
+
+    questions.push({
+      id: `google_${randomUUID()}`,
+      text: itemTitle.slice(0, 500),
+      type: validOptions && validOptions.length > 0 ? type : "text",
+      options: validOptions,
+      required: isRequired,
+    });
+  }
+
+  return { title, questions };
+}
+
+function parseGoogleFormDom(html: string): { title: string; questions: Question[] } {
+  const questions: Question[] = [];
+
+  // Extract section headings from DOM
+  const sectionTag = /<div\b(?=[^>]*\brole\s*=\s*["']heading["'])[^>]*>([\s\S]*?)<\/div>/gi;
+  let secMatch: RegExpExecArray | null;
+  const sectionTitles: string[] = [];
+  while ((secMatch = sectionTag.exec(html)) !== null) {
+    const text = decodeHtml(secMatch[1] ?? "");
+    if (text && text.length >= 3 && !sectionTitles.includes(text) && /\bSection\b/i.test(text)) {
+      sectionTitles.push(text);
+      questions.push({
+        id: `google_${randomUUID()}`,
+        text: text.startsWith("[Section]") ? text : `[Section] ${text}`,
+        type: "text",
+        required: false,
+      });
+    }
+  }
+
   for (const block of divBlocksByRole(html, "listitem")) {
     const headingMatch = block.match(
       /<div\b(?=[^>]*\brole\s*=\s*["']heading["'])[^>]*>([\s\S]*?)<\/div>/i,
@@ -131,22 +266,51 @@ function parseGoogleForm(html: string): { title: string; questions: Question[] }
 
     const isCheckbox = /\brole\s*=\s*["']checkbox["']/i.test(block);
     const options: string[] = [];
-    const optionTag = /<(?:div|label)\b[^>]*\brole\s*=\s*["'](?:radio|checkbox|option)["'][^>]*>/gi;
+
+    // Scan data-value, aria-label, and inner span text for choice options
+    const optionTag = /<(?:div|label|span)\b[^>]*\brole\s*=\s*["'](?:radio|checkbox|option)["'][^>]*>([\s\S]*?)<\/(?:div|label|span)>/gi;
     let match: RegExpExecArray | null;
     while ((match = optionTag.exec(block)) !== null) {
+      const dataVal = htmlAttribute(match[0], "data-value");
       const ariaLabel = htmlAttribute(match[0], "aria-label");
-      if (ariaLabel && !options.includes(ariaLabel)) options.push(ariaLabel);
+      const innerSpanText = decodeHtml(match[1] ?? "").replace(/<[^>]+>/g, "").trim();
+
+      const labelText = dataVal || ariaLabel || innerSpanText;
+      if (labelText && labelText.length > 0 && !options.includes(labelText)) {
+        options.push(labelText);
+      }
     }
+
+    // Fallback: check for span dir="auto" inside choice containers
+    if (options.length === 0) {
+      const spanMatches = block.match(/<span\b[^>]*\bdir\s*=\s*["']auto["'][^>]*>([\s\S]*?)<\/span>/gi) ?? [];
+      for (const spanHtml of spanMatches) {
+        const cleaned = decodeHtml(spanHtml).trim();
+        if (cleaned && cleaned !== text && !options.includes(cleaned) && cleaned.length < 200) {
+          options.push(cleaned);
+        }
+      }
+    }
+
+    const validOptions = options.length > 0 ? options.slice(0, 12) : undefined;
 
     questions.push({
       id: `google_${randomUUID()}`,
       text,
-      type: options.length > 0 ? (isCheckbox ? "multi_choice" : "single_choice") : "text",
-      options: options.length > 0 ? options : undefined,
+      type: validOptions && validOptions.length > 0 ? (isCheckbox ? "multi_choice" : "single_choice") : "text",
+      options: validOptions,
       required: /\baria-required\s*=\s*["']true["']/i.test(block),
     });
   }
   return { title: googleFormTitle(html), questions };
+}
+
+export function parseGoogleForm(html: string): { title: string; questions: Question[] } {
+  const scriptParsed = parseFbPublicLoadData(html);
+  if (scriptParsed && scriptParsed.questions.length > 0) {
+    return scriptParsed;
+  }
+  return parseGoogleFormDom(html);
 }
 
 function isGoogleFormHost(url: URL): boolean {
@@ -410,25 +574,55 @@ surveysRouter.post(
         ? input.compliance_rule_triggered
         : (evalResult?.rule_triggered ?? null);
 
-    const { data, error } = await admin
+    const insertPayload: Record<string, unknown> = {
+      researcher_id: context.userId,
+      title: input.title,
+      description: input.description ?? null,
+      questions: input.questions,
+      reward_etb: input.reward_etb ?? null,
+      research_category: category,
+      compliance_required,
+      compliance_rule_triggered,
+      status: input.status ?? "draft",
+      builder_type: input.builder_type ?? "manual",
+      updated_at: new Date().toISOString(),
+    };
+
+    if (input.compliance_answer !== undefined && input.compliance_answer !== null) {
+      insertPayload.compliance_answer = input.compliance_answer;
+    }
+    if (input.compliance_document_path !== undefined && input.compliance_document_path !== null) {
+      insertPayload.compliance_document_path = input.compliance_document_path;
+    }
+
+    let { data, error } = await admin
       .from("surveys")
-      .insert({
-        researcher_id: context.userId,
-        title: input.title,
-        description: input.description ?? null,
-        questions: input.questions,
-        reward_etb: input.reward_etb ?? null,
-        research_category: category,
-        compliance_required,
-        compliance_rule_triggered,
-        compliance_answer: input.compliance_answer ?? null,
-        compliance_document_path: input.compliance_document_path ?? null,
-        status: input.status ?? "draft",
-        builder_type: input.builder_type ?? "manual",
-        updated_at: new Date().toISOString(),
-      })
+      .insert(insertPayload)
       .select()
       .single();
+
+    if (
+      error &&
+      (error.message?.includes("compliance_answer") ||
+        error.message?.includes("research_category") ||
+        error.message?.includes("builder_type") ||
+        error.code === "PGRST204")
+    ) {
+      delete insertPayload.compliance_answer;
+      delete insertPayload.compliance_document_path;
+      delete insertPayload.compliance_required;
+      delete insertPayload.compliance_rule_triggered;
+      delete insertPayload.research_category;
+      delete insertPayload.builder_type;
+
+      const retryResult = await admin
+        .from("surveys")
+        .insert(insertPayload)
+        .select()
+        .single();
+      data = retryResult.data;
+      error = retryResult.error;
+    }
 
     if (error) throw new ApiError(500, "SURVEY_CREATE_FAILED", error.message);
     res.status(201).json(data);
@@ -579,32 +773,52 @@ surveysRouter.patch(
           ? (evalResult?.rule_triggered ?? null)
           : undefined;
 
-    const { data, error } = await admin
-      .from("surveys")
-      .update({
-        ...(input.title !== undefined && { title: input.title }),
-        ...(input.description !== undefined && { description: input.description }),
-        ...(input.questions !== undefined && { questions: input.questions }),
-        ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
-        ...(input.research_category !== undefined && {
-          research_category: input.research_category,
-        }),
-        ...(compliance_required !== undefined && { compliance_required }),
-        ...(compliance_rule_triggered !== undefined && { compliance_rule_triggered }),
-        ...(input.compliance_answer !== undefined && {
+    const updatePayload: Record<string, unknown> = {
+      ...(input.title !== undefined && { title: input.title }),
+      ...(input.description !== undefined && { description: input.description }),
+      ...(input.questions !== undefined && { questions: input.questions }),
+      ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
+      ...(input.research_category !== undefined && {
+        research_category: input.research_category,
+      }),
+      ...(compliance_required !== undefined && { compliance_required }),
+      ...(compliance_rule_triggered !== undefined && { compliance_rule_triggered }),
+      ...(input.compliance_answer !== undefined &&
+        input.compliance_answer !== null && {
           compliance_answer: input.compliance_answer,
         }),
-        ...(input.compliance_document_path !== undefined && {
+      ...(input.compliance_document_path !== undefined &&
+        input.compliance_document_path !== null && {
           compliance_document_path: input.compliance_document_path,
         }),
-        ...(input.status !== undefined && { status: input.status }),
-        ...(input.builder_type !== undefined && { builder_type: input.builder_type }),
-        updated_at: new Date().toISOString(),
-        translations,
-      })
+      ...(input.status !== undefined && { status: input.status }),
+      ...(input.builder_type !== undefined && { builder_type: input.builder_type }),
+      updated_at: new Date().toISOString(),
+      translations,
+    };
+
+    let { data, error } = await admin
+      .from("surveys")
+      .update(updatePayload)
       .eq("id", survey.id)
       .select()
       .single();
+
+    if (error && (error.message?.includes("compliance_answer") || error.code === "PGRST204")) {
+      delete updatePayload.compliance_answer;
+      delete updatePayload.compliance_document_path;
+      delete updatePayload.compliance_required;
+      delete updatePayload.compliance_rule_triggered;
+
+      const retryResult = await admin
+        .from("surveys")
+        .update(updatePayload)
+        .eq("id", survey.id)
+        .select()
+        .single();
+      data = retryResult.data;
+      error = retryResult.error;
+    }
 
     if (error) throw new ApiError(500, "SURVEY_UPDATE_FAILED", error.message);
     res.json(data);
@@ -850,21 +1064,41 @@ surveysRouter.post(
         ? input.compliance_document_path
         : survey.compliance_document_path;
 
-    const { error: statusError } = await admin
+    const submitPayload: Record<string, unknown> = {
+      status: "pending_review",
+      sent_at: new Date().toISOString(),
+      target_filters: input.filters,
+      escrow_etb: requiredEtb,
+      research_category: category,
+      compliance_required,
+      compliance_rule_triggered,
+      ...(compliance_answer !== undefined &&
+        compliance_answer !== null && { compliance_answer }),
+      ...(compliance_document_path !== undefined &&
+        compliance_document_path !== null && { compliance_document_path }),
+      ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
+    };
+
+    let { error: statusError } = await admin
       .from("surveys")
-      .update({
-        status: "pending_review",
-        sent_at: new Date().toISOString(),
-        target_filters: input.filters,
-        escrow_etb: requiredEtb,
-        research_category: category,
-        compliance_required,
-        compliance_rule_triggered,
-        compliance_answer,
-        compliance_document_path,
-        ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
-      })
+      .update(submitPayload)
       .eq("id", survey.id);
+
+    if (
+      statusError &&
+      (statusError.message?.includes("compliance_answer") || statusError.code === "PGRST204")
+    ) {
+      delete submitPayload.compliance_answer;
+      delete submitPayload.compliance_document_path;
+      delete submitPayload.compliance_required;
+      delete submitPayload.compliance_rule_triggered;
+
+      const retryResult = await admin
+        .from("surveys")
+        .update(submitPayload)
+        .eq("id", survey.id);
+      statusError = retryResult.error;
+    }
 
     if (statusError) throw new ApiError(500, "SEND_FAILED", statusError.message);
 

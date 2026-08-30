@@ -338,12 +338,63 @@ export function SurveyImportPage() {
   // Confirm and Open in Manual Builder
   const confirmAndOpenMutation = useMutation({
     mutationFn: async () => {
+      const cleanTitle = (title || "Imported Survey")
+        .replace(/\.[^/.]+$/, "")
+        .replace(/_/g, " ")
+        .replace(/\s*(?:Purpose|Description):[\s\S]*/i, "")
+        .replace(/\s*-\s*Google Forms$/i, "")
+        .replace(/\s*\(Google Forms\)$/i, "")
+        .trim();
+      const validTitle = cleanTitle.slice(0, 180) || "Imported Survey";
+
+      const sanitizedQuestions: Question[] = questions.slice(0, 30).map((q, idx) => {
+        let text = q.text.trim();
+        if (text.length < 3) {
+          text = `Question ${idx + 1}: ${text || "Untitled"}`;
+        }
+        if (text.length > 500) {
+          text = text.slice(0, 497) + "...";
+        }
+
+        let type = q.type;
+        let options: string[] | undefined = undefined;
+
+        if (Array.isArray(q.options) && q.options.length > 0) {
+          const validOpts = q.options
+            .map((opt) => opt.trim())
+            .filter((opt) => opt.length > 0)
+            .map((opt) => (opt.length > 200 ? opt.slice(0, 197) + "..." : opt))
+            .slice(0, 12);
+
+          if (validOpts.length > 0) {
+            options = validOpts;
+          } else {
+            type = "text";
+          }
+        } else if (type === "single_choice" || type === "multi_choice") {
+          type = "text";
+        }
+
+        return {
+          id: q.id || `q_imp_${idx}_${Date.now()}`,
+          text,
+          type,
+          options,
+          required: Boolean(q.required),
+        };
+      });
+
+      if (sanitizedQuestions.length === 0) {
+        throw new Error("No valid questions found to import.");
+      }
+
       const payload = surveySchema.parse({
-        title: title.replace(/\.[^/.]+$/, "").replace(/_/g, " "),
-        description: `Imported from ${title}`,
-        questions,
+        title: validTitle,
+        description: `Imported survey: ${validTitle.slice(0, 100)}`,
+        questions: sanitizedQuestions,
         reward_etb: 25,
         status: "wip",
+        builder_type: "import",
       });
 
       return api<SurveyRecord>("/surveys", { body: payload });
@@ -352,10 +403,16 @@ export function SurveyImportPage() {
       await queryClient.invalidateQueries({ queryKey: ["surveys"] });
       navigate(`/survey-builder/manual/${survey.id}`, { replace: true });
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
+      let message = "Failed to create survey draft.";
+      if (error instanceof ApiRequestError) {
+        message = error.message;
+      } else if (error instanceof Error) {
+        message = error.message;
+      }
       setBanner({
         tone: "error",
-        text: error instanceof ApiRequestError ? error.message : "Failed to create survey draft.",
+        text: message,
       });
     },
   });
@@ -479,10 +536,17 @@ export function SurveyImportPage() {
                 </div>
                 <div>
                   <h4 className="font-bold text-[#001d29] text-sm md:text-base mb-1">
-                    {title}{" "}
-                    <span className="text-xs text-[#71787c] font-normal font-mono ml-1">
-                      ({fileSizeStr})
-                    </span>
+                    {title
+                      .split(/\r?\n/)[0]
+                      ?.replace(/\s*(?:Purpose|Description):[\s\S]*/i, "")
+                      .replace(/\s*-\s*Google Forms$/i, "")
+                      .replace(/\s*\(Google Forms\)$/i, "")
+                      .trim()}
+                    {!isGoogleFormImport && fileSizeStr ? (
+                      <span className="text-xs text-[#71787c] font-normal font-mono ml-2">
+                        ({fileSizeStr})
+                      </span>
+                    ) : null}
                   </h4>
                   <div className="flex items-center gap-1.5 text-emerald-700 text-xs font-semibold mt-1">
                     <Icon className="text-[18px]" name="check_circle" />
@@ -582,11 +646,32 @@ export function SurveyImportPage() {
                 </div>
               ) : (
                 questions.map((q, idx) => {
+                  const isSectionHeader = q.text.startsWith("[Section]");
                   const isRating =
                     q.options && q.options.length === 5 && q.options[0]?.includes("1");
                   const isOpenEnded = q.type === "text" || !q.options || q.options.length === 0;
                   const isNeedsReview =
                     !isOpenEnded && !isRating && q.options && q.options.length === 1;
+
+                  if (isSectionHeader) {
+                    return (
+                      <div
+                        key={q.id}
+                        className="bg-[#eaf3fb] border border-[#2872A1]/30 rounded-xl p-3.5 hover:border-[#2872A1]/60 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="font-mono text-[10px] font-bold text-[#001d29] bg-[#2872A1]/15 px-2 py-0.5 rounded flex items-center gap-1">
+                            <Icon className="text-[13px]" name="view_headline" />
+                            <span>SECTION HEADER</span>
+                          </span>
+                          <Icon className="text-[#71787c] text-[18px]" name="drag_indicator" />
+                        </div>
+                        <p className="text-xs md:text-sm font-bold text-[#001d29]">
+                          {q.text.replace(/^\[Section\]\s*/, "")}
+                        </p>
+                      </div>
+                    );
+                  }
 
                   if (isNeedsReview) {
                     return (
@@ -657,16 +742,33 @@ export function SurveyImportPage() {
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-mono text-[10px] font-bold text-[#001d29] bg-[#c0e8ff]/50 px-2 py-0.5 rounded">
-                          MULTIPLE CHOICE
+                          {q.type === "multi_choice" ? "CHECKBOX / MULTI CHOICE" : "MULTIPLE CHOICE"}
                         </span>
                         <Icon className="text-[#71787c] text-[18px]" name="drag_indicator" />
                       </div>
-                      <p className="text-xs md:text-sm font-semibold text-[#001d29] mb-1">
+                      <p className="text-xs md:text-sm font-semibold text-[#001d29] mb-1.5">
                         Q{idx + 1}: {q.text}
                       </p>
-                      <p className="text-xs text-[#41484c]">
+                      <p className="text-xs font-medium text-[#2872A1] mb-1">
                         {q.options?.length || 0} choices extracted
                       </p>
+                      {q.options && q.options.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {q.options.slice(0, 4).map((opt) => (
+                            <span
+                              key={opt}
+                              className="inline-block bg-white border border-[#c1c7cc] rounded-md px-2 py-0.5 text-[11px] text-[#41484c] font-medium max-w-[180px] truncate"
+                            >
+                              {opt}
+                            </span>
+                          ))}
+                          {q.options.length > 4 ? (
+                            <span className="inline-block bg-white border border-[#c1c7cc] rounded-md px-1.5 py-0.5 text-[11px] text-[#71787c] font-mono">
+                              +{q.options.length - 4} more
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })

@@ -183,6 +183,15 @@ CREATE TABLE IF NOT EXISTS surveys (
 -- Ensure surveys columns exist if table was already created in earlier migration
 ALTER TABLE surveys ADD COLUMN IF NOT EXISTS description text;
 ALTER TABLE surveys ADD COLUMN IF NOT EXISTS escrow_etb numeric(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS research_category text;
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS compliance_required boolean DEFAULT false;
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS compliance_rule_triggered text;
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS compliance_answer boolean;
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS compliance_document_path text;
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS builder_type text DEFAULT 'manual';
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS review_notes text;
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS reviewed_by uuid REFERENCES users(id);
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS reviewed_at timestamptz;
 
 CREATE INDEX IF NOT EXISTS idx_surveys_researcher ON surveys (researcher_id);
 CREATE INDEX IF NOT EXISTS idx_surveys_status ON surveys (status);
