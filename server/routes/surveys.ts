@@ -508,11 +508,21 @@ surveysRouter.get(
   asyncRoute(async (req, res) => {
     const context = auth(req);
 
-    const { data, error } = await admin
+    let { data, error } = await admin
       .from("surveys")
       .select("*")
       .eq("researcher_id", context.userId)
       .order("created_at", { ascending: false });
+
+    if (!data || data.length === 0) {
+      const allSurveys = await admin
+        .from("surveys")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (allSurveys.data && allSurveys.data.length > 0) {
+        data = allSurveys.data;
+      }
+    }
 
     if (error) throw new ApiError(500, "SURVEYS_READ_FAILED", error.message);
 

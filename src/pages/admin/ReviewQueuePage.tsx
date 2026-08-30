@@ -303,8 +303,12 @@ export function AdminReviewQueuePage() {
         </button>
       </div>
 
-      {isLoading ? <LoadingBlock label={isAm ? "ወረፋ በመጫን ላይ..." : "Loading approval queue…"} /> : null}
-      {error ? <Notice tone="error">{isAm ? "ወረፋውን መጫን አልተሳካም።" : "Could not load approval queue."}</Notice> : null}
+      {isSurveyLoading || isDocLoading ? (
+        <LoadingBlock label={isAm ? "ወረፋ በመጫን ላይ..." : "Loading approval queue…"} />
+      ) : null}
+      {(activeTab === "surveys" || activeTab === "compliance" ? surveyError : docError) ? (
+        <Notice tone="error">{isAm ? "ወረፋውን መጫን አልተሳካም።" : "Could not load approval queue."}</Notice>
+      ) : null}
 
       {/* ── Data Table Card ── */}
       <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-xs overflow-hidden flex flex-col">
