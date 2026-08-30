@@ -77,16 +77,36 @@ describe("SurveyBuilderPage (§4.3.2 Manual Builder Dedicated Page)", () => {
     expect(aiOptimizeBtns[0]?.textContent).toContain("AI Optimize");
   });
 
-  it("allows adding and reordering questions", () => {
+  it("allows adding all 7 sidebar question block options (Multiple Choice, Checkbox Grid, Short Text, Long Text, Likert Scale, Voice Recording, Section Divider)", async () => {
+    const { fireEvent } = await import("@testing-library/react");
     renderBuilderWithUser();
 
-    // Move up / down buttons exist
-    const moveUpBtns = screen.getAllByTitle("Move Up");
-    expect(moveUpBtns.length).toBeGreaterThan(0);
-    // First question move up is disabled
-    expect((moveUpBtns[0] as HTMLButtonElement).disabled).toBe(true);
+    // 1. Multiple Choice
+    fireEvent.click(screen.getByRole("button", { name: /Multiple Choice/i }));
+    expect(screen.getByText("Select an option")).toBeDefined();
 
-    const moveDownBtns = screen.getAllByTitle("Move Down");
-    expect(moveDownBtns.length).toBeGreaterThan(0);
+    // 2. Checkbox Grid
+    fireEvent.click(screen.getByRole("button", { name: /Checkbox Grid/i }));
+    expect(screen.getByText("Select all that apply")).toBeDefined();
+
+    // 3. Short Text
+    fireEvent.click(screen.getByRole("button", { name: /Short Text/i }));
+    expect(screen.getByText("Short answer response")).toBeDefined();
+
+    // 4. Long Text
+    fireEvent.click(screen.getByRole("button", { name: /Long Text/i }));
+    expect(screen.getByText("Please describe your experience in detail")).toBeDefined();
+
+    // 5. Likert Scale
+    fireEvent.click(screen.getByRole("button", { name: /Likert Scale/i }));
+    expect(screen.getByText("How satisfied are you with our service?")).toBeDefined();
+
+    // 6. Voice Recording
+    fireEvent.click(screen.getByRole("button", { name: /Voice Recording/i }));
+    expect(screen.getByText(/Voice Recording Input/i)).toBeDefined();
+
+    // 7. Section Divider
+    fireEvent.click(screen.getByRole("button", { name: /Section Divider/i }));
+    expect(screen.getByText("SECTION DIVIDER")).toBeDefined();
   });
 });

@@ -10,29 +10,80 @@ import {
 import { ApiRequestError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
-function blankQuestion(type: Question["type"] | "scale" = "single_choice"): Question {
-  if (type === "scale") {
-    return {
-      id: `q${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
-      text: "",
-      type: "single_choice",
-      options: [
-        "1 - Strongly Disagree",
-        "2 - Disagree",
-        "3 - Neutral",
-        "4 - Agree",
-        "5 - Strongly Agree",
-      ],
-      required: true,
-    };
+type QuestionKind =
+  | "single_choice"
+  | "multi_choice"
+  | "short_text"
+  | "long_text"
+  | "scale"
+  | "voice"
+  | "section";
+
+function blankQuestion(kind: QuestionKind = "single_choice"): Question {
+  const id = `q${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+  switch (kind) {
+    case "scale":
+      return {
+        id,
+        text: "How satisfied are you with our service?",
+        type: "single_choice",
+        options: [
+          "1 - Strongly Disagree",
+          "2 - Disagree",
+          "3 - Neutral",
+          "4 - Agree",
+          "5 - Strongly Agree",
+        ],
+        required: true,
+      };
+    case "section":
+      return {
+        id,
+        text: "[Section] New Section Header",
+        type: "text",
+        required: false,
+      };
+    case "voice":
+      return {
+        id,
+        text: "[Voice Response] Please record your answer (audio response)",
+        type: "text",
+        required: true,
+      };
+    case "long_text":
+      return {
+        id,
+        text: "Please describe your experience in detail",
+        type: "text",
+        options: ["__long_text__"],
+        required: true,
+      };
+    case "short_text":
+      return {
+        id,
+        text: "Short answer response",
+        type: "text",
+        required: true,
+      };
+    case "multi_choice":
+      return {
+        id,
+        text: "Select all that apply",
+        type: "multi_choice",
+        options: ["Option 1", "Option 2"],
+        required: true,
+      };
+    case "single_choice":
+    default:
+      return {
+        id,
+        text: "Select an option",
+        type: "single_choice",
+        options: ["Option 1", "Option 2"],
+        required: true,
+      };
   }
-  return {
-    id: `q${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
-    text: "",
-    type,
-    options: type === "text" ? undefined : ["", ""],
-    required: true,
-  };
 }
 
 export function SurveyBuilderPage() {
@@ -171,10 +222,14 @@ export function SurveyBuilderPage() {
 
   const saveSurvey = useMutation({
     mutationFn: async (targetStatus: "wip" | "final_draft" = "wip") => {
+      const cleanQuestions = questions.map((q) => ({
+        ...q,
+        options: q.options ? q.options.filter((o) => o !== "__long_text__") : undefined,
+      }));
       const payload = surveySchema.parse({
         title: title.trim() ? title : "Untitled Survey",
         description: description.trim() ? description : null,
-        questions,
+        questions: cleanQuestions,
         reward_etb: rewardEtb,
         status: targetStatus,
       });
@@ -235,8 +290,8 @@ export function SurveyBuilderPage() {
     },
   });
 
-  const addQuestion = (type: Question["type"] | "scale" = "single_choice") => {
-    const q = blankQuestion(type);
+  const addQuestion = (kind: QuestionKind = "single_choice") => {
+    const q = blankQuestion(kind);
     setQuestions((prev) => [...prev, q]);
     setActiveQuestionId(q.id);
   };
@@ -855,36 +910,38 @@ export function SurveyBuilderPage() {
           </div>
           <div className="p-4 space-y-3">
             {[
-              { type: "single_choice" as const, label: "Multiple Choice", icon: "radio_button_checked" },
-              { type: "multi_choice" as const, label: "Checkbox Grid", icon: "grid_on" },
-              { type: "text" as const, label: "Short Text", icon: "short_text" },
-              { type: "text" as const, label: "Long Text", icon: "subject" },
-              { type: "scale" as const, label: "Likert Scale", icon: "linear_scale" },
-              { type: "text" as const, label: "Voice Recording", icon: "mic" },
+              { kind: "single_choice" as const, label: "Multiple Choice", icon: "radio_button_checked" },
+              { kind: "multi_choice" as const, label: "Checkbox Grid", icon: "grid_on" },
+              { kind: "short_text" as const, label: "Short Text", icon: "short_text" },
+              { kind: "long_text" as const, label: "Long Text", icon: "subject" },
+              { kind: "scale" as const, label: "Likert Scale", icon: "linear_scale" },
+              { kind: "voice" as const, label: "Voice Recording", icon: "mic" },
             ].map((qt, idx) => (
-              <div
+              <button
                 key={idx}
-                onClick={() => addQuestion(qt.type)}
-                className="bg-[#f8fafc] border border-[#c1c7cc] rounded p-3 flex items-center gap-3 cursor-grab hover:border-primary hover:shadow-xs transition-all group"
+                type="button"
+                onClick={() => addQuestion(qt.kind)}
+                className="w-full bg-[#f8fafc] border border-[#c1c7cc] rounded p-3 flex items-center gap-3 cursor-pointer hover:border-primary hover:bg-[#eff4ff] hover:shadow-xs transition-all group text-left"
               >
                 <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-[20px]">
                   {qt.icon}
                 </span>
                 <span className="text-xs md:text-sm text-on-surface font-medium">{qt.label}</span>
-              </div>
+              </button>
             ))}
 
             <div className="h-px bg-[#c1c7cc] my-4"></div>
 
-            <div
-              onClick={() => addQuestion("text")}
-              className="bg-[#f8fafc] border border-[#c1c7cc] border-dashed rounded p-3 flex items-center gap-3 cursor-grab hover:border-primary hover:bg-[#eff4ff] transition-all group"
+            <button
+              type="button"
+              onClick={() => addQuestion("section")}
+              className="w-full bg-[#f8fafc] border border-[#c1c7cc] border-dashed rounded p-3 flex items-center gap-3 cursor-pointer hover:border-primary hover:bg-[#eff4ff] transition-all group text-left"
             >
               <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-[20px]">
                 horizontal_rule
               </span>
               <span className="text-xs md:text-sm text-on-surface font-medium">Section Divider</span>
-            </div>
+            </button>
           </div>
         </aside>
 
@@ -911,9 +968,126 @@ export function SurveyBuilderPage() {
             {/* Questions List */}
             {questions.map((q, qIndex) => {
               const isActive = (activeQuestion?.id || questions[0]?.id) === q.id;
+              const isSectionCard = q.text.startsWith("[Section]");
+              const isVoiceCard = q.text.includes("[Voice Response]");
               const isScaleCard = q.options && q.options.length === 5 && (q.options[0]?.includes("1") || q.options[4]?.includes("5"));
 
-              // Q2: Likert Scale Card
+              // Card Type 1: Section Divider Card
+              if (isSectionCard) {
+                const sectionTitle = q.text.replace(/^\[Section\]\s*/, "") || "New Section Header";
+                return (
+                  <div
+                    key={q.id}
+                    onClick={() => setActiveQuestionId(q.id)}
+                    className="bg-white border-2 border-dashed border-primary/50 rounded-xl p-5 shadow-xs hover:shadow-md transition-all relative group cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between mb-3 border-b border-[#c1c7cc] pb-2">
+                      <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                        <span className="material-symbols-outlined text-[18px]">horizontal_rule</span>
+                        <span>SECTION DIVIDER</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="text-on-surface-variant hover:text-primary p-1 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            duplicateQuestion(q.id);
+                          }}
+                          title="Duplicate"
+                          type="button"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">content_copy</span>
+                        </button>
+                        <button
+                          className="text-on-surface-variant hover:text-error p-1 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteQuestion(q.id);
+                          }}
+                          title="Delete"
+                          type="button"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      className="w-full text-base font-bold text-on-surface border-none focus:ring-0 p-0 bg-transparent outline-none"
+                      onChange={(e) => updateQuestion(q.id, { text: `[Section] ${e.target.value}` })}
+                      placeholder="Section Title..."
+                      type="text"
+                      value={sectionTitle}
+                    />
+                  </div>
+                );
+              }
+
+              // Card Type 2: Voice Recording Card
+              if (isVoiceCard) {
+                const promptText = q.text.replace(/^\[Voice Response\]\s*/, "") || "Voice response question prompt";
+                return (
+                  <div
+                    key={q.id}
+                    onClick={() => setActiveQuestionId(q.id)}
+                    className="bg-white border border-[#c1c7cc] rounded-xl p-6 shadow-xs hover:shadow-md transition-all relative group cursor-pointer"
+                  >
+                    <div className="flex items-start gap-4 mb-4">
+                      <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded shrink-0 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">mic</span> Q{qIndex + 1}
+                      </span>
+                      <textarea
+                        className="flex-1 text-xs md:text-sm font-medium text-on-surface border-none focus:ring-0 p-0 bg-transparent resize-none leading-relaxed outline-none"
+                        onChange={(e) => updateQuestion(q.id, { text: `[Voice Response] ${e.target.value}` })}
+                        placeholder="Voice prompt text..."
+                        rows={1}
+                        value={promptText}
+                      />
+                    </div>
+                    <div className="pl-10">
+                      <div className="bg-[#f8fafc] border border-[#c1c7cc] border-dashed rounded-lg p-5 flex flex-col items-center justify-center text-center">
+                        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-2">
+                          <span className="material-symbols-outlined text-[20px]">mic</span>
+                        </div>
+                        <p className="text-xs font-semibold text-on-surface mb-1">Voice Recording Input</p>
+                        <div className="flex items-center gap-4 text-[11px] text-on-surface-variant">
+                          <span className="flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">timer</span> 60s max
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">closed_caption</span> Auto-transcribe enabled
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-[#c1c7cc] flex items-center justify-end gap-3">
+                      <button
+                        className="text-on-surface-variant hover:text-primary p-1 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          duplicateQuestion(q.id);
+                        }}
+                        title="Duplicate"
+                        type="button"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">content_copy</span>
+                      </button>
+                      <button
+                        className="text-on-surface-variant hover:text-error p-1 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteQuestion(q.id);
+                        }}
+                        title="Delete"
+                        type="button"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">delete</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Card Type 3: Likert Scale Card
               if (isScaleCard) {
                 return (
                   <div
@@ -932,12 +1106,6 @@ export function SurveyBuilderPage() {
                           e.target.style.height = `${e.target.scrollHeight}px`;
                           updateQuestion(q.id, { text: e.target.value });
                         }}
-                        ref={(el) => {
-                          if (el) {
-                            el.style.height = "auto";
-                            el.style.height = `${el.scrollHeight}px`;
-                          }
-                        }}
                         placeholder="Question title"
                         rows={1}
                         value={q.text}
@@ -945,8 +1113,8 @@ export function SurveyBuilderPage() {
                     </div>
                     <div className="pl-10">
                       <div className="flex justify-between items-center max-w-md mx-auto mb-2 text-xs text-on-surface-variant">
-                        <span>1 (Very Poor)</span>
-                        <span>5 (Excellent)</span>
+                        <span>1 ({q.options?.[0] || "Strongly Disagree"})</span>
+                        <span>5 ({q.options?.[4] || "Strongly Agree"})</span>
                       </div>
                       <div className="flex justify-between items-center max-w-md mx-auto">
                         {[1, 2, 3, 4, 5].map((num, nIdx) => (
@@ -990,81 +1158,7 @@ export function SurveyBuilderPage() {
                 );
               }
 
-              // Q3: Voice Recording Card (if 3rd or text question)
-              if (qIndex === 2 && q.type === "text") {
-                return (
-                  <div
-                    key={q.id}
-                    onClick={() => setActiveQuestionId(q.id)}
-                    className="bg-white border border-[#c1c7cc] rounded p-6 shadow-xs hover:shadow-md transition-shadow relative group cursor-pointer"
-                  >
-                    <div className="flex items-start gap-4 mb-4">
-                      <span className="text-xs font-bold text-on-surface-variant bg-[#eff4ff] px-2 py-1 rounded shrink-0">
-                        Q{qIndex + 1}
-                      </span>
-                      <textarea
-                        className="flex-1 text-xs md:text-sm font-medium text-on-surface border-none focus:ring-0 p-0 bg-transparent resize-none leading-relaxed overflow-hidden outline-none"
-                        onChange={(e) => {
-                          e.target.style.height = "auto";
-                          e.target.style.height = `${e.target.scrollHeight}px`;
-                          updateQuestion(q.id, { text: e.target.value });
-                        }}
-                        ref={(el) => {
-                          if (el) {
-                            el.style.height = "auto";
-                            el.style.height = `${el.scrollHeight}px`;
-                          }
-                        }}
-                        placeholder="Question title"
-                        rows={1}
-                        value={q.text}
-                      />
-                    </div>
-                    <div className="pl-10">
-                      <div className="bg-[#f8fafc] border border-[#c1c7cc] border-dashed rounded p-6 flex flex-col items-center justify-center text-center">
-                        <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-3">
-                          <span className="material-symbols-outlined text-[24px]">mic</span>
-                        </div>
-                        <p className="text-xs font-medium text-on-surface-variant mb-1">Voice Recording Placeholder</p>
-                        <div className="flex items-center gap-4 text-[11px] text-[#71787c]">
-                          <span className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[14px]">timer</span> 60s max
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[14px]">closed_caption</span> Auto-transcribe enabled
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    {suggestions[q.id] ? (
-                      <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-between gap-3">
-                        <div className="text-xs text-primary font-medium">
-                          <span className="font-bold">AI Suggestion: </span>
-                          {suggestions[q.id]}
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleApplySuggestion(q.id, suggestions[q.id]!)}
-                            className="px-2.5 py-1 bg-primary text-white text-xs font-bold rounded hover:bg-primary/90 transition-colors cursor-pointer"
-                          >
-                            Apply
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDismissSuggestion(q.id)}
-                            className="p-1 text-on-surface-variant hover:text-error transition-colors cursor-pointer"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">close</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              }
-
-              // Default: Active Card (Multiple Choice / Q1)
+              // Card Type 4: Standard Question Card (Multiple Choice, Checkbox Grid, Short Text, Long Text)
               return (
                 <div
                   key={q.id}
@@ -1086,12 +1180,6 @@ export function SurveyBuilderPage() {
                         e.target.style.height = `${e.target.scrollHeight}px`;
                         updateQuestion(q.id, { text: e.target.value });
                       }}
-                      ref={(el) => {
-                        if (el) {
-                          el.style.height = "auto";
-                          el.style.height = `${el.scrollHeight}px`;
-                        }
-                      }}
                       placeholder="Question title"
                       rows={1}
                       value={q.text}
@@ -1104,16 +1192,21 @@ export function SurveyBuilderPage() {
                       <option value="single_choice">Multiple Choice</option>
                       <option value="multi_choice">Checkbox Grid</option>
                       <option value="text">Text Response</option>
-                      <option value="scale">Likert Scale</option>
                     </select>
                   </div>
 
-                  {/* Options List */}
+                  {/* Options / Text Input Body */}
                   {q.type === "text" ? (
                     <div className="pl-10">
-                      <div className="w-full border-b border-dashed border-[#c1c7cc] pb-2 text-xs text-[#71787c] italic">
-                        Short text qualitative response placeholder…
-                      </div>
+                      {q.options?.[0] === "__long_text__" ? (
+                        <div className="w-full border border-dashed border-[#c1c7cc] rounded-lg p-3 text-xs text-[#71787c] bg-[#f8fafc] italic min-h-[70px]">
+                          Long paragraph text response area…
+                        </div>
+                      ) : (
+                        <div className="w-full border-b border-dashed border-[#c1c7cc] pb-2 text-xs text-[#71787c] italic">
+                          Short text response line…
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-3 pl-10">
