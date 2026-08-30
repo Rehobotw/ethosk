@@ -8,7 +8,10 @@ import {
 
 describe("verify.et Transaction Reconciliation Service (v4 §4.6.1, §3.5, §7.4 item 12)", () => {
   beforeEach(() => {
-    env.allowVerifyEtStub = true;
+    // `env` is a frozen (`as const`) object at the type level; the readonly
+    // guarantee is compile-time only; tests force this flag on regardless of
+    // the environment's ALLOW_VERIFY_ET_STUB setting.
+    (env as unknown as { allowVerifyEtStub: boolean }).allowVerifyEtStub = true;
   });
   it("supports all required Ethiopian payment rails and banks", () => {
     expect(VERIFY_ET_SUPPORTED_PROVIDERS).toContain("telebirr");

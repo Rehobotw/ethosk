@@ -93,13 +93,13 @@ export function DocumentsPage() {
   // Document upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [docType, setDocType] = useState<DocType>("student_id");
   const [clientError, setClientError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
 
   const currentRank = user ? TIER_RANK[user.verification_tier] : 0;
   const isTier1Completed = currentRank >= TIER_RANK["1_id_verified"];
   const isTier2Verified = currentRank >= TIER_RANK["2_attribute_verified"];
-  const docType: DocType = institutionType === "corporate" ? "employer_id" : "student_id";
 
   const { data: profile } = useQuery({
     queryKey: ["respondent-profile"],

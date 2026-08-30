@@ -1,4 +1,4 @@
-import { decodePayload, type FaydaResult } from "fayda-decoder";
+import { decodePayload } from "fayda-decoder";
 import { verifySignature } from "fayda-decoder/verify";
 import { env } from "../env.js";
 
