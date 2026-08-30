@@ -1086,18 +1086,35 @@ surveysRouter.post(
 
     if (
       statusError &&
-      (statusError.message?.includes("compliance_answer") || statusError.code === "PGRST204")
+      (statusError.message?.includes("compliance_answer") ||
+        statusError.message?.includes("research_category") ||
+        statusError.code === "PGRST204")
     ) {
       delete submitPayload.compliance_answer;
       delete submitPayload.compliance_document_path;
       delete submitPayload.compliance_required;
       delete submitPayload.compliance_rule_triggered;
+      delete submitPayload.research_category;
 
       const retryResult = await admin
         .from("surveys")
         .update(submitPayload)
         .eq("id", survey.id);
       statusError = retryResult.error;
+    }
+
+    if (
+      statusError &&
+      (statusError.message?.includes("enum") ||
+        statusError.message?.includes("pending_review") ||
+        statusError.message?.includes("survey_status"))
+    ) {
+      submitPayload.status = "final_draft";
+      const fallbackResult = await admin
+        .from("surveys")
+        .update(submitPayload)
+        .eq("id", survey.id);
+      statusError = fallbackResult.error;
     }
 
     if (statusError) throw new ApiError(500, "SEND_FAILED", statusError.message);

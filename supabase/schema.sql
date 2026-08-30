@@ -36,6 +36,8 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- Ensure newer enum values exist if type was created previously
 ALTER TYPE survey_status ADD VALUE IF NOT EXISTS 'wip';
 ALTER TYPE survey_status ADD VALUE IF NOT EXISTS 'final_draft';
+ALTER TYPE survey_status ADD VALUE IF NOT EXISTS 'pending_review';
+ALTER TYPE survey_status ADD VALUE IF NOT EXISTS 'rejected';
 
 -- ----------------------------------------------------------------------------
 -- 3. Core Tables
