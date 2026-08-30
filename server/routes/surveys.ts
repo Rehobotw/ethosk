@@ -24,7 +24,7 @@ const complianceUpload = multer({
   limits: { fileSize: MAX_UPLOAD_BYTES },
 });
 
-import type { Question, SurveyRecord, TargetLanguage } from "@shared/types.js";
+import type { Question, QuestionType, SurveyRecord, TargetLanguage } from "@shared/types.js";
 import { aggregateResponses, shouldGenerateSummary } from "@shared/analytics/aggregate.js";
 import {
   buildConsistencyQuestion,
