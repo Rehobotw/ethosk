@@ -90,23 +90,19 @@ export function buildMatchQuery(filters: MatchFilters): BuiltQuery {
     const range = filters[key];
     if (!range) continue;
     const [low, high] = normalizeRange(range);
-    clauses.push(`${column} >= ${bind(low)}`);
-    clauses.push(`${column} <= ${bind(high)}`);
+    clauses.push(`${column} between ${bind(low)} and ${bind(high)}`);
   }
 
-  const where = clauses.length > 0 ? ` WHERE ${clauses.join(" AND ")}` : "";
-  return {
-    sql: `SELECT user_id FROM respondent_match_view${where}`,
-    params,
-  };
+  const sql = `select user_id from respondent_match_view where ${clauses.join(" and ")}`;
+  return { sql, params };
 }
 
 /** Count variant of the same predicate, used by the live match endpoint. */
 export function buildMatchCountQuery(filters: MatchFilters): BuiltQuery {
-  const query = buildMatchQuery(filters);
+  const { sql, params } = buildMatchQuery(filters);
   return {
-    sql: query.sql.replace(/^SELECT user_id FROM/, "SELECT count(*)::int AS count FROM"),
-    params: query.params,
+    sql: sql.replace("select user_id from", "select count(*)::int as matched_count from"),
+    params,
   };
 }
 

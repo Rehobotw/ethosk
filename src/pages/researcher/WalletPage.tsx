@@ -43,6 +43,7 @@ export function ResearcherWalletPage() {
   const [senderDetail, setSenderDetail] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const { user } = useAuth();
   const { data, isLoading } = useQuery({
@@ -430,15 +431,70 @@ export function ResearcherWalletPage() {
 
           {/* verify.et Transaction Confirmation Details */}
           <div className="mb-6 bg-[#f8f9ff] border border-outline-variant/50 rounded-xl p-4 space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-lg">verified_user</span>
-              <h4 className="text-xs font-bold text-[#0D253A] uppercase tracking-wider">
-                verify.et Transaction Reconciliation
-              </h4>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-lg">verified_user</span>
+                <h4 className="text-xs font-bold text-[#0D253A] uppercase tracking-wider">
+                  verify.et Transaction Reconciliation
+                </h4>
+              </div>
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#d4e3ff] text-[#004785] px-2 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Instant Match
+              </span>
+            </div>
+
+            {/* Receiving Account Box */}
+            <div className="bg-white border border-[#c1c7d0]/60 rounded-xl p-3.5 shadow-xs">
+              <div className="text-[11px] font-medium text-on-surface-variant mb-1">
+                Transfer to Ethosk Escrow Account:
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold text-[#0D253A]">
+                    {selectedMethod === "telebirr" && "Telebirr (Ethosk Escrow)"}
+                    {selectedMethod === "cbe" && "Commercial Bank of Ethiopia (CBE)"}
+                    {selectedMethod === "cbe_birr" && "CBE Birr (Ethosk Escrow)"}
+                    {selectedMethod === "boa" && "Bank of Abyssinia (BOA)"}
+                    {selectedMethod === "awash" && "Awash Bank"}
+                    {selectedMethod === "dashen" && "Dashen Bank"}
+                    {selectedMethod === "bank_transfer" && "Bank Wire / Local Transfer"}
+                  </div>
+                  <div className="text-sm font-mono font-extrabold text-primary tracking-wide">
+                    {selectedMethod === "telebirr" && "0974688397"}
+                    {selectedMethod === "cbe" && "1000307620522"}
+                    {selectedMethod === "cbe_birr" && "0974688397"}
+                    {selectedMethod === "boa" && "1000307620522"}
+                    {selectedMethod === "awash" && "1000307620522"}
+                    {selectedMethod === "dashen" && "1000307620522"}
+                    {selectedMethod === "bank_transfer" && "1000307620522 (CBE)"}
+                  </div>
+                  <div className="text-[10px] text-on-surface-variant">
+                    Account Name: <strong className="text-on-surface">Ethosk Research Escrow</strong>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const acc = selectedMethod === "cbe" ? "1000307620522" : "0974688397";
+                    navigator.clipboard.writeText(acc);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="flex items-center gap-1 text-xs font-bold bg-[#f1f4f9] hover:bg-[#e2e8f0] text-primary px-3 py-1.5 rounded-lg border border-outline-variant/60 transition"
+                  title="Copy Account Number"
+                >
+                  <span className="material-symbols-outlined text-sm">
+                    {copied ? "check" : "content_copy"}
+                  </span>
+                  <span>{copied ? "Copied!" : "Copy"}</span>
+                </button>
+              </div>
             </div>
 
             <p className="text-xs text-on-surface-variant leading-relaxed">
-              Transfer <strong>{activeAmount.toLocaleString()} ETB</strong> using your selected banking app or Telebirr to <strong>Ethosk Research Escrow</strong>, then enter your transaction reference below for instant verification.
+              Transfer exactly <strong>{activeAmount.toLocaleString()} ETB</strong>, then paste the transaction reference from your SMS or banking app below for instant verification.
             </p>
 
             <div>
@@ -449,7 +505,7 @@ export function ResearcherWalletPage() {
                 id="tx_reference"
                 className="w-full bg-white border border-outline-variant rounded-lg px-4 py-2.5 text-xs md:text-sm font-mono font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
                 onChange={(e) => setTransactionRef(e.target.value)}
-                placeholder="e.g., FT2423490X12 or Telebirr Ref #"
+                placeholder={selectedMethod === "cbe" ? "e.g., FT26123490 or CBE Transaction ID" : "e.g., FT2423490X12 or Telebirr Ref #"}
                 type="text"
                 value={transactionRef}
               />

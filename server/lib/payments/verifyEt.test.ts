@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { env } from "../../env.js";
 import {
   isVerifyEtSupportedProvider,
   verifyTransaction,
@@ -6,6 +7,9 @@ import {
 } from "./verifyEt.js";
 
 describe("verify.et Transaction Reconciliation Service (v4 §4.6.1, §3.5, §7.4 item 12)", () => {
+  beforeEach(() => {
+    env.allowVerifyEtStub = true;
+  });
   it("supports all required Ethiopian payment rails and banks", () => {
     expect(VERIFY_ET_SUPPORTED_PROVIDERS).toContain("telebirr");
     expect(VERIFY_ET_SUPPORTED_PROVIDERS).toContain("cbe");

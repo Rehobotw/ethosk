@@ -41,10 +41,18 @@ export function AuthCallbackPage() {
 
         const intendedRole = localStorage.getItem("ethosk_intended_role") as UserRole | null;
 
-        // Ensure user row exists and sync role
-        const response = await api<{ success: boolean; exists?: boolean; role?: UserRole; profile?: { name: string; email: string } }>("/auth/sync-oauth", {
-          body: { role: intendedRole || undefined },
-        });
+        // Ensure user row exists and sync role (with automatic retry for database trigger sync)
+        let response: { success: boolean; exists?: boolean; role?: UserRole; profile?: { name: string; email: string } };
+        try {
+          response = await api("/auth/sync-oauth", {
+            body: { role: intendedRole || undefined },
+          });
+        } catch {
+          await new Promise((r) => setTimeout(r, 400));
+          response = await api("/auth/sync-oauth", {
+            body: { role: intendedRole || undefined },
+          });
+        }
 
         // Clear intended role
         localStorage.removeItem("ethosk_intended_role");

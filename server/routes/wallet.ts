@@ -12,7 +12,7 @@ import {
   readNotification,
   TelebirrError,
 } from "../lib/payments/telebirr.js";
-import { verifyTransaction } from "../lib/payments/verifyEt.js";
+import { sanitizeTransactionReference, verifyTransaction } from "../lib/payments/verifyEt.js";
 import { rateLimit } from "../lib/rateLimit.js";
 import { admin } from "../lib/supabase.js";
 import { readResearcherWallet, readRespondentWallet, roundEtb } from "../lib/wallet.js";
@@ -57,6 +57,44 @@ walletRouter.get(
     res.json({
       wallet,
       deposits,
+      paymentDestinations: {
+        telebirr: {
+          accountName: "Ethosk Research Escrow",
+          accountNumber: env.receiverTelebirr,
+          label: "Telebirr Number / SuperApp",
+        },
+        cbe: {
+          accountName: "Ethosk Research Escrow",
+          accountNumber: env.receiverCbe,
+          label: "CBE Account Number",
+        },
+        cbe_birr: {
+          accountName: "Ethosk Research Escrow",
+          accountNumber: env.receiverCbeBirr,
+          label: "CBE Birr Phone",
+        },
+        ...(env.receiverBoa && {
+          boa: {
+            accountName: "Ethosk Research Escrow",
+            accountNumber: env.receiverBoa,
+            label: "Bank of Abyssinia Account",
+          },
+        }),
+        ...(env.receiverAwash && {
+          awash: {
+            accountName: "Ethosk Research Escrow",
+            accountNumber: env.receiverAwash,
+            label: "Awash Bank Account",
+          },
+        }),
+        ...(env.receiverDashen && {
+          dashen: {
+            accountName: "Ethosk Research Escrow",
+            accountNumber: env.receiverDashen,
+            label: "Dashen Bank Account",
+          },
+        }),
+      },
       // Shown beside the balance so a researcher can see what their reserved
       // total is actually committed to, rather than just its size.
       commitments: activeSurveys.map((survey) => ({
@@ -83,14 +121,15 @@ walletRouter.post(
     const context = auth(req);
     const input = parseBody(depositSchema, req.body);
     const amount = roundEtb(input.amount_etb);
-    const idempotencyKey = input.idempotency_key || `idemp_${context.userId}_${input.reference}`;
+    const reference = sanitizeTransactionReference(input.reference);
+    const idempotencyKey = input.idempotency_key || `idemp_${context.userId}_${reference}`;
 
     // 1. Idempotency & Replay Protection: ensure reference isn't already credited
     const { data: existing } = await admin
       .from("researcher_deposits")
       .select("id, status, reference, amount_etb, idempotency_key")
       .eq("researcher_id", context.userId)
-      .eq("reference", input.reference)
+      .eq("reference", reference)
       .maybeSingle();
 
     if (existing && existing.status === "completed") {
@@ -104,7 +143,7 @@ walletRouter.post(
     // 2. Automated Transaction Verification via verify.et
     const verification = await verifyTransaction({
       provider: input.method,
-      reference: input.reference,
+      reference,
       expectedAmount: amount,
       senderDetail: input.sender_detail,
       idempotencyKey,
@@ -112,20 +151,24 @@ walletRouter.post(
 
     // 3. Handle Unsupported Provider (Soft-fail into needs_review for manual admin reconciliation)
     if (verification.status === "UNSUPPORTED_PROVIDER") {
-      const { data: depositRecord, error: insertError } = await admin
-        .from("researcher_deposits")
-        .insert({
-          researcher_id: context.userId,
-          amount_etb: amount,
-          method: input.method,
-          reference: input.reference,
-          sender_detail: input.sender_detail ?? null,
-          idempotency_key: idempotencyKey,
-          status: "needs_review",
-          verification_status: "unsupported_provider",
-          verification_response: { note: verification.message },
-          updated_at: new Date().toISOString(),
-        })
+      const payload = {
+        researcher_id: context.userId,
+        amount_etb: amount,
+        method: input.method,
+        reference,
+        sender_detail: input.sender_detail ?? null,
+        idempotency_key: idempotencyKey,
+        status: "needs_review",
+        verification_status: "unsupported_provider",
+        verification_response: { note: verification.message },
+        updated_at: new Date().toISOString(),
+      };
+
+      const query = existing
+        ? admin.from("researcher_deposits").update(payload).eq("id", existing.id)
+        : admin.from("researcher_deposits").insert(payload);
+
+      const { data: depositRecord, error: insertError } = await query
         .select("id, amount_etb, method, reference, status, verification_status, created_at")
         .single();
 
@@ -136,41 +179,55 @@ walletRouter.post(
         deposit: depositRecord,
         wallet,
         requires_manual_review: true,
-        message: verification.message,
+        message: existing?.status === "needs_review"
+          ? "This transaction is already queued for manual review. Your balance will update once approved."
+          : verification.message,
       });
     }
 
     // 4. Handle Mismatch or Invalid Reference (No balance change)
     if (verification.status === "MISMATCH") {
-      await admin.from("researcher_deposits").insert({
+      const payload = {
         researcher_id: context.userId,
         amount_etb: amount,
         method: input.method,
-        reference: input.reference,
+        reference,
         sender_detail: input.sender_detail ?? null,
         idempotency_key: idempotencyKey,
         status: "failed",
         verification_status: "mismatched",
         verification_response: verification.rawResponse ?? {},
         updated_at: new Date().toISOString(),
-      });
+      };
+
+      if (existing) {
+        await admin.from("researcher_deposits").update(payload).eq("id", existing.id);
+      } else {
+        await admin.from("researcher_deposits").insert(payload);
+      }
 
       throw new ApiError(422, "DEPOSIT_AMOUNT_MISMATCH", verification.message);
     }
 
     if (verification.status === "NOT_FOUND") {
-      await admin.from("researcher_deposits").insert({
+      const payload = {
         researcher_id: context.userId,
         amount_etb: amount,
         method: input.method,
-        reference: input.reference,
+        reference,
         sender_detail: input.sender_detail ?? null,
         idempotency_key: idempotencyKey,
         status: "failed",
         verification_status: "not_found",
         verification_response: verification.rawResponse ?? {},
         updated_at: new Date().toISOString(),
-      });
+      };
+
+      if (existing) {
+        await admin.from("researcher_deposits").update(payload).eq("id", existing.id);
+      } else {
+        await admin.from("researcher_deposits").insert(payload);
+      }
 
       throw new ApiError(404, "TRANSACTION_NOT_FOUND", verification.message);
     }
@@ -184,21 +241,25 @@ walletRouter.post(
     }
 
     // 5. Verified Match -> Credit Available/Escrowed Balance and mark Confirmed
-    const { data: deposit, error } = await admin
-      .from("researcher_deposits")
-      .insert({
-        researcher_id: context.userId,
-        amount_etb: amount,
-        method: input.method,
-        reference: input.reference,
-        provider_ref: verification.providerRef ?? null,
-        sender_detail: input.sender_detail ?? null,
-        idempotency_key: idempotencyKey,
-        status: "completed",
-        verification_status: "verified",
-        verification_response: verification.rawResponse ?? {},
-        updated_at: new Date().toISOString(),
-      })
+    const successPayload = {
+      researcher_id: context.userId,
+      amount_etb: amount,
+      method: input.method,
+      reference,
+      provider_ref: verification.providerRef ?? null,
+      sender_detail: input.sender_detail ?? null,
+      idempotency_key: idempotencyKey,
+      status: "completed",
+      verification_status: "verified",
+      verification_response: verification.rawResponse ?? {},
+      updated_at: new Date().toISOString(),
+    };
+
+    const successQuery = existing
+      ? admin.from("researcher_deposits").update(successPayload).eq("id", existing.id)
+      : admin.from("researcher_deposits").insert(successPayload);
+
+    const { data: deposit, error } = await successQuery
       .select("id, amount_etb, method, reference, provider_ref, status, verification_status, created_at")
       .single();
 
