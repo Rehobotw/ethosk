@@ -16,14 +16,62 @@ export function AdminLayout() {
 
   const adminNavItems = [
     { label: isAm ? "አጠቃላይ እይታ" : "Overview", to: "/admin", icon: "dashboard", end: true },
-    { label: isAm ? "የተጠቃሚዎች አስተዳደር" : "User Management", to: "/admin/users", icon: "group", end: false },
-    { label: isAm ? "የማረጋገጫ ወረፋ" : "Verification Queue", to: "/admin/review-queue", icon: "fact_check", end: false },
-    { label: isAm ? "የጥናት ማጽደቆች" : "Survey Approvals", to: "/admin/survey-approvals", icon: "task_alt", end: false },
-    { label: isAm ? "የተመራማሪ ማጽደቆች" : "Researcher Approvals", to: "/admin/researcher-approvals", icon: "how_to_reg", end: false },
-    { label: isAm ? "የማስታረቅ ወረፋ" : "Reconciliation Queue", to: "/admin/reconciliation", icon: "sync_alt", end: false },
-    { label: isAm ? "የመረጃ ጥያቄዎች" : "Data Requests", to: "/admin/data-requests", icon: "privacy_tip", end: false },
-    { label: isAm ? "የፋይናንስ ሁኔታ" : "Financials", to: "/admin/revenue", icon: "payments", end: false },
+    {
+      label: isAm ? "የተጠቃሚዎች አስተዳደር" : "User Management",
+      to: "/admin/users",
+      icon: "group",
+      end: false,
+      superAdminOnly: true,
+    },
+    {
+      label: isAm ? "የማረጋገጫ ወረፋ" : "Verification Queue",
+      to: "/admin/review-queue",
+      icon: "fact_check",
+      end: false,
+    },
+    {
+      label: isAm ? "የጥናት ማጽደቆች" : "Survey Approvals",
+      to: "/admin/survey-approvals",
+      icon: "task_alt",
+      end: false,
+    },
+    {
+      label: isAm ? "የተመራማሪ ማጽደቆች" : "Researcher Approvals",
+      to: "/admin/researcher-approvals",
+      icon: "how_to_reg",
+      end: false,
+    },
+    {
+      label: isAm ? "የማስታረቅ ወረፋ" : "Reconciliation Queue",
+      to: "/admin/reconciliation",
+      icon: "sync_alt",
+      end: false,
+    },
+    {
+      label: isAm ? "የመረጃ ጥያቄዎች" : "Data Requests",
+      to: "/admin/data-requests",
+      icon: "privacy_tip",
+      end: false,
+    },
+    {
+      label: isAm ? "የፋይናንስ ሁኔታ" : "Financials",
+      to: "/admin/revenue",
+      icon: "payments",
+      end: false,
+      superAdminOnly: true,
+    },
+    {
+      label: isAm ? "ቅንብሮች" : "Settings",
+      to: "/admin/settings",
+      icon: "settings",
+      end: false,
+      superAdminOnly: true,
+    },
   ];
+
+  const visibleNavItems = adminNavItems.filter(
+    (item) => !item.superAdminOnly || user?.role === "super_admin",
+  );
 
   const initials = (user?.full_name || "Admin")
     .split(" ")
@@ -51,7 +99,7 @@ export function AdminLayout() {
             </div>
             <div>
               <h1 className="font-['Newsreader',serif] text-xl font-bold text-[#00456d] leading-none">
-                {isAm ? "ኢቶስክ አድሚን" : "Research Suite"}
+                {user?.role === "super_admin" ? "Ethosk" : isAm ? "ኢቶስክ አድሚን" : "Research Suite"}
               </h1>
               <p className="text-[10px] font-semibold text-[#4b6078] uppercase tracking-wider mt-1">
                 {isAm ? "የአስተዳዳሪ ፖርታል" : "Admin Portal"}
@@ -62,7 +110,7 @@ export function AdminLayout() {
 
         {/* Navigation Links */}
         <div className="flex-1 py-4 flex flex-col gap-1 px-3">
-          {adminNavItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -203,6 +251,16 @@ export function AdminLayout() {
                       {user?.role?.replace("_", " ")}
                     </span>
                   </div>
+                  {user?.role === "super_admin" && (
+                    <Link
+                      to="/admin/settings"
+                      className="w-full px-4 py-2 text-left text-xs text-[#4b6078] hover:bg-[#f1f4f7] flex items-center gap-2"
+                      onClick={() => setProfileOpen(false)}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">settings</span>
+                      <span>Profile Settings</span>
+                    </Link>
+                  )}
                   <button
                     onClick={logout}
                     className="w-full px-4 py-2 text-left text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer"

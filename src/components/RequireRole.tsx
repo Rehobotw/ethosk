@@ -2,7 +2,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 import type { UserRole } from "@shared/types";
 import { roleSatisfiesAny } from "@shared/permissions";
-import { useAuth } from "@/lib/auth";
+import { homePathForRole, useAuth } from "@/lib/auth";
 import { LoadingBlock } from "./ui";
 
 /**
@@ -31,7 +31,7 @@ export function RequireRole({
   }
 
   if (!roleSatisfiesAny(user.role, roles)) {
-    return <Navigate replace to="/" />;
+    return <Navigate replace to={homePathForRole(user.role)} />;
   }
 
   return <>{children}</>;

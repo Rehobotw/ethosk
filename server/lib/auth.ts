@@ -109,9 +109,23 @@ export async function resolveAuth(req: Request): Promise<AuthContext | null> {
   }
 
   if (!row) {
+    let fallbackRole: UserRole = (userMeta?.role as UserRole) || "respondent";
+    try {
+      const { data: resProf } = await admin
+        .from("researcher_profiles")
+        .select("user_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (resProf) {
+        fallbackRole = "researcher";
+      }
+    } catch {
+      /* ignore */
+    }
+
     row = {
       id: userId,
-      role: (userMeta?.role as UserRole) || "respondent",
+      role: fallbackRole,
       verification_tier: "0_registered",
       full_name: typeof userMeta?.full_name === "string" ? userMeta.full_name : "User",
       email: userEmail,

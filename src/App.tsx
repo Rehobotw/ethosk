@@ -36,6 +36,9 @@ const ResearcherLayout = lazy(() =>
 const AdminLayout = lazy(() =>
   import("./components/layout/AdminLayout").then((m) => ({ default: m.AdminLayout })),
 );
+const AdminSettingsPage = lazy(() =>
+  import("./pages/admin/AdminSettingsPage").then((m) => ({ default: m.AdminSettingsPage })),
+);
 const DashboardPage = lazy(() =>
   import("./pages/researcher/DashboardPage").then((m) => ({ default: m.DashboardPage })),
 );
@@ -46,7 +49,9 @@ const SurveyBuilderPage = lazy(() =>
   import("./pages/researcher/SurveyBuilderPage").then((m) => ({ default: m.SurveyBuilderPage })),
 );
 const SurveyNewLandingPage = lazy(() =>
-  import("./pages/researcher/SurveyNewLandingPage").then((m) => ({ default: m.SurveyNewLandingPage })),
+  import("./pages/researcher/SurveyNewLandingPage").then((m) => ({
+    default: m.SurveyNewLandingPage,
+  })),
 );
 const SurveyImportPage = lazy(() =>
   import("./pages/researcher/SurveyImportPage").then((m) => ({ default: m.SurveyImportPage })),
@@ -55,10 +60,14 @@ const SurveyAiPage = lazy(() =>
   import("./pages/researcher/SurveyAiPage").then((m) => ({ default: m.SurveyAiPage })),
 );
 const SurveyCreationSuccessPage = lazy(() =>
-  import("./pages/researcher/SurveyCreationSuccessPage").then((m) => ({ default: m.SurveyCreationSuccessPage })),
+  import("./pages/researcher/SurveyCreationSuccessPage").then((m) => ({
+    default: m.SurveyCreationSuccessPage,
+  })),
 );
 const SurveyPostingWizardPage = lazy(() =>
-  import("./pages/researcher/SurveyPostingWizardPage").then((m) => ({ default: m.SurveyPostingWizardPage })),
+  import("./pages/researcher/SurveyPostingWizardPage").then((m) => ({
+    default: m.SurveyPostingWizardPage,
+  })),
 );
 const SurveyAnalyticsPage = lazy(() =>
   import("./pages/researcher/SurveyAnalyticsPage").then((m) => ({
@@ -225,7 +234,9 @@ const SurveyQueuePage = lazy(() =>
   import("./pages/admin/SurveyQueuePage").then((m) => ({ default: m.SurveyQueuePage })),
 );
 const SurveyReviewDetailPage = lazy(() =>
-  import("./pages/admin/SurveyReviewDetailPage").then((m) => ({ default: m.SurveyReviewDetailPage })),
+  import("./pages/admin/SurveyReviewDetailPage").then((m) => ({
+    default: m.SurveyReviewDetailPage,
+  })),
 );
 const ClearanceDocumentReviewPage = lazy(() =>
   import("./pages/admin/ClearanceDocumentReviewPage").then((m) => ({
@@ -256,7 +267,9 @@ const RevenueDashboardPage = lazy(() =>
   import("./pages/admin/RevenueDashboardPage").then((m) => ({ default: m.RevenueDashboardPage })),
 );
 const ResearcherQueuePage = lazy(() =>
-  import("./pages/admin/ResearcherQueuePage").then((m) => ({ default: m.AdminResearcherQueuePage })),
+  import("./pages/admin/ResearcherQueuePage").then((m) => ({
+    default: m.AdminResearcherQueuePage,
+  })),
 );
 const ReconciliationQueuePage = lazy(() =>
   import("./pages/admin/ReconciliationQueuePage").then((m) => ({
@@ -438,11 +451,26 @@ export default function App() {
         <Route element={<ChooseSubscriptionPlanPage />} path="/researcher/subscription/plans" />
         <Route element={<ChooseSubscriptionPlanPage />} path="/subscription" />
         <Route element={<SubscriptionCheckoutReadyPage />} path="/subscription/checkout" />
-        <Route element={<SubscriptionCheckoutReadyPage />} path="/researcher/subscription/checkout" />
-        <Route element={<SubscriptionCheckoutProcessingPage />} path="/subscription/checkout/processing" />
-        <Route element={<SubscriptionCheckoutProcessingPage />} path="/researcher/subscription/checkout/processing" />
-        <Route element={<SubscriptionCheckoutSuccessPage />} path="/subscription/checkout/success" />
-        <Route element={<SubscriptionCheckoutSuccessPage />} path="/researcher/subscription/checkout/success" />
+        <Route
+          element={<SubscriptionCheckoutReadyPage />}
+          path="/researcher/subscription/checkout"
+        />
+        <Route
+          element={<SubscriptionCheckoutProcessingPage />}
+          path="/subscription/checkout/processing"
+        />
+        <Route
+          element={<SubscriptionCheckoutProcessingPage />}
+          path="/researcher/subscription/checkout/processing"
+        />
+        <Route
+          element={<SubscriptionCheckoutSuccessPage />}
+          path="/subscription/checkout/success"
+        />
+        <Route
+          element={<SubscriptionCheckoutSuccessPage />}
+          path="/researcher/subscription/checkout/success"
+        />
         <Route element={<PaymentConfirmationPage />} path="/subscription/confirmation" />
         <Route element={<PaymentConfirmationPage />} path="/researcher/subscription/confirmation" />
         <Route element={<ResearcherProfilePage />} path="/researcher/profile" />
@@ -473,11 +501,13 @@ export default function App() {
         <Route element={<ResubmissionReviewPage />} path="/admin/resubmission-review" />
         <Route element={<SurveyReviewDetailPage />} path="/admin/survey-approvals/:id" />
         <Route element={<SurveyApprovedSuccessPage />} path="/admin/survey-approvals/:id/success" />
-        <Route element={<SurveyRejectedSuccessPage />} path="/admin/survey-approvals/:id/rejected" />
+        <Route
+          element={<SurveyRejectedSuccessPage />}
+          path="/admin/survey-approvals/:id/rejected"
+        />
         <Route element={<SurveyReviewDetailPage />} path="/admin/survey-review/:id" />
         <Route element={<ClearanceDocumentReviewPage />} path="/admin/compliance-docs/:id" />
         <Route element={<ClearanceDocumentReviewPage />} path="/admin/document-review/:id" />
-        <Route element={<RevenueDashboardPage />} path="/admin/revenue" />
         <Route element={<ResearcherQueuePage />} path="/admin/researcher-approvals" />
         <Route element={<ReconciliationQueuePage />} path="/admin/reconciliation" />
         <Route element={<DataSubjectRequestsPage />} path="/admin/data-requests" />
@@ -496,6 +526,8 @@ export default function App() {
         }
       >
         <Route element={<UserManagementPage />} path="/admin/users" />
+        <Route element={<RevenueDashboardPage />} path="/admin/revenue" />
+        <Route element={<AdminSettingsPage />} path="/admin/settings" />
       </Route>
 
       <Route element={<Navigate replace to="/" />} path="/home" />

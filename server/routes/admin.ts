@@ -9,6 +9,9 @@ import { admin } from "../lib/supabase.js";
 
 export const adminRouter = Router();
 
+// Enforce server-side role gate for all admin endpoints
+adminRouter.use(requireAuth("admin"));
+
 // ============================================================================
 // Routes accessible by BOTH admin and super_admin
 // (requireAuth("admin") now passes super_admin too via roleSatisfies)

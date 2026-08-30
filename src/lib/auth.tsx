@@ -189,3 +189,54 @@ export function homePathForRole(role: UserRole): string {
       return "/inbox";
   }
 }
+
+/** Check if a given route path is permitted for the user's role. */
+export function isPathAllowedForRole(pathname: string | null | undefined, role: UserRole): boolean {
+  if (!pathname || pathname === "/" || pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/auth")) {
+    return true;
+  }
+
+  // Normalize path
+  const cleanPath = pathname.split("?")[0].split("#")[0];
+
+  if (role === "respondent") {
+    // Respondents must not access researcher or admin portals
+    if (
+      cleanPath.startsWith("/researcher") ||
+      cleanPath.startsWith("/survey-builder") ||
+      cleanPath.startsWith("/survey-posting") ||
+      cleanPath.startsWith("/subscription") ||
+      cleanPath.startsWith("/admin")
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  if (role === "researcher") {
+    // Researchers must not access respondent-only dashboard pages or admin portals
+    if (
+      cleanPath === "/inbox" ||
+      cleanPath === "/history" ||
+      cleanPath.startsWith("/respondent/onboarding") ||
+      cleanPath.startsWith("/admin")
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  if (role === "admin") {
+    if (cleanPath === "/admin/users" || cleanPath === "/admin/revenue") {
+      return false;
+    }
+    return true;
+  }
+
+  if (role === "super_admin") {
+    return true;
+  }
+
+  return true;
+}
+

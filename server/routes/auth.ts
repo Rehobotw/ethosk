@@ -229,13 +229,7 @@ authRouter.post(
       .maybeSingle();
 
     if (existingById) {
-      const finalRole = input.role || existingById.role;
-      if (input.role && existingById.role !== input.role) {
-        await admin
-          .from("users")
-          .update({ role: finalRole, email_verified: true })
-          .eq("id", context.userId);
-      }
+      const finalRole = existingById.role;
 
       const profileTable =
         finalRole === "respondent"
@@ -263,13 +257,12 @@ authRouter.post(
         .maybeSingle();
 
       if (existingByEmail) {
-        const finalRole = input.role || existingByEmail.role;
+        const finalRole = existingByEmail.role;
 
         const { error: linkError } = await admin
           .from("users")
           .update({
             id: context.userId,
-            role: finalRole,
             full_name: fullName,
             email_verified: true,
           })
@@ -279,7 +272,7 @@ authRouter.post(
           console.warn(`[sync-oauth] Account link notice: ${linkError.message}`);
           await admin
             .from("users")
-            .update({ role: finalRole, email_verified: true })
+            .update({ email_verified: true })
             .ilike("email", email);
         }
 

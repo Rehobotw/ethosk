@@ -24,6 +24,9 @@ import { admin, userClient } from "../lib/supabase.js";
 
 export const respondentsRouter = Router();
 
+// Enforce server-side role gate for all respondent endpoints
+respondentsRouter.use(requireAuth("respondent", "admin", "super_admin"));
+
 const respondentEmailOtpStore = new Map<string, { code: string; email: string; timestamp: number }>();
 
 // Held in memory so the size and MIME checks run before anything reaches storage.
