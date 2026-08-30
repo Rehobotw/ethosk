@@ -82,16 +82,6 @@ export function ResearcherWalletPage() {
     );
   }, [returningStatus, queryClient, setSearchParams]);
 
-  const telebirrCheckout = useMutation({
-    mutationFn: (body: { amount_etb: number; return_url?: string }) =>
-      api<{ to: string }>("/wallet/researcher/telebirr", { body }),
-    onSuccess: (data) => {
-      window.location.assign(data.to);
-    },
-    onError: (err) => {
-      setFormError(err instanceof ApiRequestError ? err.message : "Checkout unavailable");
-    },
-  });
 
   const manualDeposit = useMutation({
     mutationFn: (body: {
@@ -139,7 +129,7 @@ export function ResearcherWalletPage() {
       return;
     }
 
-    const idempotencyKey = `idemp_${user?.id || "anon"}_${transactionRef.trim()}_${Date.now()}`;
+    const idempotencyKey = `idemp_${user?.user_id || "anon"}_${transactionRef.trim()}_${Date.now()}`;
 
     manualDeposit.mutate({
       amount_etb: activeAmount,

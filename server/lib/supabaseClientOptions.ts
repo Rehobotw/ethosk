@@ -13,26 +13,6 @@ const auth = { autoRefreshToken: false, persistSession: false } as const;
 export function serverSupabaseClientOptions(): SupabaseClientOptions<'public'> {
   const hasNativeWebSocket = typeof globalThis.WebSocket !== "undefined";
 
-  // #region agent log
-  fetch("http://127.0.0.1:7633/ingest/c9e0799e-dbd9-4f3c-a083-52abf8426277", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "fc5c0e" },
-    body: JSON.stringify({
-      sessionId: "fc5c0e",
-      runId: "pre-fix",
-      hypothesisId: "A,B",
-      location: "server/lib/supabaseClientOptions.ts:serverSupabaseClientOptions",
-      message: "Resolving server Supabase client options",
-      data: {
-        nodeVersion: process.versions.node,
-        hasNativeWebSocket,
-        willUseWsTransport: !hasNativeWebSocket,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-
   if (hasNativeWebSocket) {
     return { auth };
   }

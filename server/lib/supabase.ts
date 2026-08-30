@@ -24,22 +24,6 @@ export const admin: SupabaseClient = isMock
     (createMockSupabaseClient() as unknown as SupabaseClient)
   : createClient(env.supabaseUrl, env.supabaseServiceRoleKey, serverSupabaseClientOptions());
 
-// #region agent log
-fetch("http://127.0.0.1:7633/ingest/c9e0799e-dbd9-4f3c-a083-52abf8426277", {
-  method: "POST",
-  headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "fc5c0e" },
-  body: JSON.stringify({
-    sessionId: "fc5c0e",
-    runId: "pre-fix",
-    hypothesisId: "A",
-    location: "server/lib/supabase.ts:admin",
-    message: "Supabase admin client initialized",
-    data: { isMock },
-    timestamp: Date.now(),
-  }),
-}).catch(() => {});
-// #endregion
-
 /**
  * A client scoped to one end user's access token.
  */

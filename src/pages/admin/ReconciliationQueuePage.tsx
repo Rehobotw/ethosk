@@ -157,10 +157,10 @@ export function ReconciliationQueuePage() {
         </div>
         <div className="flex items-center gap-3">
           <Button
+            className="px-3 py-1.5 text-xs"
             icon="refresh"
             loading={isFetching}
             onClick={() => refetch()}
-            size="sm"
             variant="outline"
           >
             Refresh Queue
@@ -293,14 +293,13 @@ export function ReconciliationQueuePage() {
               Refresh
             </Button>
           }
-          description={
-            searchQuery || filterType !== "all"
-              ? "No reconciliation items matched your current filter criteria."
-              : "The manual reconciliation queue is clear. All transactions have been automated via verify.et."
-          }
           icon="task_alt"
           title="No Transactions Awaiting Review"
-        />
+        >
+          {searchQuery || filterType !== "all"
+            ? "No reconciliation items matched your current filter criteria."
+            : "The manual reconciliation queue is clear. All transactions have been automated via verify.et."}
+        </EmptyState>
       ) : (
         <div className="bg-white rounded-xl border border-[#E1E8EE] overflow-hidden shadow-xs">
           <div className="overflow-x-auto">

@@ -15,6 +15,7 @@ import { recordConsentEvent } from "../lib/consent.js";
 import { ApiError, asyncRoute, parseBody } from "../lib/http.js";
 import { rateLimit } from "../lib/rateLimit.js";
 import { admin, publicClient, signInWithPassword } from "../lib/supabase.js";
+import { sendOtpEmail } from "../lib/email.js";
 
 import { env } from "../env.js";
 
@@ -187,14 +188,18 @@ authRouter.post(
     });
 
     console.log(`[auth] Verification code for ${email}: ${otp}`);
+    const otpEmailed = await sendOtpEmail(email, otp, "verify_email");
 
     res.status(201).json({
       success: true,
       verification_required: true,
       email,
-      message: "Account created. Please check your email for your 6-digit verification code.",
+      message: otpEmailed
+        ? "Account created. Please check your email for your 6-digit verification code."
+        : "Account created, but the verification email could not be sent. Please use \"Resend code\" or contact support.",
       user_id: createdUserId,
       role: input.role,
+      ...(env.nodeEnv === "development" ? { demo_code: otp } : {}),
     });
   }),
 );
@@ -554,17 +559,17 @@ authRouter.post(
     });
 
     console.log(`[auth] Resent verification code for ${email}: ${otp}`);
+    const otpEmailed = await sendOtpEmail(email, otp, "verify_email");
 
-    // Trigger Supabase native resend if available
-    let resendMessage = "A new verification code has been sent to your email.";
+    // Trigger Supabase native resend as a secondary channel, if available
+    const resendMessage = otpEmailed
+      ? "A new verification code has been sent to your email."
+      : "We could not email a new verification code. Please try again shortly or contact support.";
     try {
       if (typeof publicClient.auth?.resend === "function") {
         const { error: resendError } = await publicClient.auth.resend({ type: "signup", email });
         if (resendError) {
           console.warn("[auth] Supabase resend error:", resendError.message, resendError);
-          if (resendError.message.toLowerCase().includes("rate limit") || (resendError as unknown as Record<string, unknown>).code === "over_email_send_rate_limit") {
-            resendMessage = "Supabase email rate limit exceeded (max 3/hour on free tier). Please wait or enable Custom SMTP in Supabase.";
-          }
         }
       }
     } catch (err) {
@@ -574,6 +579,7 @@ authRouter.post(
     res.json({
       success: true,
       message: resendMessage,
+      ...(env.nodeEnv === "development" ? { demo_code: otp } : {}),
     });
   }),
 );
@@ -591,23 +597,9 @@ authRouter.post(
       throw new ApiError(404, "USER_NOT_FOUND", "No account found with that email address.");
     }
 
-    // Trigger Supabase native reset password OTP
-    let resetMessage = "A 6-digit password reset code has been sent to your email.";
-    try {
-      if (typeof publicClient.auth?.resetPasswordForEmail === "function") {
-        const { error: resetErr } = await publicClient.auth.resetPasswordForEmail(email);
-        if (resetErr) {
-          console.warn("[auth] Supabase resetPasswordForEmail error:", resetErr.message);
-          if (resetErr.message.toLowerCase().includes("rate limit") || (resetErr as unknown as Record<string, unknown>).code === "over_email_send_rate_limit") {
-            resetMessage = "Supabase email rate limit exceeded (max 3/hour on free tier). Please wait or enable Custom SMTP in Supabase.";
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("[auth] Native Supabase resetPasswordForEmail skipped:", (err as Error).message);
-    }
-
-    // Generate 6-digit OTP code for reset
+    // Generate 6-digit OTP code for reset and email it directly — this is the
+    // code /reset-password actually checks against `resetPasswordStore`, so it
+    // must be the one the user receives.
     const otp = generateOtp();
     resetPasswordStore.set(email, {
       code: otp,
@@ -617,6 +609,25 @@ authRouter.post(
 
     if (process.env.NODE_ENV === "development" || env.nodeEnv === "development") {
       console.log(`[auth] Password reset code for ${email}: ${otp}`);
+    }
+
+    const otpEmailed = await sendOtpEmail(email, otp, "reset_password");
+    const resetMessage = otpEmailed
+      ? "A 6-digit password reset code has been sent to your email."
+      : "We could not email a password reset code right now. Please try again shortly or contact support.";
+
+    // Also trigger Supabase's native reset-password email as a secondary
+    // channel (typically a magic link) — best-effort, never overrides the
+    // primary result above.
+    try {
+      if (typeof publicClient.auth?.resetPasswordForEmail === "function") {
+        const { error: resetErr } = await publicClient.auth.resetPasswordForEmail(email);
+        if (resetErr) {
+          console.warn("[auth] Supabase resetPasswordForEmail error:", resetErr.message);
+        }
+      }
+    } catch (err) {
+      console.warn("[auth] Native Supabase resetPasswordForEmail skipped:", (err as Error).message);
     }
 
     res.json({

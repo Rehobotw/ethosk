@@ -555,7 +555,7 @@ surveysRouter.post(
     const { filters } = parseBody(matchRequestSchema, req.body);
     await loadOwnedSurvey(routeParam(req, "id"), context.userId);
 
-    const matchedCount = await countMatches(filters as MatchFilters);
+    const matchedCount = await countMatches(normalizeMatchFilters(filters));
 
     res.json({
       matched_count: matchedCount,
@@ -589,7 +589,7 @@ surveysRouter.post(
 
     // The count is always recomputed server-side; a client-cached number is never
     // trusted to decide who receives a survey.
-    const respondentIds = await findMatches(input.filters as MatchFilters);
+    const respondentIds = await findMatches(normalizeMatchFilters(input.filters));
 
     // Sending is the point of no return for money: respondents are about to be
     // promised a reward, so the full cost is checked against the researcher's
@@ -659,7 +659,18 @@ surveysRouter.post(
   }),
 );
 
-async function countMatches(filters: MatchFilters = {}): Promise<number> {
+/**
+ * `minVerificationTier` is required by `MatchFilters` (Tier 0 is deliberately
+ * excluded from matching — see `minVerificationTierSchema`), but callers may
+ * omit it entirely. Default to the lowest verified tier in that case.
+ */
+function normalizeMatchFilters(filters: Record<string, unknown> | undefined): MatchFilters {
+  const minVerificationTier =
+    (filters?.minVerificationTier as MatchFilters["minVerificationTier"] | undefined) ?? "1_id_verified";
+  return { ...(filters as Omit<MatchFilters, "minVerificationTier">), minVerificationTier };
+}
+
+async function countMatches(filters: MatchFilters): Promise<number> {
   let query = admin
     .from("respondent_match_view")
     .select("user_id", { count: "exact", head: true });

@@ -345,7 +345,7 @@ adminRouter.post(
   requireAuth("admin"),
   asyncRoute(async (req, res) => {
     const input = parseBody(dataRequestActionSchema, req.body);
-    const requestId = routeParam(req, "id");
+    const requestId = req.params.id;
 
     const { data: requestEvent, error: readError } = await admin
       .from("consent_events")

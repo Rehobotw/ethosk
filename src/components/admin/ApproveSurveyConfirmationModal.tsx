@@ -11,7 +11,7 @@ export interface ApproveSurveyConfirmationModalProps {
     researcher_name: string;
     research_category: string;
     current_status?: string;
-    document_status?: "Accepted" | "Pending" | "Missing";
+    document_status?: string;
   };
 }
 
