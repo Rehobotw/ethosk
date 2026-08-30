@@ -178,9 +178,6 @@ export function AdminReviewQueuePage() {
     compliance: 3,
   };
 
-  const isLoading = isDocLoading || isSurveyLoading;
-  const error = docError || surveyError;
-
   return (
     <div className="space-y-6 font-['Inter',sans-serif] text-[#0F172A] pb-16 max-w-7xl mx-auto">
       {/* ── Header Section (Stitch Screen 6f7ea3340bdd4c5789181436816d783e) ── */}

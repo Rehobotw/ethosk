@@ -105,7 +105,7 @@ export function QuestionInput({
   if (qType === "single_choice") {
     return (
       <div className="space-y-2.5" onBlur={onBlur} onFocus={onFocus}>
-        {(question.options ?? []).map((option, idx) => {
+        {(question.options ?? []).map((option) => {
           const selected = value === option;
           return (
             <button
