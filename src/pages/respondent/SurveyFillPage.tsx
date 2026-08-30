@@ -266,23 +266,31 @@ export function SurveyFillPage() {
 
   return (
     <FillFrame>
-      {/* Sticky Progress Bar & Format Bar */}
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md pb-stack-sm mb-stack-md border-b border-outline-variant/30">
-        <div className="flex items-center justify-between gap-stack-md mb-2">
-          <div>
-            <h1 className="font-title-sm text-title-sm text-primary font-bold truncate max-w-xs md:max-w-md">
-              {data.title}
-            </h1>
-            <p className="font-body-sm text-xs text-on-surface-variant">
-              {data.questions.length} questions{data.reward_etb ? ` · ${data.reward_etb} ETB reward` : ""}
+      {/* Top Glassmorphism Sticky Header */}
+      <div className="sticky top-4 z-30 bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-2xl p-4 md:p-5 mb-8 transition-all">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live Study
+              </span>
+              {data.reward_etb ? (
+                <span className="text-xs font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">
+                  ⚡ {data.reward_etb} ETB Reward
+                </span>
+              ) : null}
+            </div>
+            <p className="text-xs font-extrabold text-[#0D253A] truncate font-headline-md tracking-tight uppercase">
+              Study Questions
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {availableLanguages.length > 1 && (
               <Select
                 aria-label="Language"
-                className="w-auto text-xs py-1"
+                className="w-auto text-xs py-1.5 bg-slate-50 border-slate-200 font-semibold text-slate-700"
                 onChange={(event) => setLanguage(event.target.value as Language)}
                 value={language}
               >
@@ -296,7 +304,7 @@ export function SurveyFillPage() {
 
             <button
               aria-disabled="true"
-              className="px-3 py-1.5 rounded-lg border border-outline-variant text-xs font-semibold flex items-center gap-1.5 opacity-50 cursor-not-allowed text-on-surface-variant"
+              className="px-3.5 py-2 rounded-xl bg-slate-100 text-slate-400 text-xs font-bold flex items-center gap-1.5 opacity-60 cursor-not-allowed"
               disabled
               title="Voice survey mode is coming soon (§7.4)"
               type="button"
@@ -306,84 +314,166 @@ export function SurveyFillPage() {
             </button>
 
             <button
-              className="px-3 py-1.5 rounded-lg border border-outline-variant text-xs font-semibold hover:bg-surface-container flex items-center gap-1.5 transition-all text-primary cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
               onClick={() => setActiveMode("chat")}
               title="Switch to AI Chat Mode"
               type="button"
             >
-              <span className="material-symbols-outlined text-[16px]">forum</span>
-              <span>Chat</span>
+              <span className="material-symbols-outlined text-[16px] text-primary">forum</span>
+              <span>AI Chat</span>
             </button>
 
-            <Link aria-label="Leave survey" to="/inbox">
-              <Icon className="text-on-surface-variant hover:text-primary transition-colors p-1" name="close" />
+            <Link
+              aria-label="Leave survey"
+              to="/inbox"
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all"
+            >
+              <Icon name="close" className="text-xl" />
             </Link>
           </div>
         </div>
 
-        {/* Progress bar */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-[11px] font-medium text-on-surface-variant">
+        {/* Progress Bar Meter */}
+        <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
+          <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
             <span>
-              {answeredCount === data.questions.length
-                ? "All questions answered"
-                : `${answeredCount} of ${data.questions.length} answered`}
+              Progress: <strong className="text-primary">{answeredCount}</strong> of{" "}
+              <strong>{data.questions.length}</strong> answered
             </span>
-            <span>{progressPercent}%</span>
+            <span className="text-primary font-bold">{progressPercent}%</span>
           </div>
-          <div className="h-1.5 w-full rounded-full bg-surface-container-high overflow-hidden">
+          <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden p-0.5 border border-slate-200/50">
             <div
-              className="h-full bg-primary transition-all duration-300 ease-out"
+              className="h-full bg-gradient-to-r from-primary via-indigo-600 to-sky-500 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
         </div>
       </div>
 
-      {data.description && (
-        <p className="mb-stack-md font-body-md text-body-md text-on-surface-variant">
-          {data.description}
-        </p>
-      )}
+      {/* Hero Header Overview Banner */}
+      <div className="bg-gradient-to-br from-primary/5 via-white to-sky-50/50 border border-slate-200/80 rounded-2xl p-6 md:p-8 mb-8 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <span className="text-xs font-bold bg-white border border-slate-200 text-slate-700 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+            <span className="material-symbols-outlined text-sm text-primary">verified</span>
+            Verified Researcher Study
+          </span>
+          <span className="text-xs font-medium text-slate-500">
+            Estimated time: {Math.max(3, Math.round(data.questions.length * 1.5))} mins
+          </span>
+        </div>
+
+        <h1 className="text-2xl md:text-3xl font-headline-lg font-bold text-[#0D253A] tracking-tight leading-snug">
+          {data.title}
+        </h1>
+
+        {data.description && (
+          <p className="mt-3 text-sm md:text-base text-slate-600 leading-relaxed max-w-3xl">
+            {data.description}
+          </p>
+        )}
+      </div>
 
       {isDraftRestored && (
-        <Notice tone="info">
-          Draft progress restored. You can continue answering from where you left off.
-        </Notice>
+        <div className="mb-6">
+          <Notice tone="info">
+            Draft progress restored. You can continue answering from where you left off.
+          </Notice>
+        </div>
       )}
 
+      {/* Form & Question Cards */}
       <form
-        className="space-y-stack-md"
+        className="space-y-6 pb-24"
         onSubmit={(e) => {
           e.preventDefault();
           handleSubmit();
         }}
       >
-        {data.questions.map((question, index) => (
-          <Card key={question.id}>
-            <p className="font-semibold text-sm mb-3 text-slate-800">{questionText(question, index)}</p>
-            <QuestionInput
-              onBlur={() => timer.blurQuestion(question.id)}
-              onChange={(val) => updateAnswer(question.id, val)}
-              onFocus={() => timer.focusQuestion(question.id)}
-              onKeystroke={() => textMetrics.recordKeystroke(question.id)}
-              onPaste={() => textMetrics.recordPaste(question.id)}
-              question={question}
-              value={answers[question.id] || ""}
-            />
-          </Card>
-        ))}
+        {data.questions.map((question, index) => {
+          const isAnswered = Boolean(answers[question.id]?.trim());
+          const isSection = ((question.type as string) === "section");
 
-        {validationError && <Notice tone="error">{validationError}</Notice>}
+          if (isSection) {
+            return (
+              <div key={question.id} className="pt-4 pb-2 border-b border-slate-200">
+                <h3 className="text-lg font-headline-md font-bold text-primary">
+                  {questionText(question, index)}
+                </h3>
+              </div>
+            );
+          }
 
-        <div className="pt-stack-md flex justify-end gap-3">
-          <Button
-            className="px-8 py-3 font-semibold"
-            loading={submit.isPending}
-            type="submit"
-          >
-            Submit Response ({answeredCount}/{data.questions.length})
-          </Button>
+          return (
+            <div
+              key={question.id}
+              className={`bg-white rounded-2xl border transition-all p-6 md:p-7 shadow-[0_4px_20px_rgba(0,0,0,0.03)] ${
+                isAnswered ? "border-slate-200" : "border-slate-200 hover:border-primary/40"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-primary/10 text-primary font-mono">
+                    Q{index + 1}
+                  </span>
+                  {question.required !== false && (
+                    <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                      Required
+                    </span>
+                  )}
+                </div>
+
+                {isAnswered && (
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">check_circle</span>
+                    Answered
+                  </span>
+                )}
+              </div>
+
+              <h3 className="text-base md:text-lg font-headline-sm font-bold text-[#0D253A] mb-4 leading-snug">
+                {questionText(question, index)}
+              </h3>
+
+              <QuestionInput
+                onBlur={() => timer.blurQuestion(question.id)}
+                onChange={(val) => updateAnswer(question.id, val)}
+                onFocus={() => timer.focusQuestion(question.id)}
+                onKeystroke={() => textMetrics.recordKeystroke(question.id)}
+                onPaste={() => textMetrics.recordPaste(question.id)}
+                question={question}
+                value={answers[question.id] || ""}
+              />
+            </div>
+          );
+        })}
+
+        {validationError && (
+          <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
+            <span className="material-symbols-outlined text-lg text-rose-600">error</span>
+            <span>{validationError}</span>
+          </div>
+        )}
+
+        {/* Bottom Floating Submit Bar */}
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-md border-t border-slate-200 p-4 shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
+            <div className="text-xs text-slate-600 hidden sm:block">
+              <span className="font-bold text-slate-800">
+                {answeredCount} of {data.questions.length}
+              </span>{" "}
+              questions answered
+            </div>
+
+            <Button
+              className="bg-primary hover:bg-primary-container text-white px-8 py-3 rounded-xl font-bold text-sm shadow-md transition-all active:scale-95 flex items-center gap-2 ml-auto cursor-pointer"
+              loading={submit.isPending}
+              type="submit"
+            >
+              <span>Submit Response ({answeredCount}/{data.questions.length})</span>
+              <span className="material-symbols-outlined text-base">send</span>
+            </Button>
+          </div>
         </div>
       </form>
     </FillFrame>
@@ -392,7 +482,7 @@ export function SurveyFillPage() {
 
 function FillFrame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-background py-stack-md px-margin-mobile md:px-margin-desktop">
+    <div className="min-h-screen bg-[#F8FAFC] py-6 px-4 sm:px-6 md:px-8">
       <div className="max-w-3xl mx-auto">{children}</div>
     </div>
   );
