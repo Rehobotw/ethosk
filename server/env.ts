@@ -135,6 +135,16 @@ export const env = {
     process.env.NODE_ENV === "production"
       ? (process.env.ALLOW_VERIFY_ET_STUB === "true")
       : (process.env.ALLOW_VERIFY_ET_STUB ?? "true") === "true",
+
+  /**
+   * Platform receiving accounts for deposits & verify.et reconciliation.
+   */
+  receiverTelebirr: process.env.RECEIVER_TELEBIRR_PHONE ?? "0974688397",
+  receiverCbe: process.env.RECEIVER_CBE_ACCOUNT ?? "1000307620522",
+  receiverCbeBirr: process.env.RECEIVER_CBE_BIRR ?? "0974688397",
+  receiverAwash: optional("RECEIVER_AWASH_ACCOUNT"),
+  receiverBoa: optional("RECEIVER_BOA_ACCOUNT"),
+  receiverDashen: optional("RECEIVER_DASHEN_ACCOUNT"),
 } as const;
 
 export const fraudThresholds = {

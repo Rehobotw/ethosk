@@ -684,7 +684,7 @@ async function countMatches(filters: MatchFilters): Promise<number> {
   return count ?? 0;
 }
 
-async function findMatches(filters: MatchFilters): Promise<string[]> {
+async function findMatches(filters: MatchFilters = {}): Promise<string[]> {
   let query = admin.from("respondent_match_view").select("user_id");
 
   for (const filter of buildSupabaseMatchFilters(filters)) {

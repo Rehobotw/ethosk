@@ -26,7 +26,7 @@ export interface MatchFilters {
   university?: string;
   department?: string;
   yearRange?: [number, number];
-  minVerificationTier: "1_id_verified" | "2_attribute_verified" | "3_institution_attested";
+  minVerificationTier?: "1_id_verified" | "2_attribute_verified" | "3_institution_attested";
 }
 
 export interface BuiltQuery {
@@ -78,7 +78,8 @@ export function buildMatchQuery(filters: MatchFilters): BuiltQuery {
     return `$${params.length}`;
   };
 
-  clauses.push(`tier_rank >= ${bind(TIER_RANK[filters.minVerificationTier])}`);
+  const minTier = filters.minVerificationTier || "1_id_verified";
+  clauses.push(`tier_rank >= ${bind(TIER_RANK[minTier])}`);
 
   for (const { key, column } of EQUALITY_FILTERS) {
     const value = filters[key];
@@ -111,7 +112,7 @@ function normalizeRange([a, b]: [number, number]): [number, number] {
 }
 
 /**
- * The same predicate expressed for the Supabase JS query builder, which the
+ * Mirrors `buildMatchQuery` for the Supabase JavaScript client, which the
  * server uses in practice. Kept beside `buildMatchQuery` so the SQL form and the
  * client form can be diffed against each other and unit-tested together.
  */
@@ -121,9 +122,10 @@ export interface SupabaseMatchFilter {
   value: unknown;
 }
 
-export function buildSupabaseMatchFilters(filters: MatchFilters): SupabaseMatchFilter[] {
+export function buildSupabaseMatchFilters(filters: MatchFilters = {}): SupabaseMatchFilter[] {
+  const minTier = filters.minVerificationTier || "1_id_verified";
   const out: SupabaseMatchFilter[] = [
-    { column: "tier_rank", op: "gte", value: TIER_RANK[filters.minVerificationTier] },
+    { column: "tier_rank", op: "gte", value: TIER_RANK[minTier] },
   ];
 
   for (const { key, column } of EQUALITY_FILTERS) {

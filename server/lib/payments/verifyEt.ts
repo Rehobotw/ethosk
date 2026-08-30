@@ -53,6 +53,41 @@ export const VERIFY_ET_SUPPORTED_PROVIDERS: readonly DepositMethod[] = [
   "kaafi_ebirr",
 ] as const;
 
+export function getReceiverAccountForProvider(provider: DepositMethod): string | undefined {
+  switch (provider) {
+    case "telebirr":
+      return env.receiverTelebirr;
+    case "cbe":
+      return env.receiverCbe;
+    case "cbe_birr":
+      return env.receiverCbeBirr;
+    case "awash":
+      return env.receiverAwash;
+    case "boa":
+      return env.receiverBoa;
+    case "dashen":
+      return env.receiverDashen;
+    default:
+      return undefined;
+  }
+}
+
+export function sanitizeTransactionReference(reference: string): string {
+  const trimmed = reference.trim();
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    try {
+      const url = new URL(trimmed);
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts.length > 0) {
+        return parts[parts.length - 1];
+      }
+    } catch {
+      // Fallback to raw string
+    }
+  }
+  return trimmed;
+}
+
 export function isVerifyEtSupportedProvider(provider: DepositMethod): boolean {
   return VERIFY_ET_SUPPORTED_PROVIDERS.includes(provider);
 }
@@ -67,7 +102,8 @@ export function isVerifyEtConfigured(): boolean {
 export async function verifyTransaction(
   params: VerifyTransactionParams,
 ): Promise<VerifyTransactionResult> {
-  const { provider, reference, expectedAmount, senderDetail, idempotencyKey } = params;
+  const { provider, reference: rawReference, expectedAmount, senderDetail, idempotencyKey } = params;
+  const reference = sanitizeTransactionReference(rawReference);
 
   // 1. Check if provider is supported by verify.et API
   if (!isVerifyEtSupportedProvider(provider)) {
@@ -94,6 +130,7 @@ export async function verifyTransaction(
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), env.verifyEtTimeoutMs);
+      const receiverAccount = getReceiverAccountForProvider(provider);
 
       const response = await fetch(`${env.verifyEtBaseUrl}/transactions/verify`, {
         method: "POST",
@@ -107,6 +144,11 @@ export async function verifyTransaction(
           reference: reference.trim(),
           amount: expectedAmount,
           sender_detail: senderDetail?.trim(),
+          ...(receiverAccount && {
+            receiver_account: receiverAccount,
+            receiver_detail: receiverAccount,
+            recipient: receiverAccount,
+          }),
         }),
         signal: controller.signal,
       });

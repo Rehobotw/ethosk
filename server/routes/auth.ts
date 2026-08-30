@@ -207,35 +207,102 @@ authRouter.post(
 authRouter.post(
   "/sync-oauth",
   requireAuth(),
-  rateLimit({ key: "sync-oauth", max: 10, windowMs: 60_000 }),
+  rateLimit({ key: "sync-oauth", max: 20, windowMs: 60_000 }),
   asyncRoute(async (req, res) => {
     const context = auth(req);
     const input = parseBody(syncOAuthSchema, req.body);
     
-    // Check if user already exists in our tables
-    const { data: existing } = await admin
-      .from("users")
-      .select("id, role")
-      .eq("id", context.userId)
-      .maybeSingle();
-
-    if (existing) {
-      // Already exists, just return their current role (OAuth login flow)
-      res.json({ success: true, exists: true, role: existing.role });
-      return;
-    }
-
     // Fetch user info from Supabase Auth
     const { data: authData, error: authError } = await admin.auth.admin.getUserById(context.userId);
     if (authError || !authData?.user) {
       throw new ApiError(500, "SYNC_FAILED", "Could not read auth user.");
     }
 
-    const email = authData.user.email ?? "";
+    const email = authData.user.email?.toLowerCase().trim() ?? "";
     const fullName = authData.user.user_metadata?.full_name ?? email.split("@")[0] ?? "User";
 
+    // 1. Check if user already exists in our table by auth ID
+    const { data: existingById } = await admin
+      .from("users")
+      .select("id, role, full_name, email")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    if (existingById) {
+      const finalRole = input.role || existingById.role;
+      if (input.role && existingById.role !== input.role) {
+        await admin
+          .from("users")
+          .update({ role: finalRole, email_verified: true })
+          .eq("id", context.userId);
+      }
+
+      const profileTable =
+        finalRole === "respondent"
+          ? "respondent_profiles"
+          : finalRole === "researcher"
+            ? "researcher_profiles"
+            : null;
+
+      if (profileTable) {
+        await admin
+          .from(profileTable)
+          .upsert({ user_id: context.userId }, { onConflict: "user_id" });
+      }
+
+      res.json({ success: true, exists: true, role: finalRole });
+      return;
+    }
+
+    // 2. Check if a user already exists with this email (account linking / trigger race condition)
+    if (email) {
+      const { data: existingByEmail } = await admin
+        .from("users")
+        .select("id, role")
+        .ilike("email", email)
+        .maybeSingle();
+
+      if (existingByEmail) {
+        const finalRole = input.role || existingByEmail.role;
+
+        const { error: linkError } = await admin
+          .from("users")
+          .update({
+            id: context.userId,
+            role: finalRole,
+            full_name: fullName,
+            email_verified: true,
+          })
+          .eq("id", existingByEmail.id);
+
+        if (linkError) {
+          console.warn(`[sync-oauth] Account link notice: ${linkError.message}`);
+          await admin
+            .from("users")
+            .update({ role: finalRole, email_verified: true })
+            .ilike("email", email);
+        }
+
+        const profileTable =
+          finalRole === "respondent"
+            ? "respondent_profiles"
+            : finalRole === "researcher"
+              ? "researcher_profiles"
+              : null;
+
+        if (profileTable) {
+          await admin
+            .from(profileTable)
+            .upsert({ user_id: context.userId }, { onConflict: "user_id" });
+        }
+
+        res.json({ success: true, exists: true, role: finalRole });
+        return;
+      }
+    }
+
+    // 3. User doesn't exist, and no role was provided (clicked Continue with Google on Login)
     if (!input.role) {
-      // User doesn't exist, and no role was provided (they clicked Continue with Google on Login)
       res.json({
         success: true,
         exists: false,
@@ -244,20 +311,39 @@ authRouter.post(
       return;
     }
 
-    // Insert into users table
+    // 4. Create user record
+    const targetRole = input.role;
     let { error: rowError } = await admin.from("users").upsert({
       id: context.userId,
-      role: input.role,
+      role: targetRole,
       full_name: fullName,
       email,
       email_verified: true,
       verification_tier: "0_registered",
     }, { onConflict: "id" });
 
+    // Catch email unique constraint violation and recover seamlessly
+    if (rowError && (rowError.message.includes("users_email_unique_idx") || rowError.message.includes("unique constraint") || rowError.code === "23505")) {
+      console.log(`[sync-oauth] Caught unique email constraint for ${email}, recovering via update...`);
+      const { error: updateError } = await admin
+        .from("users")
+        .update({
+          id: context.userId,
+          role: targetRole,
+          full_name: fullName,
+          email_verified: true,
+        })
+        .ilike("email", email);
+
+      if (!updateError) {
+        rowError = null;
+      }
+    }
+
     if (rowError && (rowError.message.includes("phone") || rowError.message.includes("column") || rowError.message.includes("not-null"))) {
       const fallback = await admin.from("users").upsert({
         id: context.userId,
-        role: input.role,
+        role: targetRole,
         full_name: fullName,
         phone: `+2519${Math.floor(10000000 + Math.random() * 90000000)}`,
         verification_tier: "0_registered",
@@ -270,23 +356,23 @@ authRouter.post(
     }
 
     const profileTable =
-      input.role === "respondent"
+      targetRole === "respondent"
         ? "respondent_profiles"
-        : input.role === "researcher"
+        : targetRole === "researcher"
           ? "researcher_profiles"
           : null;
 
     if (profileTable) {
-      const { error: profileError } = await admin
+      await admin
         .from(profileTable)
         .upsert({ user_id: context.userId }, { onConflict: "user_id" });
-
-      if (profileError) {
-        throw new ApiError(500, "SYNC_FAILED", profileError.message);
-      }
     }
 
-    res.json({ success: true, role: input.role });
+    res.json({
+      success: true,
+      exists: true,
+      role: targetRole,
+    });
   }),
 );
 

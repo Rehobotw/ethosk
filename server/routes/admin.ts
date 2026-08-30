@@ -4,7 +4,7 @@ import type { UserRole, VerificationTier } from "@shared/types.js";
 import { TIER_RANK, USER_ROLES } from "@shared/types.js";
 import { env } from "../env.js";
 import { auth, requireAuth } from "../lib/auth.js";
-import { ApiError, asyncRoute, parseBody } from "../lib/http.js";
+import { ApiError, asyncRoute, parseBody, routeParam } from "../lib/http.js";
 import { admin } from "../lib/supabase.js";
 
 export const adminRouter = Router();

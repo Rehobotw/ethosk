@@ -332,18 +332,29 @@ export type AiDraftRequestInput = z.infer<typeof aiDraftRequestSchema>;
 // ===========================================================================
 
 /**
- * A Fayda Identification Number as typed by the respondent. Spaces and dashes are
- * stripped before the format check, since the number is usually printed in groups.
+ * Fayda verification schema supporting both direct QR code payload (from fayda-decoder)
+ * and manual/fallback 12-to-16 digit FIN/FAN.
  */
-export const faydaVerifySchema = z.object({
-  fayda_id: z
-    .string()
-    .trim()
-    .transform((value) => value.replace(/[\s-]/g, ""))
-    .refine((value) => /^\d{12}$/.test(value), {
-      message: "A Fayda ID number is 12 digits",
-    }),
-});
+export const faydaVerifySchema = z
+  .object({
+    fayda_id: z
+      .string()
+      .trim()
+      .transform((value) => value.replace(/[\s-]/g, ""))
+      .refine((value) => value.length === 0 || /^\d{12,16}$/.test(value), {
+        message: "Fayda ID number must be 12 to 16 digits",
+      })
+      .optional(),
+    qr_payload: z.string().trim().optional(),
+    full_name: z.string().trim().optional(),
+    gender: z.enum(["M", "F", "Other"]).optional(),
+    dob: z.string().trim().optional(),
+    face_base64: z.string().optional(),
+    signature_verified: z.boolean().optional(),
+  })
+  .refine((data) => Boolean(data.fayda_id || data.qr_payload), {
+    message: "Either a Fayda ID number or QR payload must be provided",
+  });
 export type FaydaVerifyInput = z.infer<typeof faydaVerifySchema>;
 
 export const documentUploadSchema = z.object({
