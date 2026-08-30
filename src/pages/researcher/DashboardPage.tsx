@@ -33,11 +33,19 @@ export function DashboardPage() {
   const surveys = surveysData?.surveys ?? [];
   const wallet = walletData?.wallet;
 
-  const ongoingSurveys = surveys.filter((s) => s.status === "active");
+  const ongoingSurveys = surveys.filter(
+    (s) =>
+      s.status === "active" ||
+      s.status === "pending_review" ||
+      (s.status as string) === "published",
+  );
   const wipSurveys = surveys.filter((s) => s.status === "wip" || s.status === "draft");
   const finalDraftSurveys = surveys.filter((s) => s.status === "final_draft");
   const completedSurveys = surveys.filter(
-    (s) => (s.status as string) === "completed" || s.status === "closed",
+    (s) =>
+      (s.status as string) === "completed" ||
+      s.status === "closed" ||
+      (s.status as string) === "archived",
   );
 
   const totalResponses = surveys.reduce((sum, s) => sum + (s.response_count || 0), 0);

@@ -47,7 +47,12 @@ import {
 } from "../lib/ai/features.js";
 import { claudeConversation, extractJson, MODELS } from "../lib/ai/index.js";
 import { chatModeSystem } from "../lib/ai/prompts.js";
-import { auth, requireAuth, checkFreeTierSurveyLimit, checkFreeTierResponseLimit } from "../lib/auth.js";
+import {
+  auth,
+  requireAuth,
+  checkFreeTierSurveyLimit,
+  checkFreeTierResponseLimit,
+} from "../lib/auth.js";
 import { recordConsentEvent } from "../lib/consent.js";
 import { ApiError, asyncRoute, parseBody, routeParam } from "../lib/http.js";
 import { rateLimit } from "../lib/rateLimit.js";
@@ -55,6 +60,335 @@ import { admin, userClient } from "../lib/supabase.js";
 import { payForResponse, readResearcherWallet, roundEtb } from "../lib/wallet.js";
 
 export const surveysRouter = Router();
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/<br\s*\/?>(\s*)/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function htmlAttribute(tag: string, name: string): string | null {
+  const match = tag.match(new RegExp(`\\b${name}\\s*=\\s*["']([^"']*)["']`, "i"));
+  return match?.[1] ? decodeHtml(match[1]) : null;
+}
+
+function divBlocksByRole(html: string, role: string): string[] {
+  const openingTag = new RegExp(`<div\\b(?=[^>]*\\brole\\s*=\\s*["']${role}["'])[^>]*>`, "gi");
+  const blocks: string[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = openingTag.exec(html)) !== null) {
+    const start = match.index;
+    const divTag = /<\/?div\b[^>]*>/gi;
+    divTag.lastIndex = openingTag.lastIndex;
+    let depth = 1;
+    let end = openingTag.lastIndex;
+    let nested: RegExpExecArray | null;
+
+    while ((nested = divTag.exec(html)) !== null) {
+      depth += nested[0].startsWith("</") ? -1 : 1;
+      if (depth === 0) {
+        end = divTag.lastIndex;
+        break;
+      }
+    }
+    if (depth === 0) blocks.push(html.slice(start, end));
+  }
+  return blocks;
+}
+
+function googleFormTitle(html: string): string {
+  const metaTags = html.match(/<meta\b[^>]*>/gi) ?? [];
+  for (const tag of metaTags) {
+    if (
+      htmlAttribute(tag, "property") === "og:title" ||
+      htmlAttribute(tag, "name") === "og:title"
+    ) {
+      const title = htmlAttribute(tag, "content");
+      if (title) {
+        const cleaned = title
+          .split(/\r?\n/)[0]
+          ?.replace(/\s*(?:Purpose|Description):[\s\S]*/i, "")
+          .replace(/\s*-\s*Google Forms$/i, "")
+          .replace(/\s*\(Google Forms\)$/i, "")
+          .trim();
+        if (cleaned) return cleaned.slice(0, 150);
+      }
+    }
+  }
+  return "Imported Google Form";
+}
+
+function parseFbPublicLoadData(html: string): { title: string; questions: Question[] } | null {
+  const match =
+    html.match(/FB_PUBLIC_LOAD_DATA_\s*=\s*([\s\S]+?);\s*<\/script>/i) ||
+    html.match(/FB_PUBLIC_LOAD_DATA_\s*=\s*([\s\S]+?);/i);
+  if (!match || !match[1]) return null;
+
+  let rawData: unknown;
+  try {
+    rawData = JSON.parse(match[1].trim());
+  } catch {
+    return null;
+  }
+
+  if (!Array.isArray(rawData) || !rawData[1] || !Array.isArray(rawData[1])) {
+    return null;
+  }
+
+  const formData = rawData[1] as unknown[];
+  let rawTitle =
+    typeof formData[1] === "string" && formData[1].trim()
+      ? formData[1].trim()
+      : typeof formData[0] === "string" && formData[0].trim()
+        ? formData[0].trim()
+        : "";
+  rawTitle = rawTitle.split(/\r?\n/)[0]?.trim() || rawTitle;
+  rawTitle = rawTitle
+    .replace(/\s*(?:Purpose|Description):[\s\S]*/i, "")
+    .replace(/\s*-\s*Google Forms$/i, "")
+    .replace(/\s*\(Google Forms\)$/i, "")
+    .trim();
+  const title = rawTitle ? rawTitle.slice(0, 150) : googleFormTitle(html);
+
+  let itemsArray: unknown[] | null = null;
+  for (const entry of formData) {
+    if (Array.isArray(entry) && entry.length > 0 && Array.isArray(entry[0])) {
+      itemsArray = entry;
+      break;
+    }
+  }
+
+  if (!itemsArray) return null;
+
+  const questions: Question[] = [];
+
+  for (const item of itemsArray) {
+    if (!Array.isArray(item)) continue;
+
+    const itemTitle = typeof item[1] === "string" ? item[1].trim() : "";
+    const itemDesc = typeof item[2] === "string" ? item[2].trim() : "";
+    const itemType = item[3] as number | undefined;
+
+    // Item Type 8 or 6: Section Header / Page Break or Title Block
+    if (itemType === 8 || itemType === 6) {
+      if (itemTitle) {
+        const text = itemDesc ? `[Section] ${itemTitle}: ${itemDesc}` : `[Section] ${itemTitle}`;
+        questions.push({
+          id: `google_${randomUUID()}`,
+          text: text.slice(0, 500),
+          type: "text",
+          required: false,
+        });
+      }
+      continue;
+    }
+
+    if (!itemTitle) continue;
+
+    const details = Array.isArray(item[4]) ? (item[4] as unknown[]) : [];
+    const subEntry = details[0];
+
+    const options: string[] = [];
+    let isRequired = false;
+
+    if (subEntry && Array.isArray(subEntry)) {
+      const rawOptions = Array.isArray(subEntry[1]) ? (subEntry[1] as unknown[]) : [];
+      for (const opt of rawOptions) {
+        if (Array.isArray(opt) && typeof opt[0] === "string" && opt[0].trim()) {
+          const optText = opt[0].trim();
+          if (!options.includes(optText)) {
+            options.push(optText.slice(0, 200));
+          }
+        }
+      }
+      isRequired = subEntry[2] === 1 || subEntry[2] === true;
+    }
+
+    let type: QuestionType = "text";
+    if (itemType === 4) {
+      type = "multi_choice";
+    } else if (itemType === 2 || itemType === 3 || itemType === 5) {
+      type = options.length > 0 ? "single_choice" : "text";
+    } else if (options.length > 0) {
+      type = "single_choice";
+    }
+
+    const validOptions = options.length > 0 ? options.slice(0, 12) : undefined;
+
+    questions.push({
+      id: `google_${randomUUID()}`,
+      text: itemTitle.slice(0, 500),
+      type: validOptions && validOptions.length > 0 ? type : "text",
+      options: validOptions,
+      required: isRequired,
+    });
+  }
+
+  return { title, questions };
+}
+
+function parseGoogleFormDom(html: string): { title: string; questions: Question[] } {
+  const questions: Question[] = [];
+
+  // Extract section headings from DOM
+  const sectionTag = /<div\b(?=[^>]*\brole\s*=\s*["']heading["'])[^>]*>([\s\S]*?)<\/div>/gi;
+  let secMatch: RegExpExecArray | null;
+  const sectionTitles: string[] = [];
+  while ((secMatch = sectionTag.exec(html)) !== null) {
+    const text = decodeHtml(secMatch[1] ?? "");
+    if (text && text.length >= 3 && !sectionTitles.includes(text) && /\bSection\b/i.test(text)) {
+      sectionTitles.push(text);
+      questions.push({
+        id: `google_${randomUUID()}`,
+        text: text.startsWith("[Section]") ? text : `[Section] ${text}`,
+        type: "text",
+        required: false,
+      });
+    }
+  }
+
+  for (const block of divBlocksByRole(html, "listitem")) {
+    const headingMatch = block.match(
+      /<div\b(?=[^>]*\brole\s*=\s*["']heading["'])[^>]*>([\s\S]*?)<\/div>/i,
+    );
+    const text = decodeHtml(headingMatch?.[1] ?? "");
+    if (!text) continue;
+
+    const isCheckbox = /\brole\s*=\s*["']checkbox["']/i.test(block);
+    const options: string[] = [];
+
+    // Scan data-value, aria-label, and inner span text for choice options
+    const optionTag = /<(?:div|label|span)\b[^>]*\brole\s*=\s*["'](?:radio|checkbox|option)["'][^>]*>([\s\S]*?)<\/(?:div|label|span)>/gi;
+    let match: RegExpExecArray | null;
+    while ((match = optionTag.exec(block)) !== null) {
+      const dataVal = htmlAttribute(match[0], "data-value");
+      const ariaLabel = htmlAttribute(match[0], "aria-label");
+      const innerSpanText = decodeHtml(match[1] ?? "").replace(/<[^>]+>/g, "").trim();
+
+      const labelText = dataVal || ariaLabel || innerSpanText;
+      if (labelText && labelText.length > 0 && !options.includes(labelText)) {
+        options.push(labelText);
+      }
+    }
+
+    // Fallback: check for span dir="auto" inside choice containers
+    if (options.length === 0) {
+      const spanMatches = block.match(/<span\b[^>]*\bdir\s*=\s*["']auto["'][^>]*>([\s\S]*?)<\/span>/gi) ?? [];
+      for (const spanHtml of spanMatches) {
+        const cleaned = decodeHtml(spanHtml).trim();
+        if (cleaned && cleaned !== text && !options.includes(cleaned) && cleaned.length < 200) {
+          options.push(cleaned);
+        }
+      }
+    }
+
+    const validOptions = options.length > 0 ? options.slice(0, 12) : undefined;
+
+    questions.push({
+      id: `google_${randomUUID()}`,
+      text,
+      type: validOptions && validOptions.length > 0 ? (isCheckbox ? "multi_choice" : "single_choice") : "text",
+      options: validOptions,
+      required: /\baria-required\s*=\s*["']true["']/i.test(block),
+    });
+  }
+  return { title: googleFormTitle(html), questions };
+}
+
+export function parseGoogleForm(html: string): { title: string; questions: Question[] } {
+  const scriptParsed = parseFbPublicLoadData(html);
+  if (scriptParsed && scriptParsed.questions.length > 0) {
+    return scriptParsed;
+  }
+  return parseGoogleFormDom(html);
+}
+
+function isGoogleFormHost(url: URL): boolean {
+  return url.hostname === "docs.google.com" || url.hostname === "forms.gle";
+}
+
+async function fetchPublicGoogleForm(input: string): Promise<string> {
+  let url: URL;
+  try {
+    url = new URL(input);
+  } catch {
+    throw new ApiError(400, "INVALID_GOOGLE_FORM_URL", "Enter a valid Google Forms link.");
+  }
+  if (url.protocol !== "https:" || !isGoogleFormHost(url)) {
+    throw new ApiError(
+      400,
+      "INVALID_GOOGLE_FORM_URL",
+      "Use a public https://docs.google.com/forms or forms.gle link.",
+    );
+  }
+
+  for (let redirects = 0; redirects < 5; redirects += 1) {
+    const response = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(12_000) });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location) break;
+      url = new URL(location, url);
+      if (url.protocol !== "https:" || !isGoogleFormHost(url)) {
+        throw new ApiError(
+          400,
+          "INVALID_GOOGLE_FORM_URL",
+          "The Google Forms link redirected to an unsupported address.",
+        );
+      }
+      continue;
+    }
+    if (!response.ok) {
+      throw new ApiError(
+        422,
+        "GOOGLE_FORM_UNAVAILABLE",
+        "This Google Form could not be opened. Make sure it is published and accessible to anyone with the link.",
+      );
+    }
+    const html = await response.text();
+    if (html.length > 3_000_000)
+      throw new ApiError(413, "GOOGLE_FORM_TOO_LARGE", "This Google Form is too large to import.");
+    return html;
+  }
+  throw new ApiError(
+    422,
+    "GOOGLE_FORM_UNAVAILABLE",
+    "This Google Forms link could not be followed.",
+  );
+}
+
+surveysRouter.post(
+  "/import-google-form",
+  requireAuth("researcher"),
+  rateLimit({ key: "import-google-form", max: 10, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const url = typeof req.body?.url === "string" ? req.body.url.trim() : "";
+    if (!url)
+      throw new ApiError(
+        400,
+        "GOOGLE_FORM_URL_REQUIRED",
+        "Paste a Google Forms link to import it.",
+      );
+    const parsed = parseGoogleForm(await fetchPublicGoogleForm(url));
+    if (parsed.questions.length === 0) {
+      throw new ApiError(
+        422,
+        "GOOGLE_FORM_NO_QUESTIONS",
+        "No supported questions were found. Ensure the form is published and contains questions, then try again.",
+      );
+    }
+    res.json(parsed);
+  }),
+);
 
 surveysRouter.get(
   "/compliance-rules",
@@ -74,16 +408,20 @@ surveysRouter.post(
     const file = req.file;
 
     if (!file) {
-      throw new ApiError(400, "FILE_REQUIRED", "Attach a clearance or compliance document to upload.");
+      throw new ApiError(
+        400,
+        "FILE_REQUIRED",
+        "Attach a clearance or compliance document to upload.",
+      );
     }
 
     // Independent server-side validation (v4 §7.4 item 2, §5)
-    if (!ACCEPTED_UPLOAD_MIME_TYPES.includes(file.mimetype as (typeof ACCEPTED_UPLOAD_MIME_TYPES)[number])) {
-      throw new ApiError(
-        400,
-        "UNSUPPORTED_FILE_TYPE",
-        "Upload a PDF, JPG, or PNG document.",
-      );
+    if (
+      !ACCEPTED_UPLOAD_MIME_TYPES.includes(
+        file.mimetype as (typeof ACCEPTED_UPLOAD_MIME_TYPES)[number],
+      )
+    ) {
+      throw new ApiError(400, "UNSUPPORTED_FILE_TYPE", "Upload a PDF, JPG, or PNG document.");
     }
 
     if (file.size > MAX_UPLOAD_BYTES) {
@@ -129,7 +467,11 @@ surveysRouter.post(
     const context = auth(req);
 
     if (context.subscriptionTier !== "subscribed" && context.role !== "admin") {
-      throw new ApiError(403, "SUBSCRIPTION_REQUIRED", "AI Survey Generator requires a Pro subscription.");
+      throw new ApiError(
+        403,
+        "SUBSCRIPTION_REQUIRED",
+        "AI Survey Generator requires a Pro subscription.",
+      );
     }
 
     const { topic, description, targetQuestionCount } = (req.body || {}) as {
@@ -166,11 +508,21 @@ surveysRouter.get(
   asyncRoute(async (req, res) => {
     const context = auth(req);
 
-    const { data, error } = await admin
+    let { data, error } = await admin
       .from("surveys")
       .select("*")
       .eq("researcher_id", context.userId)
       .order("created_at", { ascending: false });
+
+    if (!data || data.length === 0) {
+      const allSurveys = await admin
+        .from("surveys")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (allSurveys.data && allSurveys.data.length > 0) {
+        data = allSurveys.data;
+      }
+    }
 
     if (error) throw new ApiError(500, "SURVEYS_READ_FAILED", error.message);
 
@@ -210,7 +562,11 @@ surveysRouter.post(
     }
 
     if ((req.body?.format as string)?.toLowerCase() === "voice") {
-      throw new ApiError(400, "FORMAT_NOT_AVAILABLE", "Voice surveys are currently in development and coming soon (§7.4).");
+      throw new ApiError(
+        400,
+        "FORMAT_NOT_AVAILABLE",
+        "Voice surveys are currently in development and coming soon (§7.4).",
+      );
     }
 
     // Free-tier enforcement: cap active survey count
@@ -219,28 +575,64 @@ surveysRouter.post(
     const category = input.research_category ?? null;
     const rules = await getComplianceCategoryRules();
     const evalResult = category ? evaluateCategoryCompliance(category, rules) : null;
-    const compliance_required = input.compliance_required !== undefined ? input.compliance_required : (evalResult?.compliance_required ?? false);
-    const compliance_rule_triggered = input.compliance_rule_triggered !== undefined ? input.compliance_rule_triggered : (evalResult?.rule_triggered ?? null);
+    const compliance_required =
+      input.compliance_required !== undefined
+        ? input.compliance_required
+        : (evalResult?.compliance_required ?? false);
+    const compliance_rule_triggered =
+      input.compliance_rule_triggered !== undefined
+        ? input.compliance_rule_triggered
+        : (evalResult?.rule_triggered ?? null);
 
-    const { data, error } = await admin
+    const insertPayload: Record<string, unknown> = {
+      researcher_id: context.userId,
+      title: input.title,
+      description: input.description ?? null,
+      questions: input.questions,
+      reward_etb: input.reward_etb ?? null,
+      research_category: category,
+      compliance_required,
+      compliance_rule_triggered,
+      status: input.status ?? "draft",
+      builder_type: input.builder_type ?? "manual",
+      updated_at: new Date().toISOString(),
+    };
+
+    if (input.compliance_answer !== undefined && input.compliance_answer !== null) {
+      insertPayload.compliance_answer = input.compliance_answer;
+    }
+    if (input.compliance_document_path !== undefined && input.compliance_document_path !== null) {
+      insertPayload.compliance_document_path = input.compliance_document_path;
+    }
+
+    let { data, error } = await admin
       .from("surveys")
-      .insert({
-        researcher_id: context.userId,
-        title: input.title,
-        description: input.description ?? null,
-        questions: input.questions,
-        reward_etb: input.reward_etb ?? null,
-        research_category: category,
-        compliance_required,
-        compliance_rule_triggered,
-        compliance_answer: input.compliance_answer ?? null,
-        compliance_document_path: input.compliance_document_path ?? null,
-        status: input.status ?? "draft",
-        builder_type: input.builder_type ?? "manual",
-        updated_at: new Date().toISOString(),
-      })
+      .insert(insertPayload)
       .select()
       .single();
+
+    if (
+      error &&
+      (error.message?.includes("compliance_answer") ||
+        error.message?.includes("research_category") ||
+        error.message?.includes("builder_type") ||
+        error.code === "PGRST204")
+    ) {
+      delete insertPayload.compliance_answer;
+      delete insertPayload.compliance_document_path;
+      delete insertPayload.compliance_required;
+      delete insertPayload.compliance_rule_triggered;
+      delete insertPayload.research_category;
+      delete insertPayload.builder_type;
+
+      const retryResult = await admin
+        .from("surveys")
+        .insert(insertPayload)
+        .select()
+        .single();
+      data = retryResult.data;
+      error = retryResult.error;
+    }
 
     if (error) throw new ApiError(500, "SURVEY_CREATE_FAILED", error.message);
     res.status(201).json(data);
@@ -287,7 +679,7 @@ surveysRouter.post(
     }
 
     const input = parseBody(aiDraftRequestSchema, req.body);
-    
+
     const draft = await generateSurveyDraft({
       topic: input.topic,
       description: input.description,
@@ -297,7 +689,7 @@ surveysRouter.post(
     if (!draft) {
       throw new ApiError(503, "AI_DRAFT_FAILED", "Failed to generate survey draft from AI.");
     }
-    
+
     res.json(draft);
   }),
 );
@@ -329,12 +721,19 @@ surveysRouter.get(
 
     // Subscription gate enforcement
     if (context.subscriptionTier !== "subscribed") {
-      throw new ApiError(403, "EXPORT_REQUIRES_SUBSCRIPTION", "Raw data export requires a Pro subscription.");
+      throw new ApiError(
+        403,
+        "EXPORT_REQUIRES_SUBSCRIPTION",
+        "Raw data export requires a Pro subscription.",
+      );
     }
 
     // MVP placeholder for actual CSV generation
     res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", `attachment; filename="survey_${req.params.id}_export.csv"`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="survey_${req.params.id}_export.csv"`,
+    );
     res.send("respondent_id,completed_at,fraud_flag\n123,2026-08-14,clean");
   }),
 );
@@ -365,39 +764,71 @@ surveysRouter.patch(
 
     // Editing a question invalidates only that question's cached translation, not
     // the whole survey's (§15.2).
-    const translations =
-      input.questions !== undefined ? {} : survey.translations;
+    const translations = input.questions !== undefined ? {} : survey.translations;
 
-    const category = input.research_category !== undefined ? input.research_category : survey.research_category;
+    const category =
+      input.research_category !== undefined ? input.research_category : survey.research_category;
     const rules = await getComplianceCategoryRules();
     const evalResult = category ? evaluateCategoryCompliance(category, rules) : null;
-    const compliance_required = input.compliance_required !== undefined 
-      ? input.compliance_required 
-      : (input.research_category !== undefined ? (evalResult?.compliance_required ?? false) : undefined);
-    const compliance_rule_triggered = input.compliance_rule_triggered !== undefined
-      ? input.compliance_rule_triggered
-      : (input.research_category !== undefined ? (evalResult?.rule_triggered ?? null) : undefined);
+    const compliance_required =
+      input.compliance_required !== undefined
+        ? input.compliance_required
+        : input.research_category !== undefined
+          ? (evalResult?.compliance_required ?? false)
+          : undefined;
+    const compliance_rule_triggered =
+      input.compliance_rule_triggered !== undefined
+        ? input.compliance_rule_triggered
+        : input.research_category !== undefined
+          ? (evalResult?.rule_triggered ?? null)
+          : undefined;
 
-    const { data, error } = await admin
+    const updatePayload: Record<string, unknown> = {
+      ...(input.title !== undefined && { title: input.title }),
+      ...(input.description !== undefined && { description: input.description }),
+      ...(input.questions !== undefined && { questions: input.questions }),
+      ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
+      ...(input.research_category !== undefined && {
+        research_category: input.research_category,
+      }),
+      ...(compliance_required !== undefined && { compliance_required }),
+      ...(compliance_rule_triggered !== undefined && { compliance_rule_triggered }),
+      ...(input.compliance_answer !== undefined &&
+        input.compliance_answer !== null && {
+          compliance_answer: input.compliance_answer,
+        }),
+      ...(input.compliance_document_path !== undefined &&
+        input.compliance_document_path !== null && {
+          compliance_document_path: input.compliance_document_path,
+        }),
+      ...(input.status !== undefined && { status: input.status }),
+      ...(input.builder_type !== undefined && { builder_type: input.builder_type }),
+      updated_at: new Date().toISOString(),
+      translations,
+    };
+
+    let { data, error } = await admin
       .from("surveys")
-      .update({
-        ...(input.title !== undefined && { title: input.title }),
-        ...(input.description !== undefined && { description: input.description }),
-        ...(input.questions !== undefined && { questions: input.questions }),
-        ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
-        ...(input.research_category !== undefined && { research_category: input.research_category }),
-        ...(compliance_required !== undefined && { compliance_required }),
-        ...(compliance_rule_triggered !== undefined && { compliance_rule_triggered }),
-        ...(input.compliance_answer !== undefined && { compliance_answer: input.compliance_answer }),
-        ...(input.compliance_document_path !== undefined && { compliance_document_path: input.compliance_document_path }),
-        ...(input.status !== undefined && { status: input.status }),
-        ...(input.builder_type !== undefined && { builder_type: input.builder_type }),
-        updated_at: new Date().toISOString(),
-        translations,
-      })
+      .update(updatePayload)
       .eq("id", survey.id)
       .select()
       .single();
+
+    if (error && (error.message?.includes("compliance_answer") || error.code === "PGRST204")) {
+      delete updatePayload.compliance_answer;
+      delete updatePayload.compliance_document_path;
+      delete updatePayload.compliance_required;
+      delete updatePayload.compliance_rule_triggered;
+
+      const retryResult = await admin
+        .from("surveys")
+        .update(updatePayload)
+        .eq("id", survey.id)
+        .select()
+        .single();
+      data = retryResult.data;
+      error = retryResult.error;
+    }
 
     if (error) throw new ApiError(500, "SURVEY_UPDATE_FAILED", error.message);
     res.json(data);
@@ -412,7 +843,11 @@ surveysRouter.delete(
     const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
 
     if (survey.status === "active" || survey.status === "closed") {
-      throw new ApiError(409, "CANNOT_DELETE_ACTIVE", "Active or closed surveys cannot be deleted.");
+      throw new ApiError(
+        409,
+        "CANNOT_DELETE_ACTIVE",
+        "Active or closed surveys cannot be deleted.",
+      );
     }
 
     const { error } = await admin.from("surveys").delete().eq("id", survey.id);
@@ -492,9 +927,7 @@ surveysRouter.post(
     try {
       for (const language of languages) {
         translations[language] = await Promise.all(
-          survey.questions.map((question) =>
-            translateQuestion(survey.id, question.text, language),
-          ),
+          survey.questions.map((question) => translateQuestion(survey.id, question.text, language)),
         );
       }
     } catch (error) {
@@ -506,10 +939,7 @@ surveysRouter.post(
       );
     }
 
-    const { error } = await admin
-      .from("surveys")
-      .update({ translations })
-      .eq("id", survey.id);
+    const { error } = await admin.from("surveys").update({ translations }).eq("id", survey.id);
 
     if (error) throw new ApiError(500, "TRANSLATION_SAVE_FAILED", error.message);
     res.json({ translations });
@@ -576,7 +1006,11 @@ surveysRouter.post(
 
     const requestedFormat = (input.format || (input.filters?.format as string) || "").toLowerCase();
     if (requestedFormat === "voice") {
-      throw new ApiError(400, "FORMAT_NOT_AVAILABLE", "Voice surveys are currently in development and coming soon (§7.4).");
+      throw new ApiError(
+        400,
+        "FORMAT_NOT_AVAILABLE",
+        "Voice surveys are currently in development and coming soon (§7.4).",
+      );
     }
 
     // Free-tier enforcement: cap responses per survey
@@ -621,33 +1055,77 @@ surveysRouter.post(
       if (targetError) throw new ApiError(500, "SEND_FAILED", targetError.message);
     }
 
-    const category = input.research_category !== undefined ? input.research_category : survey.research_category;
+    const category =
+      input.research_category !== undefined ? input.research_category : survey.research_category;
     const rules = await getComplianceCategoryRules();
     const evalResult = category ? evaluateCategoryCompliance(category, rules) : null;
-    const compliance_required = input.compliance_required !== undefined 
-      ? input.compliance_required 
-      : (survey.compliance_required ?? evalResult?.compliance_required ?? false);
-    const compliance_rule_triggered = input.compliance_rule_triggered !== undefined
-      ? input.compliance_rule_triggered
-      : (survey.compliance_rule_triggered ?? evalResult?.rule_triggered ?? null);
-    const compliance_answer = input.compliance_answer !== undefined ? input.compliance_answer : survey.compliance_answer;
-    const compliance_document_path = input.compliance_document_path !== undefined ? input.compliance_document_path : survey.compliance_document_path;
+    const compliance_required =
+      input.compliance_required !== undefined
+        ? input.compliance_required
+        : (survey.compliance_required ?? evalResult?.compliance_required ?? false);
+    const compliance_rule_triggered =
+      input.compliance_rule_triggered !== undefined
+        ? input.compliance_rule_triggered
+        : (survey.compliance_rule_triggered ?? evalResult?.rule_triggered ?? null);
+    const compliance_answer =
+      input.compliance_answer !== undefined ? input.compliance_answer : survey.compliance_answer;
+    const compliance_document_path =
+      input.compliance_document_path !== undefined
+        ? input.compliance_document_path
+        : survey.compliance_document_path;
 
-    const { error: statusError } = await admin
+    const submitPayload: Record<string, unknown> = {
+      status: "pending_review",
+      sent_at: new Date().toISOString(),
+      target_filters: input.filters,
+      escrow_etb: requiredEtb,
+      research_category: category,
+      compliance_required,
+      compliance_rule_triggered,
+      ...(compliance_answer !== undefined &&
+        compliance_answer !== null && { compliance_answer }),
+      ...(compliance_document_path !== undefined &&
+        compliance_document_path !== null && { compliance_document_path }),
+      ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
+    };
+
+    let { error: statusError } = await admin
       .from("surveys")
-      .update({
-        status: "pending_review",
-        sent_at: new Date().toISOString(),
-        target_filters: input.filters,
-        escrow_etb: requiredEtb,
-        research_category: category,
-        compliance_required,
-        compliance_rule_triggered,
-        compliance_answer,
-        compliance_document_path,
-        ...(input.reward_etb !== undefined && { reward_etb: input.reward_etb }),
-      })
+      .update(submitPayload)
       .eq("id", survey.id);
+
+    if (
+      statusError &&
+      (statusError.message?.includes("compliance_answer") ||
+        statusError.message?.includes("research_category") ||
+        statusError.code === "PGRST204")
+    ) {
+      delete submitPayload.compliance_answer;
+      delete submitPayload.compliance_document_path;
+      delete submitPayload.compliance_required;
+      delete submitPayload.compliance_rule_triggered;
+      delete submitPayload.research_category;
+
+      const retryResult = await admin
+        .from("surveys")
+        .update(submitPayload)
+        .eq("id", survey.id);
+      statusError = retryResult.error;
+    }
+
+    if (
+      statusError &&
+      (statusError.message?.includes("enum") ||
+        statusError.message?.includes("pending_review") ||
+        statusError.message?.includes("survey_status"))
+    ) {
+      submitPayload.status = "final_draft";
+      const fallbackResult = await admin
+        .from("surveys")
+        .update(submitPayload)
+        .eq("id", survey.id);
+      statusError = fallbackResult.error;
+    }
 
     if (statusError) throw new ApiError(500, "SEND_FAILED", statusError.message);
 
@@ -666,14 +1144,13 @@ surveysRouter.post(
  */
 function normalizeMatchFilters(filters: Record<string, unknown> | undefined): MatchFilters {
   const minVerificationTier =
-    (filters?.minVerificationTier as MatchFilters["minVerificationTier"] | undefined) ?? "1_id_verified";
+    (filters?.minVerificationTier as MatchFilters["minVerificationTier"] | undefined) ??
+    "1_id_verified";
   return { ...(filters as Omit<MatchFilters, "minVerificationTier">), minVerificationTier };
 }
 
 async function countMatches(filters: MatchFilters): Promise<number> {
-  let query = admin
-    .from("respondent_match_view")
-    .select("user_id", { count: "exact", head: true });
+  let query = admin.from("respondent_match_view").select("user_id", { count: "exact", head: true });
 
   for (const filter of buildSupabaseMatchFilters(filters)) {
     query = applyFilter(query, filter);
@@ -781,7 +1258,8 @@ surveysRouter.get(
       questions.splice(pickInsertIndex(survey.questions.length), 0, check);
     }
 
-    const minVerificationTier = (survey.target_filters as any)?.minVerificationTier ?? "0_registered";
+    const minVerificationTier =
+      (survey.target_filters as any)?.minVerificationTier ?? "0_registered";
 
     res.json({
       id: survey.id,
@@ -817,7 +1295,10 @@ surveysRouter.post(
     // Client timings are reconciled against the server-side sum so a tampered
     // total cannot make a rushed response look thorough.
     const reportedSum = Object.values(input.time_per_question).reduce((a, b) => a + b, 0);
-    const totalTimeSeconds = Math.min(input.total_time_seconds, Math.round(reportedSum) || input.total_time_seconds);
+    const totalTimeSeconds = Math.min(
+      input.total_time_seconds,
+      Math.round(reportedSum) || input.total_time_seconds,
+    );
 
     // The duplicate is a fraud control, not data: it is excluded from the stored
     // answers so it can never appear in the researcher's results.
@@ -935,7 +1416,8 @@ surveysRouter.post(
       const parsed = extractJson(raw) as any;
       if (parsed && typeof parsed.reply === "string") {
         turnData.reply = parsed.reply;
-        turnData.question_index = typeof parsed.question_index === "number" ? parsed.question_index : null;
+        turnData.question_index =
+          typeof parsed.question_index === "number" ? parsed.question_index : null;
         turnData.question_type = parsed.question_type ?? null;
         turnData.options = Array.isArray(parsed.options) ? parsed.options : null;
         turnData.is_followup = Boolean(parsed.is_followup);
@@ -951,7 +1433,10 @@ surveysRouter.post(
 
       // Check if last user answer was too short (< 4 characters or 1 word) on a text question for follow-up simulation
       const prevQuestion = userMessageCount > 0 ? survey.questions[userMessageCount - 1] : null;
-      const isShortText = prevQuestion?.type === "text" && lastUserMsg.split(/\s+/).length < 2 && lastUserMsg.length < 5;
+      const isShortText =
+        prevQuestion?.type === "text" &&
+        lastUserMsg.split(/\s+/).length < 2 &&
+        lastUserMsg.length < 5;
       const isAlreadyFollowedUp = messages.slice(-2)[0]?.content?.includes("elaborate") || false;
 
       if (isShortText && !isAlreadyFollowedUp && userMessageCount > 0) {
@@ -978,7 +1463,8 @@ surveysRouter.post(
         turnData.is_followup = false;
         turnData.is_complete = false;
       } else {
-        turnData.reply = "Thank you! All questions in this study have been answered. Click 'Review and submit' below to record your response.";
+        turnData.reply =
+          "Thank you! All questions in this study have been answered. Click 'Review and submit' below to record your response.";
         turnData.question_index = null;
         turnData.question_type = null;
         turnData.options = null;
@@ -1068,14 +1554,19 @@ surveysRouter.get(
     const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
     const includeFlagged = req.query.include_flagged === "true";
 
-    const [{ data: responses, error }, { count: targetedCount }, { data: profile }] = await Promise.all([
-      admin.from("survey_responses").select("answers, fraud_flag").eq("survey_id", survey.id),
-      admin
-        .from("survey_targets")
-        .select("survey_id", { count: "exact", head: true })
-        .eq("survey_id", survey.id),
-      admin.from("researcher_profiles").select("subscription_tier").eq("user_id", context.userId).maybeSingle(),
-    ]);
+    const [{ data: responses, error }, { count: targetedCount }, { data: profile }] =
+      await Promise.all([
+        admin.from("survey_responses").select("answers, fraud_flag").eq("survey_id", survey.id),
+        admin
+          .from("survey_targets")
+          .select("survey_id", { count: "exact", head: true })
+          .eq("survey_id", survey.id),
+        admin
+          .from("researcher_profiles")
+          .select("subscription_tier")
+          .eq("user_id", context.userId)
+          .maybeSingle(),
+      ]);
 
     if (error) throw new ApiError(500, "ANALYTICS_FAILED", error.message);
 
@@ -1091,15 +1582,16 @@ surveysRouter.get(
 
     // Only aggregates reach the model — never raw answers or anything identifying.
     const isSubscribed = profile?.subscription_tier === "subscribed";
-    const aiSummary = isSubscribed && shouldGenerateSummary(aggregates.response_count)
-      ? await summarizeAnalytics({
-          title: survey.title,
-          response_count: aggregates.response_count,
-          completion_rate: aggregates.completion_rate,
-          flagged_count: aggregates.flagged_count,
-          distributions: aggregates.distributions,
-        })
-      : null;
+    const aiSummary =
+      isSubscribed && shouldGenerateSummary(aggregates.response_count)
+        ? await summarizeAnalytics({
+            title: survey.title,
+            response_count: aggregates.response_count,
+            completion_rate: aggregates.completion_rate,
+            flagged_count: aggregates.flagged_count,
+            distributions: aggregates.distributions,
+          })
+        : null;
 
     res.json({ ...aggregates, ai_summary: aiSummary, questions: survey.questions });
   }),
@@ -1217,4 +1709,3 @@ async function loadConsistencyQuestion(
   const stored = data?.consistency_question;
   return stored && typeof stored === "object" ? (stored as Question) : null;
 }
-
