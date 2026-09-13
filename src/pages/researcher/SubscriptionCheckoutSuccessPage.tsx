@@ -1,5 +1,6 @@
 import { useSearchParams, Link } from "react-router-dom";
 import { useLanguage } from "@/lib/language";
+import { SUBSCRIPTION_PLANS, formatCurrencyEtb } from "@shared/pricing.js";
 
 export function SubscriptionCheckoutSuccessPage() {
   const [searchParams] = useSearchParams();
@@ -9,7 +10,8 @@ export function SubscriptionCheckoutSuccessPage() {
   const plan = searchParams.get("plan") || "pro";
   const billing = searchParams.get("billing") || "annual";
   const isAnnual = billing === "annual";
-  const amount = isAnnual ? "$39.00 USD" : "$49.00 USD";
+  const proEtb = formatCurrencyEtb(SUBSCRIPTION_PLANS.pro.priceEtb);
+  const amount = isAnnual ? `${proEtb} ($39.00 USD)` : `${proEtb} ($49.00 USD)`;
 
   const todayStr = new Date().toLocaleDateString("en-US", {
     month: "short",
@@ -83,7 +85,7 @@ Thank you for using Ethosk!`;
                 <span className="text-xs font-semibold text-[#40484f]">
                   {isAm ? "የተከፈለው መጠን" : "Amount Paid"}
                 </span>
-                <span className="text-xs text-[#131b2e] font-bold">{amount}</span>
+                <span data-testid="success-pro-price" className="text-xs text-[#131b2e] font-bold">{amount}</span>
               </div>
               <div className="flex justify-between items-center py-1.5">
                 <span className="text-xs font-semibold text-[#40484f]">
