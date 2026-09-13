@@ -6,7 +6,14 @@ import { useAuth } from "@/lib/auth";
 export function ChooseSubscriptionPlanPage() {
   const navigate = useNavigate();
   const { language } = useLanguage();
-  const { user } = useAuth();
+
+  let user: any = null;
+  try {
+    const auth = useAuth();
+    user = auth?.user;
+  } catch {
+    // rendered outside AuthProvider
+  }
   const isAm = language === "am";
 
   const isSubscribed = user?.subscription_tier === "subscribed";
@@ -60,15 +67,13 @@ export function ChooseSubscriptionPlanPage() {
               ? (isAm ? `${renewalDate} ይታደሳል` : `Renews on ${renewalDate}`)
               : (isAm ? "እድሳት፡ አያበቃም" : "Renewal: Never expires")}
           </span>
-          {isSubscribed && (
-            <button
-              type="button"
-              onClick={() => navigate("/researcher/subscription")}
-              className="px-4 py-2 bg-white border border-[#c0c7d0] text-[#131b2e] text-xs font-semibold rounded-lg hover:bg-[#f2f3ff] transition-colors cursor-pointer"
-            >
-              {isAm ? "ምዝገባን አስተዳድር" : "Manage Subscription"}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => navigate("/researcher/subscription")}
+            className="px-4 py-2 bg-white border border-[#c0c7d0] text-[#131b2e] text-xs font-semibold rounded-lg hover:bg-[#f2f3ff] transition-colors cursor-pointer"
+          >
+            {isAm ? "ምዝገባን ሰርዝ" : "Cancel Subscription"}
+          </button>
         </div>
       </section>
 
