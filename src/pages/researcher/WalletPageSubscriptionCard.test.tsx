@@ -84,4 +84,41 @@ describe("ResearcherWalletPage – subscription status card (REH-134)", () => {
       expect(screen.getByText(/2,500 ETB\/mo/i)).toBeTruthy();
     });
   });
+
+  it("asserts subscription card renders correct tier for free and pro users", async () => {
+    // 1. Free user assertions
+    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({ user: mockUser("free") });
+    const { unmount } = renderWallet();
+    await waitFor(() => {
+      expect(screen.getByText("Community Basic")).toBeTruthy();
+      expect(screen.getByText("Free Tier")).toBeTruthy();
+      expect(screen.getByText("0 ETB/mo")).toBeTruthy();
+      const upgradeCta = screen.getByTestId("upgrade-to-pro-cta");
+      expect(upgradeCta).toBeTruthy();
+      expect(upgradeCta.getAttribute("href")).toBe("/researcher/subscription");
+      expect(screen.queryByText(/manage subscription/i)).toBeNull();
+    });
+    unmount();
+
+    // 2. Pro user assertions
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({ user: mockUser("subscribed") });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <ResearcherWalletPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => {
+      expect(screen.getByText("Pro Plan")).toBeTruthy();
+      const activeBadges = screen.getAllByText("Active");
+      expect(activeBadges.length).toBeGreaterThan(0);
+      expect(screen.getByText("2,500 ETB/mo")).toBeTruthy();
+      expect(screen.getByText(/manage subscription/i)).toBeTruthy();
+      expect(screen.queryByTestId("upgrade-to-pro-cta")).toBeNull();
+      expect(screen.queryByText("Free Tier")).toBeNull();
+    });
+  });
 });
+
