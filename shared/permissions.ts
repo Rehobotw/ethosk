@@ -140,7 +140,7 @@ export function roleSatisfiesAny(role: UserRole, requiredRoles: UserRole[]): boo
 // ---------------------------------------------------------------------------
 
 export type ResearcherVerificationLevel = "unverified" | "id_verified";
-export type SubscriptionTier = "free" | "subscribed";
+export type SubscriptionTier = "free" | "subscribed" | "cancelled";
 
 /** Free-tier limits enforced server-side. */
 export const FREE_TIER_LIMITS = {

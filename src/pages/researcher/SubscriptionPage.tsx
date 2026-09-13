@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Icon, Notice } from "@/components/ui";
 import { api, ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { SUBSCRIPTION_PLANS, formatCurrencyEtb } from "@shared/pricing.js";
 
 interface BillingInvoice {
   id: string;
@@ -37,13 +38,16 @@ export function SubscriptionPage() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
   const isSubscribed = user?.subscription_tier === "subscribed";
-  const expiresAt = user?.subscription_expires_at
-    ? new Date(user.subscription_expires_at).toLocaleDateString("en-US", {
-        month: "short",
-        day: "2-digit",
-        year: "numeric",
-      })
-    : "Sep 01, 2026";
+  const renewalDate = isSubscribed
+    ? user?.subscription_expires_at
+      ? new Date(user.subscription_expires_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "2-digit",
+          year: "numeric",
+        })
+      : "Next billing cycle"
+    : "Never expires";
+  const expiresAt = renewalDate;
 
   const { mutate: subscribe, isPending } = useMutation({
     mutationFn: async () => {
@@ -65,6 +69,34 @@ export function SubscriptionPage() {
     },
   });
 
+  const { mutate: cancelSubscription, isPending: isCancelling } = useMutation({
+    mutationFn: async () => {
+      setError(null);
+      return api<{ status: string; message: string; subscription_expires_at?: string }>(
+        "/wallet/researcher/subscription",
+        { method: "DELETE" },
+      );
+    },
+    onSuccess: (data) => {
+      setCancelModalOpen(false);
+      setSuccessNotice(
+        data.message ||
+          "Your subscription has been scheduled to cancel at the end of the billing period.",
+      );
+      queryClient.invalidateQueries({ queryKey: ["auth"] });
+      queryClient.invalidateQueries({ queryKey: ["researcher-wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["researcher-profile"] });
+    },
+    onError: (err) => {
+      if (err instanceof ApiRequestError) {
+        setError(err.message);
+      } else {
+        setError("Failed to cancel subscription. Please try again.");
+      }
+      setCancelModalOpen(false);
+    },
+  });
+
   return (
     <div className="max-w-[1100px] mx-auto w-full pb-20 space-y-10 animate-fade-in text-[#0b1c30]">
       {/* ── Page Header (Stitch Spec) ── */}
@@ -79,6 +111,21 @@ export function SubscriptionPage() {
 
       {error && <Notice tone="error">{error}</Notice>}
       {successNotice && <Notice tone="success">{successNotice}</Notice>}
+
+      {user?.subscription_tier === "cancelled" && (
+        <div
+          data-testid="subscription-cancelled-banner"
+          className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 flex items-center gap-3 text-xs"
+        >
+          <Icon name="warning" className="text-amber-600 text-xl shrink-0" />
+          <div>
+            <p className="font-bold">Subscription Cancellation Scheduled</p>
+            <p className="text-amber-700">
+              Your Pro access remains active until the end of your billing cycle. After this date, your plan will revert to Community Basic.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Active Plan Banner / Card ── */}
       <div className="bg-white rounded-2xl border border-[#c1c7cc]/40 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xs">
@@ -97,14 +144,16 @@ export function SubscriptionPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                 <span>Active</span>
               </span>
-              <span className="text-[#71787c]">
-                Auto-renews: {expiresAt}
+              <span className="text-[#71787c]" data-testid="subscription-renewal-date">
+                {isSubscribed ? `Auto-renews: ${renewalDate}` : "Renewal: Never expires"}
               </span>
             </div>
 
             <p className="text-xs text-[#41484c] pt-1">
-              <span className="font-bold text-[#001d29] font-mono">
-                {isSubscribed ? "2,500 ETB / month" : "0 ETB / month"}
+              <span data-testid="subscription-page-price" className="font-bold text-[#001d29] font-mono">
+                {isSubscribed
+                  ? `${formatCurrencyEtb(SUBSCRIPTION_PLANS.pro.priceEtb)} / month`
+                  : `${formatCurrencyEtb(SUBSCRIPTION_PLANS.basic.priceEtb)} / month`}
               </span>{" "}
               <span className="text-[#71787c]">
                 {isSubscribed ? "(Telebirr Auto-Debit)" : "(Free Tier)"}
@@ -138,7 +187,9 @@ export function SubscriptionPage() {
                 Basic
               </h3>
               <div className="flex items-baseline gap-1 mb-2">
-                <span className="font-headline font-bold text-3xl text-[#001d29]">0</span>
+                <span data-testid="sub-page-basic-price" className="font-headline font-bold text-3xl text-[#001d29]">
+                  {SUBSCRIPTION_PLANS.basic.priceEtb}
+                </span>
                 <span className="text-xs text-[#71787c]">ETB/mo</span>
               </div>
               <p className="text-xs text-[#41484c] mb-6">
@@ -186,7 +237,9 @@ export function SubscriptionPage() {
                 Pro Researcher
               </h3>
               <div className="flex items-baseline gap-1 mb-2">
-                <span className="font-headline font-bold text-3xl text-[#001d29]">2,500</span>
+                <span data-testid="sub-page-pro-price" className="font-headline font-bold text-3xl text-[#001d29]">
+                  {formatCurrencyEtb(SUBSCRIPTION_PLANS.pro.priceEtb).replace(" ETB", "")}
+                </span>
                 <span className="text-xs text-[#71787c]">ETB/mo</span>
               </div>
               <p className="text-xs text-[#41484c] mb-6">
@@ -342,19 +395,23 @@ export function SubscriptionPage() {
               <button
                 type="button"
                 onClick={() => setCancelModalOpen(false)}
-                className="px-4 py-2 border border-[#c1c7cc] rounded-xl text-xs font-semibold text-[#71787c]"
+                disabled={isCancelling}
+                className="px-4 py-2 border border-[#c1c7cc] rounded-xl text-xs font-semibold text-[#71787c] cursor-pointer"
               >
                 Keep Active
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setCancelModalOpen(false);
-                  setSuccessNotice("Your subscription has been scheduled to cancel at the end of the billing period.");
-                }}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold"
+                id="confirm-cancel-btn"
+                data-testid="confirm-cancel-subscription-btn"
+                onClick={() => cancelSubscription()}
+                disabled={isCancelling}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                Confirm Cancellation
+                {isCancelling && (
+                  <Icon className="animate-spin text-[16px]" name="progress_activity" />
+                )}
+                <span>{isCancelling ? "Cancelling…" : "Confirm Cancellation"}</span>
               </button>
             </div>
           </div>

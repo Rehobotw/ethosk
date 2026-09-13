@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SubscriptionPage } from "./SubscriptionPage";
+import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 vi.mock("@/lib/auth", () => ({
-  useAuth: () => ({
+  useAuth: vi.fn(() => ({
     user: {
       id: "usr-1",
       email: "dr.bekele@addis.edu.et",
@@ -13,7 +15,7 @@ vi.mock("@/lib/auth", () => ({
       subscription_tier: "subscribed",
       subscription_expires_at: "2026-09-01T00:00:00Z",
     },
-  }),
+  })),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -59,4 +61,50 @@ describe("SubscriptionPage (Stitch Subscription & Plan Management)", () => {
 
     expect(screen.getByText("Pause or Cancel Subscription?")).toBeDefined();
   });
+
+  it("calls DELETE /wallet/researcher/subscription when confirming cancellation", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <SubscriptionPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByText("Cancel / Pause Subscription"));
+    const confirmBtn = screen.getByTestId("confirm-cancel-subscription-btn");
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(api).toHaveBeenCalledWith("/wallet/researcher/subscription", { method: "DELETE" });
+    });
+  });
+
+  it("renders scheduled cancellation banner when subscription_tier is cancelled", async () => {
+    (useAuth as any).mockReturnValue({
+      user: {
+        id: "usr-1",
+        email: "dr.bekele@addis.edu.et",
+        role: "researcher",
+        subscription_tier: "cancelled",
+        subscription_expires_at: "2026-09-01T00:00:00Z",
+      },
+    });
+
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <SubscriptionPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByTestId("subscription-cancelled-banner")).toBeDefined();
+    expect(screen.getByText("Subscription Cancellation Scheduled")).toBeDefined();
+  });
 });
+
+
