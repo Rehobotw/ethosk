@@ -43,6 +43,10 @@ vi.mock("@/lib/api", () => ({
       });
     }
 
+    if (url.includes("/auth/update-password") || url === "/auth/update-password") {
+      return Promise.resolve({ success: true, message: "Password updated successfully." });
+    }
+
     return Promise.resolve({});
   }),
   ApiRequestError: class ApiRequestError extends Error {},
@@ -75,13 +79,42 @@ function renderProfilePage() {
   return render(
     <AuthContext.Provider value={authValue}>
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={["/profile/settings?tab=settings"]}>
           <ResearcherProfilePage />
         </MemoryRouter>
       </QueryClientProvider>
     </AuthContext.Provider>,
   );
 }
+
+describe("ResearcherProfilePage (REH-121: Password Update)", () => {
+  beforeEach(() => {
+    mockApiCalls = [];
+    vi.clearAllMocks();
+  });
+
+  it("submits new_password to /auth/update-password and displays success banner", async () => {
+    renderProfilePage();
+
+    // Navigate to Settings tab if not already active
+    const settingsTabBtn = await screen.findByRole("button", { name: /Settings & Security/i });
+    fireEvent.click(settingsTabBtn);
+
+    const newPassInput = screen.getByLabelText(/New Password/i);
+    const confirmPassInput = screen.getByLabelText(/Confirm Password/i);
+
+    fireEvent.change(newPassInput, { target: { value: "MySecurePassword123" } });
+    fireEvent.change(confirmPassInput, { target: { value: "MySecurePassword123" } });
+
+    const saveBtn = screen.getByRole("button", { name: /Save New Password/i });
+    expect((saveBtn as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Password updated successfully.")).toBeDefined();
+    });
+  });
+});
 
 describe("ResearcherProfilePage - Notification Preferences (REH-136)", () => {
   beforeEach(() => {
@@ -106,9 +139,9 @@ describe("ResearcherProfilePage - Notification Preferences (REH-136)", () => {
     const toggles = screen.getAllByRole("switch");
     expect(toggles.length).toBeGreaterThanOrEqual(3);
 
-    expect(toggles[0].getAttribute("aria-checked")).toBe("true");
-    expect(toggles[1].getAttribute("aria-checked")).toBe("false");
-    expect(toggles[2].getAttribute("aria-checked")).toBe("true");
+    expect(toggles[0]!.getAttribute("aria-checked")).toBe("true");
+    expect(toggles[1]!.getAttribute("aria-checked")).toBe("false");
+    expect(toggles[2]!.getAttribute("aria-checked")).toBe("true");
   });
 
   it("persists toggled notification preferences when clicking Save Preferences", async () => {
@@ -120,7 +153,7 @@ describe("ResearcherProfilePage - Notification Preferences (REH-136)", () => {
 
     // Toggle the Fraud Signal Alerts (index 1) to true
     const toggles = screen.getAllByRole("switch");
-    fireEvent.click(toggles[1]);
+    fireEvent.click(toggles[1]!);
 
     // Click Save Preferences
     const saveBtn = screen.getByRole("button", { name: /Save Preferences/i });
@@ -131,7 +164,7 @@ describe("ResearcherProfilePage - Notification Preferences (REH-136)", () => {
         (c) => c.url.includes("/researchers/profile") && c.options?.method === "POST",
       );
       expect(postCalls.length).toBeGreaterThan(0);
-      const lastCall = postCalls[postCalls.length - 1];
+      const lastCall = postCalls[postCalls.length - 1]!;
       expect(lastCall.options.body.notification_preferences).toEqual({
         email_on_response: true,
         email_on_flagged: true,
