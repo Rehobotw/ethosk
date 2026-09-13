@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Icon, Notice } from "@/components/ui";
 import { api, ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { SUBSCRIPTION_PLANS, formatCurrencyEtb } from "@shared/pricing.js";
 
 interface BillingInvoice {
   id: string;
@@ -103,8 +104,10 @@ export function SubscriptionPage() {
             </div>
 
             <p className="text-xs text-[#41484c] pt-1">
-              <span className="font-bold text-[#001d29] font-mono">
-                {isSubscribed ? "2,500 ETB / month" : "0 ETB / month"}
+              <span data-testid="subscription-page-price" className="font-bold text-[#001d29] font-mono">
+                {isSubscribed
+                  ? `${formatCurrencyEtb(SUBSCRIPTION_PLANS.pro.priceEtb)} / month`
+                  : `${formatCurrencyEtb(SUBSCRIPTION_PLANS.basic.priceEtb)} / month`}
               </span>{" "}
               <span className="text-[#71787c]">
                 {isSubscribed ? "(Telebirr Auto-Debit)" : "(Free Tier)"}
@@ -138,7 +141,9 @@ export function SubscriptionPage() {
                 Basic
               </h3>
               <div className="flex items-baseline gap-1 mb-2">
-                <span className="font-headline font-bold text-3xl text-[#001d29]">0</span>
+                <span data-testid="sub-page-basic-price" className="font-headline font-bold text-3xl text-[#001d29]">
+                  {SUBSCRIPTION_PLANS.basic.priceEtb}
+                </span>
                 <span className="text-xs text-[#71787c]">ETB/mo</span>
               </div>
               <p className="text-xs text-[#41484c] mb-6">
@@ -186,7 +191,9 @@ export function SubscriptionPage() {
                 Pro Researcher
               </h3>
               <div className="flex items-baseline gap-1 mb-2">
-                <span className="font-headline font-bold text-3xl text-[#001d29]">2,500</span>
+                <span data-testid="sub-page-pro-price" className="font-headline font-bold text-3xl text-[#001d29]">
+                  {formatCurrencyEtb(SUBSCRIPTION_PLANS.pro.priceEtb).replace(" ETB", "")}
+                </span>
                 <span className="text-xs text-[#71787c]">ETB/mo</span>
               </div>
               <p className="text-xs text-[#41484c] mb-6">
