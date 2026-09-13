@@ -259,10 +259,13 @@ export function ResearcherWalletPage() {
                 </Link>
               ) : (
                 <Link
-                  className="text-xs font-semibold text-white bg-primary hover:bg-primary/90 mt-4 inline-flex items-center gap-1 px-3 py-2 rounded-lg transition-colors"
+                  data-testid="upgrade-to-pro-cta"
+                  className="text-xs font-semibold text-white bg-primary hover:bg-primary/90 mt-4 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg shadow-sm transition-all hover:shadow"
                   to="/researcher/subscription"
+                  aria-label="Upgrade Community Basic to Pro"
                 >
-                  Upgrade to Pro →
+                  <span>Upgrade to Pro</span>
+                  <span aria-hidden="true">→</span>
                 </Link>
               )}
             </div>
