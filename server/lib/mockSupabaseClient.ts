@@ -87,6 +87,8 @@ class QueryBuilder {
         return Array.from(mockStore.complianceCategoryRules.values()) as Record<string, any>[];
       case "translation_cache":
         return Array.from(mockStore.translationCache.values()) as Record<string, any>[];
+      case "support_tickets":
+        return mockStore.supportTickets.map((t) => ({ ...t }));
       case "respondent_match_view": {
         const rows: Record<string, any>[] = [];
         for (const [userId, user] of mockStore.users.entries()) {
@@ -357,6 +359,9 @@ class QueryBuilder {
             break;
           case "translation_cache":
             mockStore.translationCache.set(item.cache_key, item);
+            break;
+          case "support_tickets":
+            mockStore.supportTickets.push(newItem as any);
             break;
         }
         createdItems.push(newItem);

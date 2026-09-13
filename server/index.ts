@@ -12,6 +12,7 @@ import { researchersRouter } from "./routes/researchers.js";
 import { respondentsRouter } from "./routes/respondents.js";
 import { surveysRouter } from "./routes/surveys.js";
 import { walletRouter } from "./routes/wallet.js";
+import { supportRouter } from "./routes/support.js";
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use("/api/respondents", respondentsRouter);
 app.use("/api/researchers", researchersRouter);
 app.use("/api/surveys", surveysRouter);
 app.use("/api/wallet", walletRouter);
+app.use("/api/support", supportRouter);
 app.use("/api/admin", adminRouter);
 
 app.use("/api", (_req, res) => {
