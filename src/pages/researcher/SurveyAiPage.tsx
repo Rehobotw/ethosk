@@ -11,36 +11,6 @@ function generateQuestionId(): string {
   return `q_ai_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
-const DEFAULT_AI_QUESTIONS: Question[] = [
-  {
-    id: generateQuestionId(),
-    text: "Which financial services do you use at least once weekly for business transactions?",
-    type: "single_choice",
-    options: ["CBE Birr", "Telebirr", "Traditional Bank Transfer", "Cash Only"],
-    required: true,
-  },
-  {
-    id: generateQuestionId(),
-    text: "How easy was it to register for your current mobile money account?",
-    type: "single_choice",
-    options: ["1 - Very Difficult", "2 - Difficult", "3 - Neutral", "4 - Easy", "5 - Very Easy"],
-    required: true,
-  },
-  {
-    id: generateQuestionId(),
-    text: "What are the biggest challenges you face when withdrawing cash at local agent kiosks?",
-    type: "multi_choice",
-    options: ["Agent liquidity shortages", "Network downtime", "High commission fees", "Long queues"],
-    required: true,
-  },
-  {
-    id: generateQuestionId(),
-    text: "In your own words, what new feature would make you rely more on digital wallet payments?",
-    type: "text",
-    required: false,
-  },
-];
-
 export function SurveyAiPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -92,7 +62,7 @@ export function SurveyAiPage() {
     mutationFn: async () => {
       setBanner(null);
       if (!isSubscribed) {
-        throw new ApiRequestError("AI Survey Generation is reserved for Pro tier subscribers. Please upgrade to access this feature.");
+        throw new ApiRequestError(403, "PRO_TIER_REQUIRED", "AI Survey Generation is reserved for Pro tier subscribers. Please upgrade to access this feature.");
       }
       return api<{
         title: string;
@@ -148,7 +118,7 @@ export function SurveyAiPage() {
   const acceptAndEditMutation = useMutation({
     mutationFn: async () => {
       if (!isSubscribed) {
-        throw new ApiRequestError("AI Survey draft creation requires an active Pro subscription.");
+        throw new ApiRequestError(403, "PRO_TIER_REQUIRED", "AI Survey draft creation requires an active Pro subscription.");
       }
       const payload = surveySchema.parse({
         title: title || "AI-Generated Survey",
@@ -237,9 +207,17 @@ export function SurveyAiPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Research Parameters (5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-5 bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-xs">
-          <div className="flex items-center gap-2 pb-3 border-b border-[#E2E8F0]">
-            <Icon className="text-[20px] text-[#2872A1]" name="tune" />
-            <h2 className="font-headline text-base font-bold text-[#001d29]">Research Parameters</h2>
+          <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0]">
+            <div className="flex items-center gap-2">
+              <Icon className="text-[20px] text-[#2872A1]" name="tune" />
+              <h2 className="font-headline text-base font-bold text-[#001d29]">Research Parameters</h2>
+            </div>
+            {!isSubscribed && (
+              <span className="text-[10px] font-mono font-bold bg-[#eff4ff] text-[#001d29] px-2 py-0.5 rounded-full border border-[#c1c7cc]/40 flex items-center gap-1">
+                <Icon className="text-[12px] text-amber-500" name="lock" />
+                <span>PRO ONLY</span>
+              </span>
+            )}
           </div>
 
           {/* Topic & Core Objective */}
