@@ -101,9 +101,54 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
     }
   }, [profile]);
 
+  // REH-133: Client-side field validation state
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const validateProfileFields = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (bio.trim().length > 1000) {
+      errors.bio = `Bio is too long (${bio.trim().length}/1000 characters)`;
+    }
+
+    if (institution.trim().length > 160) {
+      errors.institution = `Institution name is too long (${institution.trim().length}/160 characters)`;
+    }
+
+    if (institutionalEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(institutionalEmail.trim())) {
+      errors.institutional_email = "Please enter a valid email address";
+    }
+
+    if (phone.trim() && phone.trim().length < 7) {
+      errors.phone = "Phone number seems too short";
+    }
+
+    if (dob) {
+      const dobDate = new Date(dob);
+      const today = new Date();
+      const age = today.getFullYear() - dobDate.getFullYear();
+      if (isNaN(dobDate.getTime())) {
+        errors.dob = "Please enter a valid date";
+      } else if (age < 18 || age > 100) {
+        errors.dob = "You must be between 18 and 100 years old";
+      }
+    }
+
+    const yearsNum = typeof yearsExperience === "number" ? yearsExperience : null;
+    if (yearsNum !== null && (yearsNum < 0 || yearsNum > 100)) {
+      errors.years_experience = "Years of experience must be between 0 and 100";
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   // Mutations
   const saveProfileMutation = useMutation({
     mutationFn: async () => {
+      if (!validateProfileFields()) {
+        throw new Error("Please fix the highlighted fields before saving.");
+      }
       return api<ResearcherProfileRecord>("/researchers/profile", {
         method: "POST",
         body: {
@@ -125,13 +170,14 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
     },
     onSuccess: async () => {
       setBanner({ tone: "success", text: "Profile details saved successfully." });
+      setFieldErrors({});
       await queryClient.invalidateQueries({ queryKey: ["researcher-profile"] });
       await refresh();
     },
     onError: (err) => {
       setBanner({
         tone: "error",
-        text: err instanceof ApiRequestError ? err.message : "Failed to save profile.",
+        text: err instanceof ApiRequestError ? err.message : err instanceof Error ? err.message : "Failed to save profile.",
       });
     },
   });
@@ -645,30 +691,40 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
                 <Field label="Organization / Institution Affiliation">
                   <Input
                     value={institution}
-                    onChange={(e) => setInstitution(e.target.value)}
+                    onChange={(e) => { setInstitution(e.target.value); setFieldErrors((prev) => ({ ...prev, institution: "" })); }}
                     placeholder="e.g., Addis Ababa University / Ministry of Health"
                   />
+                  {fieldErrors.institution && (
+                    <p className="text-xs text-red-600 mt-1" id="institution-error">{fieldErrors.institution}</p>
+                  )}
                 </Field>
 
                 <div className="grid sm:grid-cols-2 gap-4">
                   <Field label="Institutional Domain Email">
                     <Input
                       value={institutionalEmail}
-                      onChange={(e) => setInstitutionalEmail(e.target.value)}
+                      onChange={(e) => { setInstitutionalEmail(e.target.value); setFieldErrors((prev) => ({ ...prev, institutional_email: "" })); }}
                       placeholder="e.g., researcher@aau.edu.et"
                       type="email"
                     />
+                    {fieldErrors.institutional_email && (
+                      <p className="text-xs text-red-600 mt-1" id="institutional-email-error">{fieldErrors.institutional_email}</p>
+                    )}
                   </Field>
 
                   <Field label="Years of Research Experience">
                     <Input
                       value={yearsExperience}
-                      onChange={(e) =>
-                        setYearsExperience(e.target.value === "" ? "" : Number(e.target.value))
-                      }
+                      onChange={(e) => {
+                        setYearsExperience(e.target.value === "" ? "" : Number(e.target.value));
+                        setFieldErrors((prev) => ({ ...prev, years_experience: "" }));
+                      }}
                       placeholder="e.g., 6"
                       type="number"
                     />
+                    {fieldErrors.years_experience && (
+                      <p className="text-xs text-red-600 mt-1" id="years-exp-error">{fieldErrors.years_experience}</p>
+                    )}
                   </Field>
                 </div>
 
@@ -680,9 +736,12 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
                     maxLength={1000}
                     rows={4}
                     value={bio}
-                    onChange={(e) => setBio(e.target.value)}
+                    onChange={(e) => { setBio(e.target.value); setFieldErrors((prev) => ({ ...prev, bio: "" })); }}
                     placeholder="Describe your research domains, primary interests, and previous initiatives..."
                   />
+                  {fieldErrors.bio && (
+                    <p className="text-xs text-red-600 mt-1" id="bio-error">{fieldErrors.bio}</p>
+                  )}
                 </Field>
               </Card>
 
