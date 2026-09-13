@@ -229,26 +229,53 @@ export function ResearcherWalletPage() {
         </div>
 
         {/* Card 4: Subscription Status */}
-        <div className="bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)] hover:border-primary transition-all group flex flex-col justify-between">
-          <div>
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
-                {isAm ? "የደንበኝነት ምዝገባ ሁኔታ" : "Subscription Status"}
-              </h3>
-              <span className="inline-flex items-center px-2 py-0.5 rounded bg-[#0F9B8E]/10 text-[#0F9B8E] text-[10px] font-bold uppercase tracking-wider">
-                Active
-              </span>
+        {(() => {
+          const isSubscribed = user?.subscription_tier === "subscribed";
+          return (
+            <div className="bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)] hover:border-primary transition-all group flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
+                    {isAm ? "የደንበኝነት ምዝገባ ሁኔታ" : "Subscription Status"}
+                  </h3>
+                  {isSubscribed ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded bg-[#0F9B8E]/10 text-[#0F9B8E] text-[10px] font-bold uppercase tracking-wider">
+                      {isAm ? "ንቁ" : "Active"}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-wider">
+                      {isAm ? "ነፃ ደረጃ" : "Free Tier"}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xl font-headline-lg font-bold text-[#0D253A]">
+                  {isSubscribed ? "Pro Plan" : "Community Basic"}
+                </div>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  {isSubscribed ? "2,500 ETB/mo" : "0 ETB/mo"}
+                </p>
+              </div>
+              {isSubscribed ? (
+                <Link
+                  className="text-xs font-semibold text-primary hover:underline mt-4 inline-block"
+                  to="/researcher/subscription"
+                >
+                  {isAm ? "ምዝገባን ያስተዳድሩ →" : "Manage Subscription →"}
+                </Link>
+              ) : (
+                <Link
+                  data-testid="upgrade-to-pro-cta"
+                  className="text-xs font-semibold text-white bg-primary hover:bg-primary/90 mt-4 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg shadow-sm transition-all hover:shadow"
+                  to="/researcher/subscription"
+                  aria-label="Upgrade Community Basic to Pro"
+                >
+                  <span>{isAm ? "ወደ ፕሮ ያሻሽሉ" : "Upgrade to Pro"}</span>
+                  <span aria-hidden="true">→</span>
+                </Link>
+              )}
             </div>
-            <div className="text-xl font-headline-lg font-bold text-[#0D253A]">Pro Plan</div>
-            <p className="text-xs text-on-surface-variant mt-0.5">2,500 ETB/mo</p>
-          </div>
-          <Link
-            className="text-xs font-semibold text-primary hover:underline mt-4 inline-block"
-            to="/researcher/subscription"
-          >
-            {isAm ? "ምዝገባን ያስተዳድሩ →" : "Manage Subscription →"}
-          </Link>
-        </div>
+          );
+        })()}
       </section>
 
       {/* ── Two-Column Workspace: Quick Deposit + Invoicing Profile ── */}
