@@ -70,7 +70,20 @@ describe("SurveyAiPage (§4.3.4 AI Survey Generator Dedicated Page)", () => {
     });
 
     expect(screen.getByText("Unlock AI Survey Generation & Native Localizations")).toBeDefined();
-    expect(screen.getByText("Upgrade to Pro (500 ETB/mo)")).toBeDefined();
+    expect(screen.getAllByText("Upgrade to Pro (500 ETB/mo)").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("free tier initializes with empty schema and disables save button", () => {
+    renderAiPageWithUser({
+      id: "res-free",
+      role: "researcher",
+      subscription_tier: "free",
+    });
+
+    expect(screen.getAllByText("Pro Subscription Required").length).toBeGreaterThanOrEqual(1);
+    const saveBtn = screen.getByRole("button", { name: /Pro Subscription Required/i }) as HTMLButtonElement;
+    expect(saveBtn.disabled).toBe(true);
+    expect(screen.queryByText(/Which financial services do you use/i)).toBeNull();
   });
 
   it("renders topic input, question count selector, and generate button for subscribed tier", () => {
@@ -82,8 +95,12 @@ describe("SurveyAiPage (§4.3.4 AI Survey Generator Dedicated Page)", () => {
     expect(screen.getByText("Desired Question Count")).toBeDefined();
   });
 
-  it("generates survey draft and allows reviewing questions and saving", async () => {
+  it("initializes empty and enables save button only after AI questions are generated", async () => {
     renderAiPageWithUser();
+
+    expect(screen.getByText("No Questions Generated Yet")).toBeDefined();
+    const initialSaveBtn = screen.getByRole("button", { name: /No Questions to Save/i }) as HTMLButtonElement;
+    expect(initialSaveBtn.disabled).toBe(true);
 
     const topicInput = screen.getByPlaceholderText(/Assess brand perception/i);
     fireEvent.change(topicInput, { target: { value: "Mobile banking adoption study" } });
@@ -96,7 +113,8 @@ describe("SurveyAiPage (§4.3.4 AI Survey Generator Dedicated Page)", () => {
       expect(screen.getByText(/What is your main barrier to using digital payments\?/)).toBeDefined();
     });
 
-    const acceptBtn = screen.getByText("Accept & Edit in Builder");
+    const acceptBtn = screen.getByRole("button", { name: /Accept & Edit in Builder/i }) as HTMLButtonElement;
     expect(acceptBtn).toBeDefined();
+    expect(acceptBtn.disabled).toBe(false);
   });
 });
