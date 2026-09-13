@@ -4,10 +4,19 @@ import { useLanguage } from "@/lib/language";
 import { useAuth } from "@/lib/auth";
 import { SUBSCRIPTION_PLANS, formatCurrencyEtb } from "@shared/pricing.js";
 
+function useCurrentUser() {
+  try {
+    const auth = useAuth();
+    return auth?.user ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function ChooseSubscriptionPlanPage() {
   const navigate = useNavigate();
   const { language } = useLanguage();
-  const { user } = useAuth();
+  const user = useCurrentUser();
   const isAm = language === "am";
 
   const isSubscribed = user?.subscription_tier === "subscribed";
@@ -61,15 +70,13 @@ export function ChooseSubscriptionPlanPage() {
               ? (isAm ? `${renewalDate} ይታደሳል` : `Renews on ${renewalDate}`)
               : (isAm ? "እድሳት፡ አያበቃም" : "Renewal: Never expires")}
           </span>
-          {isSubscribed && (
-            <button
-              type="button"
-              onClick={() => navigate("/researcher/subscription")}
-              className="px-4 py-2 bg-white border border-[#c0c7d0] text-[#131b2e] text-xs font-semibold rounded-lg hover:bg-[#f2f3ff] transition-colors cursor-pointer"
-            >
-              {isAm ? "ምዝገባን አስተዳድር" : "Manage Subscription"}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => navigate("/researcher/subscription")}
+            className="px-4 py-2 bg-white border border-[#c0c7d0] text-[#131b2e] text-xs font-semibold rounded-lg hover:bg-[#f2f3ff] transition-colors cursor-pointer"
+          >
+            {isSubscribed ? (isAm ? "ምዝገባን አስተዳድር" : "Manage Subscription") : (isAm ? "ምዝገባን ሰርዝ" : "Cancel Subscription")}
+          </button>
         </div>
       </section>
 
@@ -85,33 +92,37 @@ export function ChooseSubscriptionPlanPage() {
         </p>
 
         {/* Annual / Monthly Toggle Switch */}
-        <div className="inline-flex items-center gap-3 bg-[#f2f3ff] p-1.5 rounded-full border border-[#c0c7d0]">
-          <button
-            type="button"
+        <div className="flex items-center justify-center gap-3">
+          <span
+            className={`text-xs font-semibold cursor-pointer ${
+              !isAnnual ? "text-[#131b2e]" : "text-[#40484f]"
+            }`}
             onClick={() => setIsAnnual(false)}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-              !isAnnual
-                ? "bg-white text-[#131b2e] shadow-xs"
-                : "text-[#40484f] hover:text-[#131b2e]"
-            }`}
           >
-            {isAm ? "ወርሃዊ ክፍያ" : "Monthly Billing"}
-          </button>
-          <button
-            type="button"
+            {isAm ? "በየወሩ" : "Monthly"}
+          </span>
+
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isAnnual}
+              onChange={() => setIsAnnual(!isAnnual)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-[#c0c7d0] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2872a1]"></div>
+          </label>
+
+          <span
+            className={`text-xs font-semibold cursor-pointer ${
+              isAnnual ? "text-[#131b2e]" : "text-[#40484f]"
+            }`}
             onClick={() => setIsAnnual(true)}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-              isAnnual
-                ? "bg-white text-[#131b2e] shadow-xs"
-                : "text-[#40484f] hover:text-[#131b2e]"
-            }`}
           >
-            {isAm ? "ዓመታዊ ክፍያ" : "Annual Billing"}
-          </button>
-          <span className="bg-[#2872a1]/10 text-[#2872a1] text-[10px] font-bold px-2 py-0.5 rounded-full mr-1">
-            <span className="hidden sm:inline">
-              ({isAm ? "20% ቅናሽ" : "Save 20%"})
-            </span>
+            {isAm ? "በዓመት" : "Annually"}
+          </span>
+
+          <span className="bg-[#2872a1]/10 text-[#2872a1] text-[10px] font-bold px-2 py-0.5 rounded-full ml-1">
+            {isAm ? "20% ይቆጥቡ" : "Save 20%"}
           </span>
         </div>
       </div>
@@ -184,7 +195,7 @@ export function ChooseSubscriptionPlanPage() {
               {formatCurrencyEtb(SUBSCRIPTION_PLANS.pro.priceEtb)}
             </span>
             <span className="text-xs text-[#40484f]">
-              /mo ({isAnnual ? "$39" : `$${SUBSCRIPTION_PLANS.pro.priceUsd}`})
+              /mo (<span>{isAnnual ? "$39" : `$${SUBSCRIPTION_PLANS.pro.priceUsd}`}</span>)
             </span>
           </div>
 
