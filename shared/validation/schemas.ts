@@ -230,17 +230,24 @@ export const matchFiltersSchema = z.object({
   ageRange: z
     .tuple([z.number().int().min(15).max(100), z.number().int().min(15).max(100)])
     .optional(),
+  age_min: z.number().int().min(15).max(100).optional(),
+  age_max: z.number().int().min(15).max(100).optional(),
   gender: z.enum(GENDERS).optional(),
   primaryLanguage: z.enum(PRIMARY_LANGUAGES).optional(),
+  primary_language: z.enum(PRIMARY_LANGUAGES).optional(),
 
   // Where they are
   region: z.string().trim().min(1).max(80).optional(),
+  regions: z.array(z.string().trim().min(1).max(80)).optional(),
   city: z.string().trim().min(1).max(80).optional(),
 
   // Work and education
   employmentStatus: z.enum(EMPLOYMENT_STATUSES).optional(),
+  employment_status: z.enum(EMPLOYMENT_STATUSES).optional(),
   occupation: z.string().trim().min(1).max(120).optional(),
   educationLevel: z.enum(EDUCATION_LEVELS).optional(),
+  education: z.string().optional(),
+  education_level: z.string().optional(),
 
   // Academic, for studies that are specifically about students
   university: z.string().trim().min(1).optional(),
@@ -248,6 +255,7 @@ export const matchFiltersSchema = z.object({
   yearRange: z.tuple([z.number().int().min(1).max(8), z.number().int().min(1).max(8)]).optional(),
 
   minVerificationTier: minVerificationTierSchema.optional(),
+  min_verification_tier: minVerificationTierSchema.optional(),
 }).passthrough();
 export type MatchFiltersInput = z.infer<typeof matchFiltersSchema>;
 
