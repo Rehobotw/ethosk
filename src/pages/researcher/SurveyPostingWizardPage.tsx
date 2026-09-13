@@ -211,6 +211,7 @@ export function SurveyPostingWizardPage() {
         {
           body: {
             reward_etb: rewardPerRespondent,
+            sample_size: sampleSize,
             filters,
             research_category: researchCategory,
             compliance_required: complianceEvaluation.compliance_required,
