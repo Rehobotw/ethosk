@@ -357,31 +357,43 @@ export function SurveyAnalyticsPage() {
             <span className="material-symbols-outlined text-primary/70 text-xl">pie_chart</span>
             Age Demographic Breakdown
           </h4>
-          <div className="flex-1 w-full flex items-center justify-center">
-            <ResponsiveContainer height="100%" width="100%">
-              <PieChart>
-                <Pie
-                  cx="50%"
-                  cy="50%"
-                  data={ageData}
-                  dataKey="value"
-                  innerRadius={60}
-                  nameKey="name"
-                  outerRadius={95}
-                  paddingAngle={3}
-                >
-                  {ageData.map((_entry, index) => (
-                    <Cell fill={AGE_COLORS[index % AGE_COLORS.length]} key={`cell-${index}`} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(val: number) => [`${val} responses`, "Count"]}
-                  contentStyle={{ backgroundColor: "#ffffff", borderRadius: "8px", border: "1px solid #d0deee" }}
-                />
-                <Legend verticalAlign="bottom" />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          {ageData.length === 0 ? (
+            <div className="flex-1 w-full flex flex-col items-center justify-center p-6 text-center select-none">
+              <div className="w-11 h-11 rounded-xl bg-surface-container-low border border-outline-variant/30 flex items-center justify-center text-on-surface-variant/60 mb-2.5">
+                <span className="material-symbols-outlined text-[22px]">pie_chart</span>
+              </div>
+              <p className="text-xs font-semibold text-on-surface">No demographic data yet</p>
+              <p className="text-[11px] text-on-surface-variant max-w-xs mt-0.5 leading-relaxed">
+                Age distribution will display automatically once verified responses are recorded.
+              </p>
+            </div>
+          ) : (
+            <div className="flex-1 w-full flex items-center justify-center">
+              <ResponsiveContainer height="100%" width="100%">
+                <PieChart>
+                  <Pie
+                    cx="50%"
+                    cy="50%"
+                    data={ageData}
+                    dataKey="value"
+                    innerRadius={60}
+                    nameKey="name"
+                    outerRadius={95}
+                    paddingAngle={3}
+                  >
+                    {ageData.map((_entry, index) => (
+                      <Cell fill={AGE_COLORS[index % AGE_COLORS.length]} key={`cell-${index}`} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(val: number) => [`${val} responses`, "Count"]}
+                    contentStyle={{ backgroundColor: "#ffffff", borderRadius: "8px", border: "1px solid #d0deee" }}
+                  />
+                  <Legend verticalAlign="bottom" />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
 
         {/* Chart 2: Horizontal Bar (Location / Region) */}
@@ -390,20 +402,32 @@ export function SurveyAnalyticsPage() {
             <span className="material-symbols-outlined text-primary/70 text-xl">map</span>
             Location / Region Breakdown
           </h4>
-          <div className="flex-1 w-full pt-2">
-            <ResponsiveContainer height="100%" width="100%">
-              <BarChart data={regionData} layout="vertical" margin={{ left: 10, right: 20, top: 10, bottom: 10 }}>
-                <CartesianGrid horizontal={false} stroke="#e2eaf4" />
-                <XAxis type="number" tick={{ fontSize: 11, fill: "#50616b" }} />
-                <YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 12, fill: "#004162" }} />
-                <Tooltip
-                  formatter={(val: number) => [`${val} respondents`, "Count"]}
-                  contentStyle={{ backgroundColor: "#ffffff", borderRadius: "8px", border: "1px solid #d0deee" }}
-                />
-                <Bar dataKey="count" fill={REGION_BAR_COLOR} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {regionData.length === 0 ? (
+            <div className="flex-1 w-full flex flex-col items-center justify-center p-6 text-center select-none">
+              <div className="w-11 h-11 rounded-xl bg-surface-container-low border border-outline-variant/30 flex items-center justify-center text-on-surface-variant/60 mb-2.5">
+                <span className="material-symbols-outlined text-[22px]">map</span>
+              </div>
+              <p className="text-xs font-semibold text-on-surface">No regional data yet</p>
+              <p className="text-[11px] text-on-surface-variant max-w-xs mt-0.5 leading-relaxed">
+                Geographic distribution across Ethiopian regions will appear as participants respond.
+              </p>
+            </div>
+          ) : (
+            <div className="flex-1 w-full pt-2">
+              <ResponsiveContainer height="100%" width="100%">
+                <BarChart data={regionData} layout="vertical" margin={{ left: 10, right: 20, top: 10, bottom: 10 }}>
+                  <CartesianGrid horizontal={false} stroke="#e2eaf4" />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: "#50616b" }} />
+                  <YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 12, fill: "#004162" }} />
+                  <Tooltip
+                    formatter={(val: number) => [`${val} respondents`, "Count"]}
+                    contentStyle={{ backgroundColor: "#ffffff", borderRadius: "8px", border: "1px solid #d0deee" }}
+                  />
+                  <Bar dataKey="count" fill={REGION_BAR_COLOR} radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
 
         {/* Chart 3: Vertical Bar (Education) */}
@@ -412,20 +436,32 @@ export function SurveyAnalyticsPage() {
             <span className="material-symbols-outlined text-primary/70 text-xl">school</span>
             Education Level
           </h4>
-          <div className="flex-1 w-full pt-2">
-            <ResponsiveContainer height="100%" width="100%">
-              <BarChart data={educationData} margin={{ left: 0, right: 10, top: 10, bottom: 10 }}>
-                <CartesianGrid stroke="#e2eaf4" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#50616b" }} />
-                <YAxis tick={{ fontSize: 11, fill: "#50616b" }} />
-                <Tooltip
-                  formatter={(val: number) => [`${val} respondents`, "Count"]}
-                  contentStyle={{ backgroundColor: "#ffffff", borderRadius: "8px", border: "1px solid #d0deee" }}
-                />
-                <Bar dataKey="count" fill="#005985" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {educationData.length === 0 ? (
+            <div className="flex-1 w-full flex flex-col items-center justify-center p-6 text-center select-none">
+              <div className="w-11 h-11 rounded-xl bg-surface-container-low border border-outline-variant/30 flex items-center justify-center text-on-surface-variant/60 mb-2.5">
+                <span className="material-symbols-outlined text-[22px]">school</span>
+              </div>
+              <p className="text-xs font-semibold text-on-surface">No education data yet</p>
+              <p className="text-[11px] text-on-surface-variant max-w-xs mt-0.5 leading-relaxed">
+                Participant education levels will be summarized once responses are received.
+              </p>
+            </div>
+          ) : (
+            <div className="flex-1 w-full pt-2">
+              <ResponsiveContainer height="100%" width="100%">
+                <BarChart data={educationData} margin={{ left: 0, right: 10, top: 10, bottom: 10 }}>
+                  <CartesianGrid stroke="#e2eaf4" strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#50616b" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "#50616b" }} />
+                  <Tooltip
+                    formatter={(val: number) => [`${val} respondents`, "Count"]}
+                    contentStyle={{ backgroundColor: "#ffffff", borderRadius: "8px", border: "1px solid #d0deee" }}
+                  />
+                  <Bar dataKey="count" fill="#005985" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
 
         {/* Chart 4: Line Area Graph (Velocity) */}
@@ -434,26 +470,38 @@ export function SurveyAnalyticsPage() {
             <span className="material-symbols-outlined text-primary/70 text-xl">trending_up</span>
             Response Velocity
           </h4>
-          <div className="flex-1 w-full pt-2">
-            <ResponsiveContainer height="100%" width="100%">
-              <AreaChart data={velocityData} margin={{ left: 0, right: 10, top: 10, bottom: 10 }}>
-                <defs>
-                  <linearGradient id="velocityGrad" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="5%" stopColor="#004162" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#004162" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#e2eaf4" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#50616b" }} />
-                <YAxis tick={{ fontSize: 11, fill: "#50616b" }} />
-                <Tooltip
-                  formatter={(val: number) => [`${val} cumulative responses`, "Responses"]}
-                  contentStyle={{ backgroundColor: "#ffffff", borderRadius: "8px", border: "1px solid #d0deee" }}
-                />
-                <Area dataKey="responses" fill="url(#velocityGrad)" stroke="#004162" strokeWidth={3} type="monotone" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          {velocityData.length === 0 ? (
+            <div className="flex-1 w-full flex flex-col items-center justify-center p-6 text-center select-none">
+              <div className="w-11 h-11 rounded-xl bg-surface-container-low border border-outline-variant/30 flex items-center justify-center text-on-surface-variant/60 mb-2.5">
+                <span className="material-symbols-outlined text-[22px]">trending_up</span>
+              </div>
+              <p className="text-xs font-semibold text-on-surface">No velocity data yet</p>
+              <p className="text-[11px] text-on-surface-variant max-w-xs mt-0.5 leading-relaxed">
+                Response velocity tracking will activate when participants begin submitting responses.
+              </p>
+            </div>
+          ) : (
+            <div className="flex-1 w-full pt-2">
+              <ResponsiveContainer height="100%" width="100%">
+                <AreaChart data={velocityData} margin={{ left: 0, right: 10, top: 10, bottom: 10 }}>
+                  <defs>
+                    <linearGradient id="velocityGrad" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="5%" stopColor="#004162" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#004162" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#e2eaf4" strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#50616b" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "#50616b" }} />
+                  <Tooltip
+                    formatter={(val: number) => [`${val} cumulative responses`, "Responses"]}
+                    contentStyle={{ backgroundColor: "#ffffff", borderRadius: "8px", border: "1px solid #d0deee" }}
+                  />
+                  <Area dataKey="responses" fill="url(#velocityGrad)" stroke="#004162" strokeWidth={3} type="monotone" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       </div>
 
