@@ -63,6 +63,10 @@ researchersRouter.post(
     const context = auth(req);
     const input = parseBody(researcherProfileSchema, req.body);
 
+    if (input.full_name !== undefined && input.full_name.trim().length > 0) {
+      await admin.from("users").update({ full_name: input.full_name.trim() }).eq("id", context.userId);
+    }
+
     // Upsert through the service role: the row is keyed by the authenticated
     // user's own id, and signup may have failed to create it before this build
     // added the insert policy.

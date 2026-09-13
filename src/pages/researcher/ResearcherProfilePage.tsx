@@ -101,30 +101,60 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
     }
   }, [profile]);
 
+  const [fullName, setFullName] = useState(user?.full_name ?? "");
+
+  useEffect(() => {
+    if (user?.full_name && !fullName) {
+      setFullName(user.full_name);
+    }
+  }, [user?.full_name]);
+
   // REH-133: Client-side field validation state
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const validateProfileFields = (): boolean => {
+  const validateProfileFields = (overrides?: Partial<{
+    fullName: string;
+    bio: string;
+    institution: string;
+    institutionalEmail: string;
+    phone: string;
+    dob: string;
+    yearsExperience: number | "";
+  }>): boolean => {
+    const curName = overrides?.fullName !== undefined ? overrides.fullName : fullName;
+    const curBio = overrides?.bio !== undefined ? overrides.bio : bio;
+    const curInst = overrides?.institution !== undefined ? overrides.institution : institution;
+    const curEmail = overrides?.institutionalEmail !== undefined ? overrides.institutionalEmail : institutionalEmail;
+    const curPhone = overrides?.phone !== undefined ? overrides.phone : phone;
+    const curDob = overrides?.dob !== undefined ? overrides.dob : dob;
+    const curYears = overrides?.yearsExperience !== undefined ? overrides.yearsExperience : yearsExperience;
+
     const errors: Record<string, string> = {};
 
-    if (bio.trim().length > 1000) {
-      errors.bio = `Bio is too long (${bio.trim().length}/1000 characters)`;
+    if (!curName.trim()) {
+      errors.full_name = "Full name is required";
+    } else if (curName.trim().length < 2) {
+      errors.full_name = "Full name must be at least 2 characters";
     }
 
-    if (institution.trim().length > 160) {
-      errors.institution = `Institution name is too long (${institution.trim().length}/160 characters)`;
+    if (curBio.trim().length > 1000) {
+      errors.bio = `Bio is too long (${curBio.trim().length}/1000 characters)`;
     }
 
-    if (institutionalEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(institutionalEmail.trim())) {
+    if (curInst.trim().length > 160) {
+      errors.institution = `Institution name is too long (${curInst.trim().length}/160 characters)`;
+    }
+
+    if (curEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(curEmail.trim())) {
       errors.institutional_email = "Please enter a valid email address";
     }
 
-    if (phone.trim() && phone.trim().length < 7) {
+    if (curPhone.trim() && curPhone.trim().length < 7) {
       errors.phone = "Phone number seems too short";
     }
 
-    if (dob) {
-      const dobDate = new Date(dob);
+    if (curDob) {
+      const dobDate = new Date(curDob);
       const today = new Date();
       const age = today.getFullYear() - dobDate.getFullYear();
       if (isNaN(dobDate.getTime())) {
@@ -134,7 +164,7 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
       }
     }
 
-    const yearsNum = typeof yearsExperience === "number" ? yearsExperience : null;
+    const yearsNum = typeof curYears === "number" ? curYears : null;
     if (yearsNum !== null && (yearsNum < 0 || yearsNum > 100)) {
       errors.years_experience = "Years of experience must be between 0 and 100";
     }
@@ -142,6 +172,14 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
+
+  const isFormInvalid =
+    Object.keys(fieldErrors).length > 0 ||
+    !fullName.trim() ||
+    fullName.trim().length < 2 ||
+    (institutionalEmail.trim().length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(institutionalEmail.trim())) ||
+    bio.trim().length > 1000 ||
+    institution.trim().length > 160;
 
   // Mutations
   const saveProfileMutation = useMutation({
@@ -152,6 +190,7 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
       return api<ResearcherProfileRecord>("/researchers/profile", {
         method: "POST",
         body: {
+          full_name: fullName.trim(),
           bio: bio.trim() || null,
           institution: institution.trim() || null,
           researcher_type: researcherType,
@@ -674,6 +713,22 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
               </h3>
 
               <Card className="p-6 space-y-4">
+                <Field label="Full Name">
+                  <Input
+                    data-testid="profile-full-name-input"
+                    value={fullName}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFullName(val);
+                      validateProfileFields({ fullName: val });
+                    }}
+                    placeholder="e.g., Dr. Abebe Bikila"
+                  />
+                  {fieldErrors.full_name && (
+                    <p className="text-xs text-red-600 mt-1" id="full-name-error">{fieldErrors.full_name}</p>
+                  )}
+                </Field>
+
                 <Field label="Researcher Type">
                   <select
                     className="w-full rounded-lg border border-outline-variant bg-surface-container-high px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:outline-none"
@@ -691,7 +746,11 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
                 <Field label="Organization / Institution Affiliation">
                   <Input
                     value={institution}
-                    onChange={(e) => { setInstitution(e.target.value); setFieldErrors((prev) => ({ ...prev, institution: "" })); }}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setInstitution(val);
+                      validateProfileFields({ institution: val });
+                    }}
                     placeholder="e.g., Addis Ababa University / Ministry of Health"
                   />
                   {fieldErrors.institution && (
@@ -703,7 +762,11 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
                   <Field label="Institutional Domain Email">
                     <Input
                       value={institutionalEmail}
-                      onChange={(e) => { setInstitutionalEmail(e.target.value); setFieldErrors((prev) => ({ ...prev, institutional_email: "" })); }}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setInstitutionalEmail(val);
+                        validateProfileFields({ institutionalEmail: val });
+                      }}
                       placeholder="e.g., researcher@aau.edu.et"
                       type="email"
                     />
@@ -716,8 +779,9 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
                     <Input
                       value={yearsExperience}
                       onChange={(e) => {
-                        setYearsExperience(e.target.value === "" ? "" : Number(e.target.value));
-                        setFieldErrors((prev) => ({ ...prev, years_experience: "" }));
+                        const val = e.target.value === "" ? "" : Number(e.target.value);
+                        setYearsExperience(val);
+                        validateProfileFields({ yearsExperience: val });
                       }}
                       placeholder="e.g., 6"
                       type="number"
@@ -736,7 +800,11 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
                     maxLength={1000}
                     rows={4}
                     value={bio}
-                    onChange={(e) => { setBio(e.target.value); setFieldErrors((prev) => ({ ...prev, bio: "" })); }}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBio(val);
+                      validateProfileFields({ bio: val });
+                    }}
                     placeholder="Describe your research domains, primary interests, and previous initiatives..."
                   />
                   {fieldErrors.bio && (
@@ -923,9 +991,10 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
       <div className="fixed bottom-0 right-0 left-0 md:left-[260px] bg-white/95 backdrop-blur-md border-t border-[#E2E8F0] p-4 px-6 md:px-8 flex justify-end z-40 shadow-[0_-4px_16px_rgba(0,0,0,0.05)]">
         <button
           type="button"
+          data-testid="save-profile-btn"
           onClick={() => saveProfileMutation.mutate()}
-          disabled={saveProfileMutation.isPending}
-          className="px-6 py-2.5 bg-[#001d29] hover:bg-[#003345] text-white rounded-full text-xs md:text-sm font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          disabled={saveProfileMutation.isPending || isFormInvalid}
+          className="px-6 py-2.5 bg-[#001d29] hover:bg-[#003345] text-white rounded-full text-xs md:text-sm font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Icon className="text-[18px]" name="save" />
           <span>{saveProfileMutation.isPending ? "Saving Changes…" : "Save Changes"}</span>
