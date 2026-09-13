@@ -170,52 +170,39 @@ export async function extractTextFromFile(file: File): Promise<string> {
   const extension = file.name.split(".").pop()?.toLowerCase();
 
   if (extension === "txt" || extension === "csv") {
-    return await readFileAsText(file);
+    const txt = await readFileAsText(file);
+    if (!txt.trim()) {
+      throw new Error("The uploaded document is empty.");
+    }
+    return txt.trim();
   }
 
-  if (extension === "docx") {
-    const buffer = await readFileAsArrayBuffer(file);
-    const decoder = new TextDecoder("utf-8");
-    const content = decoder.decode(buffer);
+  if (extension === "docx" || extension === "pdf") {
+    const formData = new FormData();
+    formData.append("file", file);
 
-    const matches = content.match(/<w:t[^>]*>([^<]+)<\/w:t>/g);
-    if (matches && matches.length > 0) {
-      let extracted = "";
-      for (const m of matches) {
-        const textMatch = m.match(/<w:t[^>]*>([^<]+)<\/w:t>/);
-        if (textMatch && textMatch[1]) {
-          extracted += `${textMatch[1]} `;
-        }
+    const res = await fetch("/api/surveys/extract-document-text", {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      let errorMsg = `Extraction failed with status ${res.status}`;
+      try {
+        const errJson = await res.json();
+        errorMsg = errJson.error?.message || errJson.message || errorMsg;
+      } catch {
+        // ignore json error
       }
-      return extracted.replace(/([?.!])\s+(?=[0-9A-Z])/g, "$1\n").trim();
+      throw new Error(errorMsg);
     }
-    const stripped = content
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    return stripped.length > 0
-      ? stripped
-      : "1. Sample imported survey question\nA) Option A\nB) Option B";
-  }
 
-  if (extension === "pdf") {
-    const buffer = await readFileAsArrayBuffer(file);
-    const decoder = new TextDecoder("latin1");
-    const content = decoder.decode(buffer);
-
-    const textMatches = content.match(/\(([^)]+)\)\s*Tj/g) || content.match(/\[([^\]]+)\]\s*TJ/g);
-    if (textMatches && textMatches.length > 0) {
-      const extracted = textMatches
-        .map((m) => m.replace(/^[\(\[]/, "").replace(/[\]\)]\s*T[jJ]$/, ""))
-        .join(" ")
-        .replace(/\\([()\\])/g, "$1");
-      return extracted.replace(/([?.!])\s+(?=[0-9A-Z])/g, "$1\n").trim();
+    const data = await res.json();
+    if (!data.text || !data.text.trim()) {
+      throw new Error(`No readable survey text could be extracted from this ${extension.toUpperCase()} document.`);
     }
-    const clean = content
-      .replace(/[^\x20-\x7E\n\r]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    return clean.slice(0, 3000) || "1. Sample PDF imported question\nA) Yes\nB) No";
+    return data.text.trim();
   }
 
   throw new Error("Unsupported file type. Please upload a .docx, .pdf, .txt, or .csv file.");
