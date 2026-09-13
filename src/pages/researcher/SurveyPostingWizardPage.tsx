@@ -103,6 +103,11 @@ export function SurveyPostingWizardPage() {
     return evaluateCategoryCompliance(researchCategory, complianceRules);
   }, [researchCategory, complianceRules]);
 
+  const isComplianceMissing = Boolean(
+    complianceEvaluation.compliance_required &&
+      (!complianceAnswer || !complianceDocName),
+  );
+
   // Fetch Researcher's Final Drafts & Surveys
   const { data: surveysData, isLoading: isLoadingSurveys } = useQuery({
     queryKey: ["surveys"],
@@ -366,12 +371,14 @@ export function SurveyPostingWizardPage() {
             <div className="flex flex-col items-center gap-2 relative z-10 w-24">
               <button
                 type="button"
-                onClick={() => selectedSurveyId && setStep(4)}
-                disabled={!selectedSurveyId}
+                onClick={() => selectedSurveyId && !isComplianceMissing && setStep(4)}
+                disabled={!selectedSurveyId || isComplianceMissing}
                 className={`w-8 h-8 rounded-full flex items-center justify-center font-mono font-bold text-xs shadow-xs transition-all ${
                   step === 4
                     ? "bg-[#001d29] text-white ring-4 ring-[#dde9ff] cursor-pointer"
-                    : "bg-[#dde9ff] text-[#71787c] opacity-60"
+                    : isComplianceMissing
+                    ? "bg-[#dde9ff] text-[#71787c] opacity-40 cursor-not-allowed"
+                    : "bg-[#dde9ff] text-[#71787c] opacity-60 cursor-pointer"
                 }`}
               >
                 4
@@ -1021,23 +1028,39 @@ export function SurveyPostingWizardPage() {
             </div>
 
             {/* Step 3 Actions */}
-            <div className="flex justify-between items-center pt-4 border-t border-[#c1c7cc]/30">
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="px-6 py-2.5 rounded-full text-xs md:text-sm font-semibold text-[#001d29] border border-[#c1c7cc]/50 hover:bg-[#eff4ff] transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <Icon className="text-[16px]" name="arrow_back" />
-                <span>Back to Format</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setStep(4)}
-                className="bg-[#001d29] hover:bg-[#003345] text-white px-8 py-2.5 rounded-full text-xs md:text-sm font-semibold transition-all flex items-center gap-2 shadow-sm cursor-pointer"
-              >
-                <span>Continue to Review</span>
-                <Icon className="text-[16px]" name="arrow_forward" />
-              </button>
+            <div className="flex flex-col gap-3 pt-4 border-t border-[#c1c7cc]/30">
+              {isComplianceMissing && (
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
+                  <Icon className="text-[18px] text-amber-600 shrink-0" name="warning" />
+                  <div>
+                    <span className="font-bold">Ethical Clearance Required: </span>
+                    Studies in the declared research category require an uploaded institutional clearance or IRB approval document before proceeding to review.
+                  </div>
+                </div>
+              )}
+              <div className="flex justify-between items-center">
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="px-6 py-2.5 rounded-full text-xs md:text-sm font-semibold text-[#001d29] border border-[#c1c7cc]/50 hover:bg-[#eff4ff] transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Icon className="text-[16px]" name="arrow_back" />
+                  <span>Back to Format</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => !isComplianceMissing && setStep(4)}
+                  disabled={isComplianceMissing}
+                  className={`px-8 py-2.5 rounded-full text-xs md:text-sm font-semibold transition-all flex items-center gap-2 shadow-sm ${
+                    isComplianceMissing
+                      ? "bg-[#dde9ff] text-[#71787c] cursor-not-allowed opacity-60"
+                      : "bg-[#001d29] hover:bg-[#003345] text-white cursor-pointer"
+                  }`}
+                >
+                  <span>Continue to Review</span>
+                  <Icon className="text-[16px]" name="arrow_forward" />
+                </button>
+              </div>
             </div>
           </div>
         )}
