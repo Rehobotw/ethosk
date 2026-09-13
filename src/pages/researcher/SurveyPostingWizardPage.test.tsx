@@ -143,9 +143,7 @@ describe("SurveyPostingWizardPage (§4.3.5–4.3.6 Survey Posting Flow)", () => 
   });
 
   it("disables Continue to Review button when ethical clearance is required but document is missing", async () => {
-    renderWithRouter();
-    await waitFor(() => expect(screen.getByText("Select Draft & Proceed")).toBeDefined());
-    fireEvent.click(screen.getByText("Select Draft & Proceed"));
+    renderPostingWizard(["/survey-posting/survey-1"]);
     await waitFor(() => expect(screen.getByText("Next Step")).toBeDefined());
     fireEvent.click(screen.getByText("Next Step"));
 
@@ -159,7 +157,7 @@ describe("SurveyPostingWizardPage (§4.3.5–4.3.6 Survey Posting Flow)", () => 
     await waitFor(() => {
       const continueBtn = screen.getByRole("button", { name: /Continue to Review/i }) as HTMLButtonElement;
       expect(continueBtn.disabled).toBe(true);
-      expect(screen.getByText(/Ethical Clearance Required:/i)).toBeDefined();
+      expect(screen.getAllByText(/Ethical Clearance Required:/i).length).toBeGreaterThanOrEqual(1);
     });
   });
 });
