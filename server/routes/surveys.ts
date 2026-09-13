@@ -689,11 +689,11 @@ surveysRouter.get(
   requireAuth("researcher", "respondent"),
   asyncRoute(async (req, res) => {
     const context = auth(req);
-    const survey = await loadSurvey(routeParam(req, "id"));
+    const survey =
+      context.role === "researcher"
+        ? await loadOwnedSurvey(routeParam(req, "id"), context.userId)
+        : await loadSurvey(routeParam(req, "id"));
 
-    if (context.role === "researcher" && survey.researcher_id !== context.userId) {
-      throw new ApiError(404, "SURVEY_NOT_FOUND", "That survey does not exist.");
-    }
     if (context.role === "respondent") {
       await assertTargeted(survey.id, context.userId);
     }
