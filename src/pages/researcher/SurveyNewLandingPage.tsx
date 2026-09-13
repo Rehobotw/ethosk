@@ -168,13 +168,13 @@ export function SurveyNewLandingPage() {
     mutationFn: async (template: (typeof TEMPLATES)[number]) => {
       const res = await api<SurveyRecord>("/surveys", {
         method: "POST",
-        body: JSON.stringify({
+        body: {
           title: template.title,
           description: `Research study created from ${template.title} template.`,
           questions: template.questions,
           reward_etb: 15,
           status: "wip",
-        }),
+        },
       });
       return res;
     },
