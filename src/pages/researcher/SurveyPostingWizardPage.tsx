@@ -158,7 +158,7 @@ export function SurveyPostingWizardPage() {
       incomeRange,
     ],
     queryFn: async () => {
-      if (!selectedSurveyId) return { matched_count: 3420 };
+      if (!selectedSurveyId) return { matched_count: 0 };
       try {
         const filters: Record<string, unknown> = {};
         if (minAge > 18) filters.age_min = minAge;
@@ -173,13 +173,13 @@ export function SurveyPostingWizardPage() {
           body: { filters },
         });
       } catch {
-        return { matched_count: 3420 };
+        return { matched_count: 0 };
       }
     },
     enabled: Boolean(selectedSurveyId),
   });
 
-  const matchedCount = matchData?.matched_count ?? 3420;
+  const matchedCount = matchData?.matched_count ?? 0;
 
   // Toggle Ethiopian Region
   const toggleRegion = (region: string) => {
