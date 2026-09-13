@@ -215,8 +215,13 @@ export function SurveyListPage() {
                         </Button>
                       </Link>
                       <Link to={`/researcher/surveys/${survey.id}/edit`}>
-                        <Button icon="visibility" variant="outline" className="px-4 py-2 rounded-xl text-xs font-semibold">
-                          View
+                        <Button
+                          icon="visibility"
+                          variant="outline"
+                          className="px-4 py-2 rounded-xl text-xs font-semibold"
+                          title="View-only: active and submitted surveys cannot be edited"
+                        >
+                          View (Read-Only)
                         </Button>
                       </Link>
                     </>
