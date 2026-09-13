@@ -12,6 +12,7 @@ export function SubscriptionCheckoutSuccessPage() {
   const isAnnual = billing === "annual";
   const proEtb = formatCurrencyEtb(SUBSCRIPTION_PLANS.pro.priceEtb);
   const amount = isAnnual ? `${proEtb} ($39.00 USD)` : `${proEtb} ($49.00 USD)`;
+  const txnId = searchParams.get("txn") || "ETH-SUB-PRO";
 
   const todayStr = new Date().toLocaleDateString("en-US", {
     month: "short",
@@ -23,7 +24,7 @@ export function SubscriptionCheckoutSuccessPage() {
     const receiptContent = `ETHOSK RESEARCH PLATFORM
 --------------------------------
 SUBSCRIPTION RECEIPT
-Order ID: ETH-8942-XJ
+Order ID: ${txnId}
 Plan: ${plan.toUpperCase()} Plan (${billing})
 Amount: ${amount}
 Date: ${todayStr}
@@ -37,7 +38,7 @@ Thank you for using Ethosk!`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `ethosk-receipt-ETH-8942-XJ.txt`;
+      a.download = `ethosk-receipt-${txnId}.txt`;
       a.click();
       if (typeof URL.revokeObjectURL === "function") {
         URL.revokeObjectURL(url);
