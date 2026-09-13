@@ -256,6 +256,7 @@ export const matchRequestSchema = z.object({ filters: matchFiltersSchema });
 export const sendRequestSchema = z.object({
   format: z.string().optional(),
   filters: z.record(z.unknown()).optional(),
+  sample_size: z.number().int().min(1).max(50_000).optional(),
   reward_etb: z.number().min(0).max(10_000).optional(),
   research_category: z.string().nullable().optional(),
   compliance_required: z.boolean().nullable().optional(),
