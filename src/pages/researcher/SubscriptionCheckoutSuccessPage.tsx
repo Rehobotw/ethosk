@@ -86,7 +86,9 @@ Thank you for using Ethosk!`;
                 <span className="text-xs font-semibold text-[#40484f]">
                   {isAm ? "የተከፈለው መጠን" : "Amount Paid"}
                 </span>
-                <span data-testid="success-pro-price" className="text-xs text-[#131b2e] font-bold">{amount}</span>
+                <span data-testid="success-pro-price" className="text-xs text-[#131b2e] font-bold">
+                  {proEtb} (<span>{isAnnual ? "$39.00 USD" : "$49.00 USD"}</span>)
+                </span>
               </div>
               <div className="flex justify-between items-center py-1.5">
                 <span className="text-xs font-semibold text-[#40484f]">

@@ -219,7 +219,7 @@ export function SubscriptionCheckoutProcessingPage() {
                   <div className="flex justify-between items-center text-[#40484f]">
                     <span>Professional Plan</span>
                     <span data-testid="checkout-pro-price" className="font-semibold text-[#131b2e]">
-                      {formatCurrencyEtb(planPriceEtb)} (${planPrice}.00)
+                      {formatCurrencyEtb(planPriceEtb)} (<span>${planPrice}.00</span>)
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-[#40484f]">
