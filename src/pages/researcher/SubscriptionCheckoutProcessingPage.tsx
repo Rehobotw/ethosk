@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLanguage } from "@/lib/language";
+import { api, ApiRequestError } from "@/lib/api";
 
 export function SubscriptionCheckoutProcessingPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const { language } = useLanguage();
   const isAm = language === "am";
 
@@ -16,17 +19,51 @@ export function SubscriptionCheckoutProcessingPage() {
   const tax = Number((planPrice * 0.15).toFixed(2));
   const total = (planPrice + tax).toFixed(2);
 
-  const [simulatedProgress, setSimulatedProgress] = useState(66);
+  const [simulatedProgress, setSimulatedProgress] = useState(45);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Progress animation simulator
-    const timer = setTimeout(() => {
-      setSimulatedProgress(100);
-      navigate(`/subscription/checkout/success?plan=${plan}&billing=${billing}`);
-    }, 3000);
+    let cancelled = false;
 
-    return () => clearTimeout(timer);
-  }, [navigate, plan, billing]);
+    async function processCheckout() {
+      setError(null);
+      setSimulatedProgress(65);
+      try {
+        await api<{ profile: any; wallet: any }>("/wallet/researcher/subscription", {
+          method: "POST",
+        });
+
+        if (cancelled) return;
+        setSimulatedProgress(100);
+
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["auth"] }),
+          queryClient.invalidateQueries({ queryKey: ["wallet"] }),
+          queryClient.invalidateQueries({ queryKey: ["researcher-wallet"] }),
+        ]);
+
+        const txnId = `ETH-SUB-${Date.now().toString().slice(-6)}`;
+        navigate(`/subscription/checkout/success?plan=${plan}&billing=${billing}&txn=${txnId}`);
+      } catch (err: any) {
+        if (cancelled) return;
+        setSimulatedProgress(0);
+        if (err instanceof ApiRequestError) {
+          setError(err.message);
+        } else {
+          setError(
+            err?.message ||
+              "Payment processing failed. Please check your available wallet balance and try again.",
+          );
+        }
+      }
+    }
+
+    void processCheckout();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, plan, billing, queryClient]);
 
   return (
     <div className="font-['Inter',sans-serif] text-[#131b2e] bg-[#faf8ff] min-h-screen relative overflow-hidden flex flex-col">
@@ -37,39 +74,61 @@ export function SubscriptionCheckoutProcessingPage() {
         className="fixed inset-0 z-50 flex items-center justify-center bg-[#faf8ff]/80 backdrop-blur-xs transition-opacity duration-300 p-4"
       >
         <div className="bg-white p-8 md:p-10 rounded-2xl shadow-[0_10px_25px_-3px_rgba(0,89,133,0.1),0_4px_6px_-2px_rgba(0,0,0,0.02)] border border-[#c0c7d0] max-w-md w-full flex flex-col items-center text-center">
-          {/* Animated Spinner & Lock */}
-          <div className="relative w-24 h-24 flex items-center justify-center mb-6">
-            <div className="absolute inset-0 rounded-full border-4 border-[#e2e7ff]"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-[#005985] border-t-transparent animate-spin"></div>
-            <span className="material-symbols-outlined text-[#005985] text-4xl">lock</span>
-          </div>
+          {error ? (
+            <>
+              <div className="w-16 h-16 rounded-full bg-red-50 text-red-600 flex items-center justify-center mb-4">
+                <span className="material-symbols-outlined text-3xl">error</span>
+              </div>
+              <h2 className="text-xl font-bold text-[#131b2e] mb-2">
+                {isAm ? "ክፍያው አልተሳካም" : "Payment Failed"}
+              </h2>
+              <p className="text-xs text-[#40484f] mb-6 leading-relaxed">
+                {error}
+              </p>
+              <div className="flex flex-col w-full gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => navigate("/researcher/wallet?deposit=needed")}
+                  className="w-full py-2.5 px-4 bg-[#005985] text-white rounded-xl text-xs font-bold hover:bg-[#00456d] transition-colors"
+                >
+                  {isAm ? "ቦርሳዎን ይሙሉ" : "Add Funds to Wallet"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/researcher/subscription")}
+                  className="w-full py-2.5 px-4 border border-[#c0c7d0] text-[#40484f] rounded-xl text-xs font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  {isAm ? "ወደ እቅዶች ተመለስ" : "Back to Plans"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Animated Spinner & Lock */}
+              <div className="relative w-24 h-24 flex items-center justify-center mb-6">
+                <div className="absolute inset-0 rounded-full border-4 border-[#e2e7ff]"></div>
+                <div className="absolute inset-0 rounded-full border-4 border-[#005985] border-t-transparent animate-spin"></div>
+                <span className="material-symbols-outlined text-[#005985] text-4xl">lock</span>
+              </div>
 
-          <h2 className="text-xl md:text-2xl font-bold text-[#131b2e] mb-2">
-            {isAm ? "ክፍያ በመከናወን ላይ ነው" : "Processing Payment"}
-          </h2>
-          <p className="text-xs md:text-sm text-[#40484f] mb-6 leading-relaxed">
-            {isAm
-              ? "እባክዎ ምዝገባዎን እስክናረጋግጥ ድረስ ይጠብቁ። ይህን ገጽ አያድሱ ወይም አይዝጉ።"
-              : "Please wait while we confirm your subscription. Do not refresh or close this page."}
-          </p>
+              <h2 className="text-xl md:text-2xl font-bold text-[#131b2e] mb-2">
+                {isAm ? "ክፍያ በመከናወን ላይ ነው" : "Processing Payment"}
+              </h2>
+              <p className="text-xs md:text-sm text-[#40484f] mb-6 leading-relaxed">
+                {isAm
+                  ? "እባክዎ ምዝገባዎን እስክናረጋግጥ ድረስ ይጠብቁ። ይህን ገጽ አያድሱ ወይም አይዝጉ።"
+                  : "Please wait while we confirm your subscription. Do not refresh or close this page."}
+              </p>
 
-          {/* Progress bar */}
-          <div className="w-full bg-[#eaedff] h-1.5 rounded-full overflow-hidden">
-            <div
-              className="bg-[#005985] h-full rounded-full transition-all duration-500"
-              style={{ width: `${simulatedProgress}%` }}
-            ></div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              navigate(`/subscription/checkout/success?plan=${plan}&billing=${billing}`)
-            }
-            className="mt-6 text-[11px] text-[#005985] hover:underline font-semibold cursor-pointer"
-          >
-            {isAm ? "ወደ ስኬት ገጽ ዝለል (ሙከራ)" : "Skip to Success (Demo)"}
-          </button>
+              {/* Progress bar */}
+              <div className="w-full bg-[#eaedff] h-1.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-[#005985] h-full rounded-full transition-all duration-500"
+                  style={{ width: `${simulatedProgress}%` }}
+                ></div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
