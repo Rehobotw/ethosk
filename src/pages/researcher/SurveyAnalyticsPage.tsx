@@ -128,65 +128,52 @@ export function SurveyAnalyticsPage() {
   if (error || !data) return <Notice tone="error">Could not load this survey&rsquo;s analytics data.</Notice>;
 
   const flagged = (responses?.responses ?? []).filter((row) => row.fraud_flag === "flagged");
+  const hasResponses = (data.response_count ?? 0) > 0;
 
   // Format age distribution
   const ageData = data.distributions?.age_group
     ? Object.entries(data.distributions.age_group).map(([name, value]) => ({ name, value }))
-    : [
-        { name: "18-24", value: Math.round((data.response_count || 10) * 0.45) },
-        { name: "25-34", value: Math.round((data.response_count || 10) * 0.35) },
-        { name: "35-44", value: Math.round((data.response_count || 10) * 0.15) },
-        { name: "45+", value: Math.max(1, Math.round((data.response_count || 10) * 0.05)) },
-      ];
+    : [];
 
   // Format region distribution
   const regionData = data.distributions?.region
     ? Object.entries(data.distributions.region)
         .map(([name, value]) => ({ name, count: value }))
         .sort((a, b) => b.count - a.count)
-    : [
-        { name: "Addis Ababa", count: 82 },
-        { name: "Oromia", count: 45 },
-        { name: "Amhara", count: 38 },
-        { name: "SNNPR", count: 20 },
-        { name: "Tigray", count: 15 },
-      ];
+    : [];
 
   // Format education distribution
   const educationData = data.distributions?.education
     ? Object.entries(data.distributions.education).map(([name, value]) => ({ name, count: value }))
-    : [
-        { name: "HS", count: 20 },
-        { name: "BSc/BA", count: 60 },
-        { name: "MSc/MA", count: 35 },
-        { name: "PhD", count: 15 },
-      ];
+    : [];
 
   // Format velocity over 7 days
-  const velocityData = [
-    { day: "Day 1", responses: Math.round((data.response_count || 20) * 0.15) },
-    { day: "Day 2", responses: Math.round((data.response_count || 20) * 0.35) },
-    { day: "Day 3", responses: Math.round((data.response_count || 20) * 0.55) },
-    { day: "Day 4", responses: Math.round((data.response_count || 20) * 0.7) },
-    { day: "Day 5", responses: Math.round((data.response_count || 20) * 0.85) },
-    { day: "Day 6", responses: Math.round((data.response_count || 20) * 0.95) },
-    { day: "Day 7", responses: data.response_count || 20 },
-  ];
+  const velocityData = hasResponses
+    ? [
+        { day: "Day 1", responses: Math.round(data.response_count * 0.15) },
+        { day: "Day 2", responses: Math.round(data.response_count * 0.35) },
+        { day: "Day 3", responses: Math.round(data.response_count * 0.55) },
+        { day: "Day 4", responses: Math.round(data.response_count * 0.7) },
+        { day: "Day 5", responses: Math.round(data.response_count * 0.85) },
+        { day: "Day 6", responses: Math.round(data.response_count * 0.95) },
+        { day: "Day 7", responses: data.response_count },
+      ]
+    : [];
 
   // Avg completion time
-  const avgSeconds = responses?.responses?.length
+  const avgSeconds = (responses?.responses?.length ?? 0) > 0
     ? Math.round(
-        responses.responses.reduce((sum, r) => sum + r.total_time_seconds, 0) /
-          responses.responses.length,
+        responses!.responses.reduce((sum, r) => sum + r.total_time_seconds, 0) /
+          responses!.responses.length,
       )
-    : 165;
+    : 0;
   const avgMins = Math.floor(avgSeconds / 60);
   const avgSecsRem = avgSeconds % 60;
 
   // Quality score
   const qualityRate = data.response_count > 0
-    ? ((data.clean_count / data.response_count) * 100).toFixed(1)
-    : "99.1";
+    ? `${((data.clean_count / data.response_count) * 100).toFixed(1)}%`
+    : "N/A";
 
   // CSV Exporter
   const exportCsv = () => {
@@ -297,16 +284,18 @@ export function SurveyAnalyticsPage() {
           </div>
           <div className="flex items-baseline gap-2">
             <h3 className="text-headline-md font-headline-md text-on-surface font-bold">
-              {Math.round((data.completion_rate || 0.98) * 100)}%
+              {data.response_count > 0 ? `${Math.round((data.completion_rate || 0) * 100)}%` : "0%"}
             </h3>
-            <span className="text-xs font-semibold text-emerald-600 flex items-center">
-              <span className="material-symbols-outlined text-[14px]">arrow_upward</span> 2%
-            </span>
+            {data.response_count > 0 && (
+              <span className="text-xs font-semibold text-emerald-600 flex items-center">
+                <span className="material-symbols-outlined text-[14px]">arrow_upward</span> 2%
+              </span>
+            )}
           </div>
           <div className="w-full bg-surface-variant rounded-full h-1.5 mt-3 overflow-hidden">
             <div
               className="bg-surface-tint h-1.5 rounded-full"
-              style={{ width: `${Math.round((data.completion_rate || 0.98) * 100)}%` }}
+              style={{ width: `${data.response_count > 0 ? Math.round((data.completion_rate || 0) * 100) : 0}%` }}
             />
           </div>
         </div>
@@ -322,10 +311,12 @@ export function SurveyAnalyticsPage() {
           </div>
           <div className="flex items-baseline gap-2">
             <h3 className="text-headline-md font-headline-md text-on-surface font-bold">
-              {avgMins}m {avgSecsRem}s
+              {hasResponses ? `${avgMins}m ${avgSecsRem}s` : "0m 0s"}
             </h3>
           </div>
-          <div className="mt-3 text-xs text-on-surface-variant">Estimated: 5m 00s</div>
+          <div className="mt-3 text-xs text-on-surface-variant">
+            {hasResponses ? "Estimated: 5m 00s" : "No responses yet"}
+          </div>
         </div>
 
         {/* Metric 4: Quality Score */}
@@ -339,15 +330,21 @@ export function SurveyAnalyticsPage() {
           </div>
           <div className="flex items-baseline gap-2">
             <h3 className="text-headline-md font-headline-md text-on-surface font-bold">
-              {qualityRate}%
+              {qualityRate}
             </h3>
           </div>
           <div className="flex items-center gap-1 mt-3 text-amber-500">
-            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star_half</span>
+            {data.response_count > 0 ? (
+              <>
+                <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star_half</span>
+              </>
+            ) : (
+              <span className="text-xs text-on-surface-variant font-medium">Awaiting responses</span>
+            )}
           </div>
         </div>
       </div>
