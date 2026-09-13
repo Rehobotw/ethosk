@@ -254,9 +254,10 @@ export function DashboardPage() {
         ) : (
           <div className="divide-y divide-outline-variant/20">
             {currentTabSurveys.map((survey) => {
-              const target = survey.targeted_count || 100;
-              const completed = survey.response_count || 0;
-              const percent = Math.min(100, Math.round((completed / target) * 100));
+              // REH-131: use real DB counts — do not fake with magic numbers
+              const target = survey.targeted_count ?? 0;
+              const completed = survey.response_count ?? 0;
+              const percent = target > 0 ? Math.min(100, Math.round((completed / target) * 100)) : 0;
 
               return (
                 <div
