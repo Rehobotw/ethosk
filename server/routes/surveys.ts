@@ -529,7 +529,14 @@ surveysRouter.get(
     const surveys = (data ?? []) as SurveyRecord[];
     const withStats = await Promise.all(
       surveys.map(async (survey) => {
-        const [{ count: responseCount }, { count: targetCount }] = await Promise.all([
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+        const [
+          { count: responseCount },
+          { count: targetCount },
+          { count: velocityCount },
+          { count: flaggedCount },
+        ] = await Promise.all([
           admin
             .from("survey_responses")
             .select("id", { count: "exact", head: true })
@@ -538,11 +545,26 @@ surveysRouter.get(
             .from("survey_targets")
             .select("survey_id", { count: "exact", head: true })
             .eq("survey_id", survey.id),
+          // REH-131: velocity = responses submitted in the last hour
+          admin
+            .from("survey_responses")
+            .select("id", { count: "exact", head: true })
+            .eq("survey_id", survey.id)
+            .gte("created_at", oneHourAgo),
+          // REH-131: flagged = fraud-flagged responses
+          admin
+            .from("survey_responses")
+            .select("id", { count: "exact", head: true })
+            .eq("survey_id", survey.id)
+            .eq("fraud_flag", "flagged"),
         ]);
+
         return {
           ...survey,
           response_count: responseCount ?? 0,
           targeted_count: targetCount ?? 0,
+          velocity_per_hr: velocityCount ?? 0,
+          flagged_count: flaggedCount ?? 0,
         };
       }),
     );
