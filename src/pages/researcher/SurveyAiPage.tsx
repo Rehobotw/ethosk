@@ -91,6 +91,9 @@ export function SurveyAiPage() {
   const generateSurvey = useMutation({
     mutationFn: async () => {
       setBanner(null);
+      if (!isSubscribed) {
+        throw new ApiRequestError("AI Survey Generation is reserved for Pro tier subscribers. Please upgrade to access this feature.");
+      }
       return api<{
         title: string;
         description: string;
@@ -144,6 +147,9 @@ export function SurveyAiPage() {
   // Save as WIP & open in Manual Builder
   const acceptAndEditMutation = useMutation({
     mutationFn: async () => {
+      if (!isSubscribed) {
+        throw new ApiRequestError("AI Survey draft creation requires an active Pro subscription.");
+      }
       const payload = surveySchema.parse({
         title: title || "AI-Generated Survey",
         description: topic,
