@@ -188,11 +188,23 @@ export function SurveyPostingWizardPage() {
     );
   };
 
+  // REH-129: pre-flight compliance check (mirrors server-side gate)
+  const isComplianceBlocking =
+    complianceEvaluation.compliance_required && !complianceDocName;
+
   // Launch / Send Mutation
   const postSurveyMutation = useMutation({
     mutationFn: async () => {
       if (!selectedSurveyId) throw new Error("Please select a survey draft first.");
       setBanner(null);
+
+      // REH-129: Block send client-side before touching the API
+      if (isComplianceBlocking) {
+        throw new Error(
+          "This research category requires an ethics/IRB clearance document. " +
+            "Please upload your compliance document in Step 3 before submitting.",
+        );
+      }
 
       const filters = {
         age_min: minAge,
@@ -1159,16 +1171,30 @@ export function SurveyPostingWizardPage() {
 
               <button
                 type="button"
-                disabled={postSurveyMutation.isPending}
+                id="confirm-fund-escrow-btn"
+                disabled={postSurveyMutation.isPending || isComplianceBlocking}
+                title={
+                  isComplianceBlocking
+                    ? "Upload your compliance/IRB document in Step 3 before sending"
+                    : undefined
+                }
                 onClick={() => postSurveyMutation.mutate()}
-                className="w-full sm:w-auto px-8 py-3 rounded-full bg-[#001d29] hover:bg-[#003345] text-white font-semibold text-xs md:text-sm transition-colors flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto px-8 py-3 rounded-full bg-[#001d29] hover:bg-[#003345] text-white font-semibold text-xs md:text-sm transition-colors flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {postSurveyMutation.isPending ? (
                   <Icon className="animate-spin text-white text-[18px]" name="progress_activity" />
+                ) : isComplianceBlocking ? (
+                  <Icon className="text-[18px]" name="gpp_bad" />
                 ) : (
                   <Icon className="text-[18px]" name="lock" />
                 )}
-                <span>{postSurveyMutation.isPending ? "Locking Escrow & Posting…" : "Confirm & Fund Escrow"}</span>
+                <span>
+                  {postSurveyMutation.isPending
+                    ? "Locking Escrow & Posting…"
+                    : isComplianceBlocking
+                    ? "Compliance Doc Required"
+                    : "Confirm & Fund Escrow"}
+                </span>
               </button>
             </div>
           </div>
