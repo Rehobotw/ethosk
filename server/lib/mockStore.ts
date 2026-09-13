@@ -162,6 +162,7 @@ class MockDatabaseStore {
   complianceCategoryRules = new Map<string, ComplianceCategoryRule>();
   consentEvents: Record<string, unknown>[] = [];
   translationCache = new Map<string, unknown>();
+  supportTickets: import("@shared/validation/schemas.js").SupportTicketRecord[] = [];
 
   ensureDemoRespondent() {
     const cleanId = "33333333-3333-4333-a333-333333333333";
