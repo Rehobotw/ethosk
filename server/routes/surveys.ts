@@ -1138,15 +1138,83 @@ surveysRouter.post(
 );
 
 /**
- * `minVerificationTier` is required by `MatchFilters` (Tier 0 is deliberately
- * excluded from matching — see `minVerificationTierSchema`), but callers may
- * omit it entirely. Default to the lowest verified tier in that case.
+ * Normalizes filter inputs from both internal programmatic calls and the UI
+ * wizard. UI forms may send `age_min`/`age_max` instead of `ageRange`,
+ * `education` instead of `educationLevel`, and `regions` array.
  */
-function normalizeMatchFilters(filters: Record<string, unknown> | undefined): MatchFilters {
+export function normalizeMatchFilters(filters: Record<string, unknown> | undefined): MatchFilters {
+  if (!filters) {
+    return { minVerificationTier: "1_id_verified" };
+  }
+
   const minVerificationTier =
-    (filters?.minVerificationTier as MatchFilters["minVerificationTier"] | undefined) ??
+    (filters.minVerificationTier as MatchFilters["minVerificationTier"] | undefined) ??
+    (filters.min_verification_tier as MatchFilters["minVerificationTier"] | undefined) ??
     "1_id_verified";
-  return { ...(filters as Omit<MatchFilters, "minVerificationTier">), minVerificationTier };
+
+  const normalized: MatchFilters = { minVerificationTier };
+
+  // Age: supports ageRange tuple or age_min / age_max from UI
+  if (Array.isArray(filters.ageRange) && filters.ageRange.length === 2) {
+    normalized.ageRange = [Number(filters.ageRange[0]), Number(filters.ageRange[1])];
+  } else if (filters.age_min !== undefined || filters.age_max !== undefined) {
+    const min = filters.age_min !== undefined ? Number(filters.age_min) : 15;
+    const max = filters.age_max !== undefined ? Number(filters.age_max) : 100;
+    normalized.ageRange = [min, max];
+  }
+
+  // Gender
+  if (filters.gender && filters.gender !== "any" && filters.gender !== "__any") {
+    normalized.gender = filters.gender as MatchFilters["gender"];
+  }
+
+  // Primary Language
+  const lang = filters.primaryLanguage ?? filters.primary_language;
+  if (lang && lang !== "any" && lang !== "__any") {
+    normalized.primaryLanguage = lang as MatchFilters["primaryLanguage"];
+  }
+
+  // Region / Regions
+  if (Array.isArray(filters.regions) && filters.regions.length > 0) {
+    normalized.regions = (filters.regions as unknown[]).filter(Boolean).map(String);
+  } else if (typeof filters.region === "string" && filters.region && filters.region !== "any" && filters.region !== "__any") {
+    normalized.region = filters.region;
+  }
+
+  // City
+  if (typeof filters.city === "string" && filters.city) {
+    normalized.city = filters.city;
+  }
+
+  // Employment Status
+  const emp = filters.employmentStatus ?? filters.employment_status;
+  if (emp && emp !== "any" && emp !== "__any" && emp !== "all") {
+    normalized.employmentStatus = emp as MatchFilters["employmentStatus"];
+  }
+
+  // Occupation
+  if (typeof filters.occupation === "string" && filters.occupation) {
+    normalized.occupation = filters.occupation;
+  }
+
+  // Education Level: supports educationLevel, education_level, or education
+  const edu = filters.educationLevel ?? filters.education_level ?? filters.education;
+  if (edu && edu !== "any" && edu !== "__any") {
+    normalized.educationLevel = edu as MatchFilters["educationLevel"];
+  }
+
+  // Academic filters
+  if (typeof filters.university === "string" && filters.university) {
+    normalized.university = filters.university;
+  }
+  if (typeof filters.department === "string" && filters.department) {
+    normalized.department = filters.department;
+  }
+  if (Array.isArray(filters.yearRange) && filters.yearRange.length === 2) {
+    normalized.yearRange = [Number(filters.yearRange[0]), Number(filters.yearRange[1])];
+  }
+
+  return normalized;
 }
 
 async function countMatches(filters: MatchFilters): Promise<number> {
@@ -1182,6 +1250,8 @@ function applyFilter(query: any, filter: { column: string; op: string; value: un
       return query.gte(filter.column, filter.value);
     case "lte":
       return query.lte(filter.column, filter.value);
+    case "in":
+      return query.in(filter.column, filter.value);
     default:
       return query;
   }
