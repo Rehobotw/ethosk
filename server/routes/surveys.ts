@@ -712,15 +712,24 @@ surveysRouter.get(
   }),
 );
 
+function escapeCsvValue(val: unknown): string {
+  if (val === null || val === undefined) return "";
+  const str = typeof val === "object" ? JSON.stringify(val) : String(val);
+  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
 surveysRouter.get(
   "/:id/export",
   requireAuth("researcher"),
   asyncRoute(async (req, res) => {
     const context = auth(req);
-    await loadOwnedSurvey(routeParam(req, "id"), context.userId);
+    const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
 
     // Subscription gate enforcement
-    if (context.subscriptionTier !== "subscribed") {
+    if (context.subscriptionTier !== "subscribed" && context.subscriptionTier !== "pro") {
       throw new ApiError(
         403,
         "EXPORT_REQUIRES_SUBSCRIPTION",
@@ -728,13 +737,50 @@ surveysRouter.get(
       );
     }
 
-    // MVP placeholder for actual CSV generation
-    res.setHeader("Content-Type", "text/csv");
+    const { data: responses, error } = await admin
+      .from("survey_responses")
+      .select("id, answers, total_time_seconds, fraud_flag, completed_at")
+      .eq("survey_id", survey.id)
+      .order("completed_at", { ascending: true });
+
+    if (error) {
+      throw new ApiError(500, "EXPORT_FAILED", error.message || "Failed to load survey responses for export.");
+    }
+
+    const questions = (survey.questions || []) as { id: string; text: string }[];
+    const questionHeaders = questions.map((q, idx) => `Q${idx + 1}_${q.id}`);
+
+    const headerColumns = [
+      "response_id",
+      "completed_at",
+      "total_time_seconds",
+      "fraud_flag",
+      ...questionHeaders,
+    ];
+
+    const csvRows = [headerColumns.map(escapeCsvValue).join(",")];
+
+    for (const r of responses || []) {
+      const answers = (r.answers || {}) as Record<string, unknown>;
+      const rowValues = [
+        escapeCsvValue(r.id),
+        escapeCsvValue(r.completed_at || ""),
+        escapeCsvValue(r.total_time_seconds ?? ""),
+        escapeCsvValue(r.fraud_flag || "clean"),
+        ...questions.map((q) => {
+          const answerVal = answers[q.id] ?? answers[q.text] ?? "";
+          return escapeCsvValue(answerVal);
+        }),
+      ];
+      csvRows.push(rowValues.join(","));
+    }
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="survey_${req.params.id}_export.csv"`,
+      `attachment; filename="survey_${survey.id}_export.csv"`,
     );
-    res.send("respondent_id,completed_at,fraud_flag\n123,2026-08-14,clean");
+    res.send(csvRows.join("\n"));
   }),
 );
 
