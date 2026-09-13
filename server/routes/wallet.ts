@@ -336,6 +336,56 @@ walletRouter.post(
 );
 
 // ---------------------------------------------------------------------------
+// Researcher: cancel subscription (REH-138)
+// ---------------------------------------------------------------------------
+
+const cancelSubscriptionHandler = asyncRoute(async (req, res) => {
+  const context = auth(req);
+
+  const { data: profile, error: profileError } = await admin
+    .from("researcher_profiles")
+    .select("subscription_tier, subscription_expires_at")
+    .eq("user_id", context.userId)
+    .single();
+
+  if (profileError) throw new ApiError(500, "PROFILE_READ_FAILED", profileError.message);
+
+  if (!profile || profile.subscription_tier !== "subscribed") {
+    throw new ApiError(400, "NOT_SUBSCRIBED", "No active subscription to cancel.");
+  }
+
+  const { error: updateError } = await admin
+    .from("researcher_profiles")
+    .update({
+      subscription_tier: "cancelled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", context.userId);
+
+  if (updateError) throw new ApiError(500, "CANCEL_FAILED", updateError.message);
+
+  res.json({
+    status: "cancelled",
+    message: "Subscription cancellation scheduled. You retain Pro access until the current billing period ends.",
+    subscription_expires_at: profile.subscription_expires_at,
+  });
+});
+
+walletRouter.delete(
+  "/researcher/subscription",
+  requireAuth("researcher"),
+  rateLimit({ key: "subscription-cancel", max: 3, windowMs: 60_000 }),
+  cancelSubscriptionHandler,
+);
+
+walletRouter.post(
+  "/researcher/subscription/cancel",
+  requireAuth("researcher"),
+  rateLimit({ key: "subscription-cancel", max: 3, windowMs: 60_000 }),
+  cancelSubscriptionHandler,
+);
+
+// ---------------------------------------------------------------------------
 // Researcher: deposit by telebirr
 //
 // Three steps, deliberately separate. The researcher asks for a checkout, pays at

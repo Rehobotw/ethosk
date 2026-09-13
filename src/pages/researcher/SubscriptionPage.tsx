@@ -66,6 +66,34 @@ export function SubscriptionPage() {
     },
   });
 
+  const { mutate: cancelSubscription, isPending: isCancelling } = useMutation({
+    mutationFn: async () => {
+      setError(null);
+      return api<{ status: string; message: string; subscription_expires_at?: string }>(
+        "/wallet/researcher/subscription",
+        { method: "DELETE" },
+      );
+    },
+    onSuccess: (data) => {
+      setCancelModalOpen(false);
+      setSuccessNotice(
+        data.message ||
+          "Your subscription has been scheduled to cancel at the end of the billing period.",
+      );
+      queryClient.invalidateQueries({ queryKey: ["auth"] });
+      queryClient.invalidateQueries({ queryKey: ["researcher-wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["researcher-profile"] });
+    },
+    onError: (err) => {
+      if (err instanceof ApiRequestError) {
+        setError(err.message);
+      } else {
+        setError("Failed to cancel subscription. Please try again.");
+      }
+      setCancelModalOpen(false);
+    },
+  });
+
   return (
     <div className="max-w-[1100px] mx-auto w-full pb-20 space-y-10 animate-fade-in text-[#0b1c30]">
       {/* ── Page Header (Stitch Spec) ── */}
@@ -80,6 +108,21 @@ export function SubscriptionPage() {
 
       {error && <Notice tone="error">{error}</Notice>}
       {successNotice && <Notice tone="success">{successNotice}</Notice>}
+
+      {user?.subscription_tier === "cancelled" && (
+        <div
+          data-testid="subscription-cancelled-banner"
+          className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 flex items-center gap-3 text-xs"
+        >
+          <Icon name="warning" className="text-amber-600 text-xl shrink-0" />
+          <div>
+            <p className="font-bold">Subscription Cancellation Scheduled</p>
+            <p className="text-amber-700">
+              Your Pro access remains active until the end of your billing cycle. After this date, your plan will revert to Community Basic.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Active Plan Banner / Card ── */}
       <div className="bg-white rounded-2xl border border-[#c1c7cc]/40 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xs">
@@ -349,19 +392,23 @@ export function SubscriptionPage() {
               <button
                 type="button"
                 onClick={() => setCancelModalOpen(false)}
-                className="px-4 py-2 border border-[#c1c7cc] rounded-xl text-xs font-semibold text-[#71787c]"
+                disabled={isCancelling}
+                className="px-4 py-2 border border-[#c1c7cc] rounded-xl text-xs font-semibold text-[#71787c] cursor-pointer"
               >
                 Keep Active
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setCancelModalOpen(false);
-                  setSuccessNotice("Your subscription has been scheduled to cancel at the end of the billing period.");
-                }}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold"
+                id="confirm-cancel-btn"
+                data-testid="confirm-cancel-subscription-btn"
+                onClick={() => cancelSubscription()}
+                disabled={isCancelling}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                Confirm Cancellation
+                {isCancelling && (
+                  <Icon className="animate-spin text-[16px]" name="progress_activity" />
+                )}
+                <span>{isCancelling ? "Cancelling…" : "Confirm Cancellation"}</span>
               </button>
             </div>
           </div>
