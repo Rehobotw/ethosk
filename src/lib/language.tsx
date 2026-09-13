@@ -84,7 +84,24 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 export function useLanguage() {
   const context = useContext(LanguageContext);
   if (!context) {
-    throw new Error("useLanguage must be used within a LanguageProvider");
+    return {
+      language: "en" as Language,
+      setLanguage: () => {},
+      toggleLanguage: () => {},
+      t: (path: string): string => {
+        const keys = path.split(".");
+        let fallback: unknown = translations.en;
+        for (const k of keys) {
+          if (fallback && typeof fallback === "object" && k in (fallback as Record<string, unknown>)) {
+            fallback = (fallback as Record<string, unknown>)[k];
+          } else {
+            fallback = undefined;
+            break;
+          }
+        }
+        return typeof fallback === "string" ? fallback : path;
+      },
+    };
   }
   return context;
 }
