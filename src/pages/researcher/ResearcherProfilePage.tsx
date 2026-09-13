@@ -173,19 +173,19 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
       if (newPassword !== confirmPassword) {
         throw new Error("Passwords do not match");
       }
-      return api<{ success: boolean }>("/auth/change-password", {
-        body: { password: newPassword },
+      return api<{ success: boolean; message: string }>("/auth/update-password", {
+        body: { new_password: newPassword },
       });
     },
-    onSuccess: () => {
-      setBanner({ tone: "success", text: "Password updated successfully." });
+    onSuccess: (data) => {
+      setBanner({ tone: "success", text: data?.message || "Password updated successfully." });
       setNewPassword("");
       setConfirmPassword("");
     },
     onError: (err) => {
       setBanner({
         tone: "error",
-        text: err instanceof ApiRequestError ? err.message : "Failed to update password.",
+        text: err instanceof ApiRequestError ? err.message : err instanceof Error ? err.message : "Failed to update password.",
       });
     },
   });
