@@ -729,7 +729,7 @@ surveysRouter.get(
     const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
 
     // Subscription gate enforcement
-    if (context.subscriptionTier !== "subscribed" && context.subscriptionTier !== "pro") {
+    if (context.subscriptionTier !== "subscribed") {
       throw new ApiError(
         403,
         "EXPORT_REQUIRES_SUBSCRIPTION",

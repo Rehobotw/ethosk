@@ -1,9 +1,14 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import type { SurveyWithStats } from "@shared/types";
+import type { SurveyRecord } from "@shared/types";
 import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/lib/language";
+
+interface SurveyWithStats extends SurveyRecord {
+  response_count?: number;
+  targeted_count?: number;
+}
 
 export function RawDataExportPage() {
   const { language } = useLanguage();
