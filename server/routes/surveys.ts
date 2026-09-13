@@ -1021,6 +1021,26 @@ surveysRouter.post(
       throw new ApiError(409, "ALREADY_SENT", "This survey has already been sent.");
     }
 
+    // REH-129: Compliance document gate. If this research category requires an
+    // IRB/ethics clearance, reject the send before any money or targets are committed.
+    const effectiveComplianceRequired =
+      input.compliance_required !== undefined
+        ? input.compliance_required
+        : (survey.compliance_required ?? false);
+    const effectiveDocPath =
+      input.compliance_document_path !== undefined
+        ? input.compliance_document_path
+        : survey.compliance_document_path;
+
+    if (effectiveComplianceRequired && !effectiveDocPath) {
+      throw new ApiError(
+        422,
+        "COMPLIANCE_DOCUMENT_REQUIRED",
+        "This research category requires an ethics/IRB clearance document. " +
+          "Please upload your compliance document before submitting the survey for review.",
+      );
+    }
+
     // The count is always recomputed server-side; a client-cached number is never
     // trusted to decide who receives a survey.
     const respondentIds = await findMatches(normalizeMatchFilters(input.filters));
