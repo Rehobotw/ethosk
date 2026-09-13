@@ -32,7 +32,7 @@ export const SUBSCRIPTION_PLANS: Record<"basic" | "pro" | "enterprise", Subscrip
   },
   pro: {
     id: "pro",
-    name: "Ethosk Pro",
+    name: "Pro Plan",
     nameAm: "ኢቶስክ ፕሮ",
     priceEtb: 2500,
     priceUsd: 49,
