@@ -303,6 +303,11 @@ export interface ResearcherProfileRecord {
   verification_notes: string | null;
   subscription_tier: import("./permissions.js").SubscriptionTier;
   subscription_expires_at: string | null;
+  notification_preferences?: {
+    email_on_response: boolean;
+    email_on_flagged: boolean;
+    email_on_low_balance: boolean;
+  } | null;
 }
 
 export interface RespondentProfileRecord {

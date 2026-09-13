@@ -143,6 +143,13 @@ export const researcherProfileSchema = z.object({
   years_experience: z.number().int().min(0).max(100).nullable().optional(),
   onboarding_completed: z.boolean().optional(),
   social_links: z.record(z.string()).default({}),
+  notification_preferences: z
+    .object({
+      email_on_response: z.boolean().default(true),
+      email_on_flagged: z.boolean().default(true),
+      email_on_low_balance: z.boolean().default(true),
+    })
+    .optional(),
 });
 export type ResearcherProfileInput = z.infer<typeof researcherProfileSchema>;
 
