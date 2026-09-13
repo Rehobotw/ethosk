@@ -14,6 +14,7 @@ import { surveysRouter } from "./routes/surveys.js";
 import { importRouter } from "./routes/import.js";
 import { walletRouter } from "./routes/wallet.js";
 import { supportRouter } from "./routes/support.js";
+import { notificationsRouter } from "./routes/notifications.js";
 
 const app = express();
 
@@ -58,6 +59,7 @@ app.use("/api/surveys", importRouter);
 app.use("/api/wallet", walletRouter);
 app.use("/api/support", supportRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/notifications", notificationsRouter);
 
 app.use("/api", (_req, res) => {
   res.status(404).json({ error: { code: "NOT_FOUND", message: "No such endpoint." } });

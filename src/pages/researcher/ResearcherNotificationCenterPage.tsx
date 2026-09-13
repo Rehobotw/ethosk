@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/lib/language";
+import { usePersistentNotifications } from "@/lib/notificationStore";
 
 export interface NotificationItem {
   id: string;
@@ -89,17 +89,8 @@ export function ResearcherNotificationCenterPage() {
   const { language } = useLanguage();
   const isAm = language === "am";
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications);
-
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-  };
-
-  const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
-    );
-  };
+  const { notifications, markAllAsRead, markAsRead } =
+    usePersistentNotifications<NotificationItem>("researcher", initialNotifications);
 
   const todayList = notifications.filter((n) => n.section === "today");
   const yesterdayList = notifications.filter((n) => n.section === "yesterday");
