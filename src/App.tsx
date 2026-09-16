@@ -200,11 +200,6 @@ const SurveySubmissionSuccessPage = lazy(() =>
     default: m.SurveySubmissionSuccessPage,
   })),
 );
-const EmptyStateShowcasePage = lazy(() =>
-  import("./pages/survey/SurveyStatePages").then((m) => ({
-    default: m.EmptyStateShowcasePage,
-  })),
-);
 const SurveyCompletionSuccessDesktopPage = lazy(() =>
   import("./pages/respondent/SurveyCompletionSuccessDesktopPage").then((m) => ({
     default: m.SurveyCompletionSuccessDesktopPage,
@@ -340,7 +335,6 @@ export default function App() {
       <Route element={<SurveyCompletedPage />} path="/survey/already-completed" />
       <Route element={<SurveySubmissionErrorPage />} path="/survey/submission-error" />
       <Route element={<SurveySubmissionSuccessPage />} path="/survey/submission-success" />
-      <Route element={<EmptyStateShowcasePage />} path="/empty-states" />
       <Route element={<SurveyCompletionSuccessDesktopPage />} path="/survey/completion-success" />
       <Route element={<SurveyCompletionSuccessDesktopPage />} path="/survey/success/desktop" />
 
