@@ -6,7 +6,7 @@ import type { UserRole } from "@shared/types";
 import { loginSchema, type LoginInput } from "@shared/validation/schemas";
 import { Notice } from "@/components/ui";
 import { ApiRequestError } from "@/lib/api";
-import { homePathForRole, useAuth } from "@/lib/auth";
+import { homePathForRole, isPathAllowedForRole, useAuth } from "@/lib/auth";
 import { useAutofillSafeSubmit } from "@/lib/forms";
 import { useLanguage } from "@/lib/language";
 import { supabase } from "@/lib/supabase";
@@ -38,7 +38,7 @@ export function LoginPage() {
   const watchEmail = watch("email");
 
   const handlePostLoginRedirect = (sessionRole: UserRole) => {
-    if (fromPath && !fromPath.startsWith("/login") && !fromPath.startsWith("/signup")) {
+    if (fromPath && isPathAllowedForRole(fromPath, sessionRole)) {
       navigate(fromPath, { replace: true });
       return;
     }
@@ -82,6 +82,7 @@ export function LoginPage() {
     setFormError(null);
     setIsGoogleLoading(true);
     try {
+      localStorage.removeItem("ethosk_intended_role");
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {

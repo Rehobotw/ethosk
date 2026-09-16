@@ -100,4 +100,12 @@ C) Tigrinya
       expect(screen.getByText(/Parsed 1 questions successfully/)).toBeDefined();
     });
   });
+
+  it("renders Google Form import section with URL input and submit button", () => {
+    renderWithProviders();
+
+    expect(screen.getByText("Import from Google Forms")).toBeDefined();
+    expect(screen.getByPlaceholderText("https://docs.google.com/forms/.../viewform")).toBeDefined();
+    expect(screen.getByRole("button", { name: /Import form/i })).toBeDefined();
+  });
 });

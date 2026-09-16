@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import type { UserRole } from "@shared/types";
 import { LoadingBlock } from "@/components/ui";
 import { api, setToken } from "@/lib/api";
-import { homePathForRole, useAuth } from "@/lib/auth";
+import { homePathForRole, isPathAllowedForRole, useAuth } from "@/lib/auth";
 import { useLanguage } from "@/lib/language";
 import { supabase } from "@/lib/supabase";
 
@@ -63,6 +63,7 @@ export function AuthCallbackPage() {
         if (mounted) {
           const searchParams = new URLSearchParams(window.location.search);
           const fromPath = searchParams.get("from");
+          const userRole = response.role || "respondent";
 
           if (response.exists === false && response.profile) {
             // User does not exist, and no intended role was provided
@@ -72,10 +73,10 @@ export function AuthCallbackPage() {
               email: response.profile.email,
             });
             navigate(`/signup?${queryParams.toString()}`, { replace: true });
-          } else if (fromPath && !fromPath.startsWith("/login") && !fromPath.startsWith("/signup")) {
+          } else if (fromPath && isPathAllowedForRole(fromPath, userRole)) {
             navigate(fromPath, { replace: true });
           } else {
-            navigate(homePathForRole(response.role || "respondent"), { replace: true });
+            navigate(homePathForRole(userRole), { replace: true });
           }
         }
       } catch (err: any) {

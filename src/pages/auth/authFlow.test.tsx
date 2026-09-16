@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isPathAllowedForRole } from "@/lib/auth";
 import {
   deleteAccountRequestSchema,
   forgotPasswordSchema,
@@ -97,3 +98,31 @@ describe("Email Auth & Account Deletion Validation Schemas", () => {
     expect(valid.success).toBe(true);
   });
 });
+
+describe("isPathAllowedForRole Isolation Helper", () => {
+  it("prevents respondents from accessing researcher or admin paths", () => {
+    expect(isPathAllowedForRole("/researcher", "respondent")).toBe(false);
+    expect(isPathAllowedForRole("/researcher/surveys", "respondent")).toBe(false);
+    expect(isPathAllowedForRole("/survey-builder/manual", "respondent")).toBe(false);
+    expect(isPathAllowedForRole("/admin/review-queue", "respondent")).toBe(false);
+    expect(isPathAllowedForRole("/inbox", "respondent")).toBe(true);
+    expect(isPathAllowedForRole("/history", "respondent")).toBe(true);
+    expect(isPathAllowedForRole("/wallet", "respondent")).toBe(true);
+  });
+
+  it("prevents researchers from accessing respondent dashboards or admin paths", () => {
+    expect(isPathAllowedForRole("/inbox", "researcher")).toBe(false);
+    expect(isPathAllowedForRole("/history", "researcher")).toBe(false);
+    expect(isPathAllowedForRole("/admin/users", "researcher")).toBe(false);
+    expect(isPathAllowedForRole("/researcher", "researcher")).toBe(true);
+    expect(isPathAllowedForRole("/researcher/surveys", "researcher")).toBe(true);
+    expect(isPathAllowedForRole("/survey-builder/manual", "researcher")).toBe(true);
+  });
+
+  it("allows admins to access admin and researcher paths", () => {
+    expect(isPathAllowedForRole("/admin/overview", "admin")).toBe(true);
+    expect(isPathAllowedForRole("/admin/users", "super_admin")).toBe(true);
+    expect(isPathAllowedForRole("/researcher", "admin")).toBe(true);
+  });
+});
+

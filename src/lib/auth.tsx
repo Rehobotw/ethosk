@@ -1,6 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { UserRole, VerificationTier, ResearcherVerificationLevel, SubscriptionTier } from "@shared/types";
+import type {
+  UserRole,
+  VerificationTier,
+  ResearcherVerificationLevel,
+  SubscriptionTier,
+} from "@shared/types";
 import type {
   ForgotPasswordInput,
   LoginInput,
@@ -164,7 +169,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       refresh,
     }),
-    [user, loading, login, signup, verifyEmail, resendCode, forgotPassword, resetPassword, logout, refresh],
+    [
+      user,
+      loading,
+      login,
+      signup,
+      verifyEmail,
+      resendCode,
+      forgotPassword,
+      resetPassword,
+      logout,
+      refresh,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -182,10 +198,65 @@ export function homePathForRole(role: UserRole): string {
     case "researcher":
       return "/researcher";
     case "admin":
-    case "super_admin":
       return "/admin/review-queue";
+    case "super_admin":
+      return "/admin";
     case "respondent":
     default:
       return "/inbox";
   }
+}
+
+/** Check if a given route path is permitted for the user's role. */
+export function isPathAllowedForRole(pathname: string | null | undefined, role: UserRole): boolean {
+  if (!pathname || pathname === "/" || pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/auth")) {
+    return true;
+  }
+
+  // Normalize path
+  const cleanPath = pathname.split(/[?#]/, 1)[0] ?? "/";
+
+  if (role === "respondent") {
+    // Respondents must not access researcher or admin portals
+    if (
+      cleanPath.startsWith("/researcher") ||
+      cleanPath.startsWith("/survey-builder") ||
+      cleanPath.startsWith("/survey-posting") ||
+      cleanPath.startsWith("/subscription") ||
+      cleanPath.startsWith("/admin")
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  if (role === "researcher") {
+    // Researchers must not access respondent-only dashboard pages or admin portals
+    if (
+      cleanPath === "/inbox" ||
+      cleanPath === "/history" ||
+      cleanPath.startsWith("/respondent/onboarding") ||
+      cleanPath.startsWith("/admin")
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  if (role === "admin") {
+    if (
+      cleanPath === "/admin/users" ||
+      cleanPath === "/admin/revenue" ||
+      cleanPath === "/admin/settings"
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  if (role === "super_admin") {
+    return true;
+  }
+
+  return true;
 }

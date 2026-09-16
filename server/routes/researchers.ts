@@ -6,6 +6,9 @@ import { admin } from "../lib/supabase.js";
 
 export const researchersRouter = Router();
 
+// Enforce server-side role gate for all researcher endpoints
+researchersRouter.use(requireAuth("researcher", "admin", "super_admin"));
+
 /**
  * The researcher's own profile. `rating` and `verified` are read-only here: both
  * are assigned by Ethosk from a researcher's track record, and a profile that

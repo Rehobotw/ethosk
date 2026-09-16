@@ -2,13 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { SurveyRecord } from "@shared/types";
-import {
-  Button,
-  Card,
-  EmptyState,
-  Icon,
-  LoadingBlock,
-} from "@/components/ui";
+import { Button, Card, EmptyState, Icon, LoadingBlock } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
@@ -111,7 +105,9 @@ function getBuilderType(survey: SurveyRecord): "Manual" | "Import" | "AI" {
 
   const title = (survey.title || "").toLowerCase();
   const hasAiQuestions = survey.questions?.some((q) => q.id?.includes("ai"));
-  const hasImportQuestions = survey.questions?.some((q) => q.id?.includes("import") || q.id?.includes("imp"));
+  const hasImportQuestions = survey.questions?.some(
+    (q) => q.id?.includes("import") || q.id?.includes("imp"),
+  );
 
   if (title.startsWith("ai ") || title.includes("ai draft") || hasAiQuestions) return "AI";
   if (title.includes("import") || hasImportQuestions) return "Import";
@@ -147,7 +143,7 @@ export function SurveyNewLandingPage() {
   const isSubscribed = Boolean(
     (user?.subscription_tier as string) === "subscribed" ||
     (user?.subscription_tier as string) === "pro" ||
-    user?.role === "admin"
+    user?.role === "admin",
   );
 
   const { data, isLoading } = useQuery({
@@ -161,8 +157,7 @@ export function SurveyNewLandingPage() {
     .slice(0, 5);
 
   const deleteDraft = useMutation({
-    mutationFn: (surveyId: string) =>
-      api(`/surveys/${surveyId}`, { method: "DELETE" }),
+    mutationFn: (surveyId: string) => api(`/surveys/${surveyId}`, { method: "DELETE" }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["surveys"] });
       setDraftToDelete(null);
@@ -190,156 +185,120 @@ export function SurveyNewLandingPage() {
   });
 
   return (
-    <div className="max-w-[1200px] mx-auto w-full space-y-8 pb-12">
-      {/* ── Page Header (Stitch Design) ── */}
-      <div className="text-center md:text-left pt-2 md:pt-4">
-        <h1 className="text-2xl md:text-4xl font-bold font-headline text-[#004162] tracking-tight mb-2">
-          How would you like to build your survey?
+    <div className="mx-auto w-full max-w-[1120px] space-y-8 pb-12">
+      <header className="border-b border-[#d9e2ea] pb-5 pt-2">
+        <Link
+          className="mb-3 inline-flex items-center gap-1 text-xs font-semibold text-[#4b6078] hover:text-[#00456d]"
+          to="/researcher"
+        >
+          <Icon className="text-[16px]" name="arrow_back" />
+          Researcher dashboard
+        </Link>
+        <h1 className="font-headline text-2xl font-bold tracking-tight text-[#004162] md:text-3xl">
+          Create a survey
         </h1>
-        <p className="text-sm md:text-base text-[#41484E] max-w-2xl">
-          Choose the creation method that fits your workflow. All methods produce structured, defensible research schemas.
+        <p className="mt-1.5 max-w-2xl text-sm text-[#4b6078]">
+          Start a new working draft using the method that best fits your research workflow.
         </p>
-      </div>
+      </header>
 
-      {/* ── 3 Creation Cards (Stitch Design) ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-        {/* Card 1: Manual Builder */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-[0_4px_12px_rgba(0,75,99,0.05)] p-6 flex flex-col hover:-translate-y-1 transition-transform duration-200">
-          <div className="w-12 h-12 bg-[#EDF3FF] rounded-full flex items-center justify-center mb-5">
-            <Icon className="text-[24px] text-[#2872A1]" name="edit_document" />
-          </div>
-
-          <h3 className="text-lg font-bold text-[#001d29] mb-2 font-headline">
-            Manual Builder
-          </h3>
-
-          <p className="text-xs md:text-sm text-[#41484c] mb-6 flex-grow leading-relaxed">
-            Design custom questions block-by-block. Complete control over question formats, logic branches, multiple-choice options, and scale ratings.
+      <section className="overflow-hidden rounded-xl border border-[#d9e2ea] bg-white shadow-sm">
+        <div className="border-b border-[#e7edf2] px-5 py-4 md:px-6">
+          <h2 className="font-headline text-lg font-bold text-[#004162]">
+            Choose a creation method
+          </h2>
+          <p className="mt-1 text-sm text-[#5a6e7f]">
+            You can edit every draft before it is sent for review.
           </p>
-
-          <ul className="space-y-2.5 mb-8 text-xs md:text-[13px] text-[#41484c]">
-            <li className="flex items-center gap-2">
-              <Icon className="text-[16px] text-[#001d29]" name="check_circle" />
-              <span>6+ question formats</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <Icon className="text-[16px] text-[#001d29]" name="check_circle" />
-              <span>Custom skip logic</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <Icon className="text-[16px] text-[#001d29]" name="check_circle" />
-              <span>Free</span>
-            </li>
-          </ul>
-
-          <Link to="/survey-builder/manual" className="w-full mt-auto block">
-            <button
-              type="button"
-              className="w-full bg-[#2872A1] hover:bg-[#001d29] text-white font-bold text-xs md:text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-            >
-              <span>Build from Scratch</span>
-              <Icon className="text-[18px]" name="arrow_forward" />
-            </button>
-          </Link>
         </div>
 
-        {/* Card 2: Import Document */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-[0_4px_12px_rgba(0,75,99,0.05)] p-6 flex flex-col hover:-translate-y-1 transition-transform duration-200">
-          <div className="w-12 h-12 bg-[#EDF3FF] rounded-full flex items-center justify-center mb-5">
-            <Icon className="text-[24px] text-[#2872A1]" name="upload_file" />
-          </div>
-
-          <h3 className="text-lg font-bold text-[#001d29] mb-2 font-headline">
-            Import Survey
-          </h3>
-
-          <p className="text-xs md:text-sm text-[#41484c] mb-6 flex-grow leading-relaxed">
-            Upload an existing survey questionnaire from Word (DOCX), PDF, Excel, or Google Forms export. Our parser auto-extracts questions into editable blocks.
-          </p>
-
-          <ul className="space-y-2.5 mb-8 text-xs md:text-[13px] text-[#41484c]">
-            <li className="flex items-center gap-2">
-              <Icon className="text-[16px] text-[#001d29]" name="check_circle" />
-              <span>Automatic parsing</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <Icon className="text-[16px] text-[#001d29]" name="check_circle" />
-              <span>Supports DOCX/PDF/CSV</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <Icon className="text-[16px] text-[#001d29]" name="check_circle" />
-              <span>Free</span>
-            </li>
-          </ul>
-
-          <Link to="/survey-builder/import" className="w-full mt-auto block">
-            <button
-              type="button"
-              className="w-full bg-[#2872A1] hover:bg-[#001d29] text-white font-bold text-xs md:text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-            >
-              <span>Upload Document</span>
-              <Icon className="text-[18px]" name="arrow_forward" />
-            </button>
+        <div className="divide-y divide-[#e7edf2]">
+          <Link
+            className="group flex flex-col gap-4 px-5 py-5 transition-colors hover:bg-[#f5f9fc] md:flex-row md:items-center md:px-6"
+            to="/survey-builder/manual"
+          >
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#eaf3fb] text-[#176f9f]">
+              <Icon className="text-[23px]" name="edit_document" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-[#102f44]">Manual builder</h3>
+              <p className="mt-1 text-sm leading-5 text-[#5a6e7f]">
+                Create questions, response options, and skip logic from scratch.
+              </p>
+              <p className="mt-2 text-xs font-medium text-[#176f9f]">
+                Question types · Logic branching · Free
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#176f9f] group-hover:text-[#00456d]">
+              Start building <Icon className="text-[18px]" name="arrow_forward" />
+            </span>
           </Link>
-        </div>
 
-        {/* Card 3: AI Survey Generator (Subscription Gated) */}
-        <div className="bg-white rounded-2xl border-2 border-[#2872A1] shadow-[0_4px_12px_rgba(0,75,99,0.05)] p-6 flex flex-col hover:-translate-y-1 transition-transform duration-200 relative overflow-hidden">
-          {/* Pro Feature Pill */}
-          <div className="absolute top-5 right-5 bg-[#0B2B42] text-white font-mono text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1 tracking-wider shadow-xs">
-            <Icon className="text-[14px] text-amber-400" name="stars" />
-            <span>PRO FEATURE</span>
-          </div>
-
-          <div className="w-12 h-12 bg-[#EDF3FF] rounded-full flex items-center justify-center mb-5">
-            <Icon className="text-[24px] text-[#2872A1]" name="auto_awesome" />
-          </div>
-
-          <h3 className="text-lg font-bold text-[#001d29] mb-2 pr-24 font-headline">
-            AI Survey Generator
-          </h3>
-
-          <p className="text-xs md:text-sm text-[#41484c] mb-6 flex-grow leading-relaxed">
-            Describe your research objective, target demographics, and study goals. The AI drafts an optimized, bias-checked question schema in seconds.
-          </p>
-
-          <ul className="space-y-2.5 mb-8 text-xs md:text-[13px] text-[#41484c]">
-            <li className="flex items-center gap-2">
-              <Icon className="text-[16px] text-[#2872A1]" name="check_circle" />
-              <span>Unbiased drafting</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <Icon className="text-[16px] text-[#2872A1]" name="check_circle" />
-              <span>Native localization (Amharic/Oromo)</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <Icon className="text-[16px] text-[#2872A1]" name="check_circle" />
-              <span>AI Question Optimizer</span>
-            </li>
-          </ul>
+          <Link
+            className="group flex flex-col gap-4 px-5 py-5 transition-colors hover:bg-[#f5f9fc] md:flex-row md:items-center md:px-6"
+            to="/survey-builder/import"
+          >
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#eaf3fb] text-[#176f9f]">
+              <Icon className="text-[23px]" name="upload_file" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-[#102f44]">Import a questionnaire</h3>
+              <p className="mt-1 text-sm leading-5 text-[#5a6e7f]">
+                Upload an existing document and convert its questions into editable survey blocks.
+              </p>
+              <p className="mt-2 text-xs font-medium text-[#176f9f]">
+                DOCX · PDF · CSV · Google Forms export
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#176f9f] group-hover:text-[#00456d]">
+              Import file <Icon className="text-[18px]" name="arrow_forward" />
+            </span>
+          </Link>
 
           {isSubscribed ? (
-            <Link to="/survey-builder/ai" className="w-full mt-auto block">
-              <button
-                type="button"
-                className="w-full bg-[#0B2B42] hover:bg-[#001d29] text-white font-bold text-xs md:text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-              >
-                <span>Generate with AI</span>
-                <Icon className="text-[18px]" name="arrow_forward" />
-              </button>
+            <Link
+              className="group flex flex-col gap-4 px-5 py-5 transition-colors hover:bg-[#f5f9fc] md:flex-row md:items-center md:px-6"
+              to="/survey-builder/ai"
+            >
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#f1ecfa] text-[#6a1b9a]">
+                <Icon className="text-[23px]" name="auto_awesome" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-[#102f44]">Generate with AI</h3>
+                <p className="mt-1 text-sm leading-5 text-[#5a6e7f]">
+                  Create a structured first draft from your research objective and target audience.
+                </p>
+                <p className="mt-2 text-xs font-medium text-[#6a1b9a]">Available on your plan</p>
+              </div>
+              <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#6a1b9a] group-hover:text-[#4f1373]">
+                Create draft <Icon className="text-[18px]" name="arrow_forward" />
+              </span>
             </Link>
           ) : (
             <button
-              type="button"
+              className="group flex w-full flex-col gap-4 px-5 py-5 text-left transition-colors hover:bg-[#f5f9fc] md:flex-row md:items-center md:px-6"
               onClick={() => setShowUpgradeModal(true)}
-              className="w-full bg-[#0B2B42] hover:bg-[#001d29] text-white font-bold text-xs md:text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs mt-auto"
+              type="button"
             >
-              <span>Generate with AI</span>
-              <Icon className="text-[18px]" name="arrow_forward" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#f1ecfa] text-[#6a1b9a]">
+                <Icon className="text-[23px]" name="auto_awesome" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-[#102f44]">Generate with AI</h3>
+                <p className="mt-1 text-sm leading-5 text-[#5a6e7f]">
+                  Create a structured first draft from your research objective and target audience.
+                </p>
+                <p className="mt-2 text-xs font-medium text-[#6a1b9a]">
+                  Available with a Pro researcher plan
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#6a1b9a] group-hover:text-[#4f1373]">
+                View plan options <Icon className="text-[18px]" name="arrow_forward" />
+              </span>
             </button>
           )}
         </div>
-      </div>
+      </section>
 
       {/* ── Validated Research Templates Section (Stitch Design) ── */}
       <div className="pt-6 border-t border-[#E2E8F0]">
@@ -379,7 +338,8 @@ export function SurveyNewLandingPage() {
                 Unlock AI Survey Generator
               </h3>
               <p className="text-xs text-on-surface-variant leading-relaxed">
-                Generate tailored, high-rigor survey questions in seconds from your research goal. Available on Pro researcher plans.
+                Generate tailored, high-rigor survey questions in seconds from your research goal.
+                Available on Pro researcher plans.
               </p>
             </div>
 
@@ -504,7 +464,8 @@ export function SurveyNewLandingPage() {
               );
             })}
 
-            {(data?.surveys ?? []).filter((s) => s.status === "wip" || s.status === "draft").length > 5 && (
+            {(data?.surveys ?? []).filter((s) => s.status === "wip" || s.status === "draft")
+              .length > 5 && (
               <div className="pt-1">
                 <Link
                   to="/researcher/surveys"
@@ -527,15 +488,16 @@ export function SurveyNewLandingPage() {
               <div className="w-10 h-10 rounded-full bg-error-container/20 flex items-center justify-center">
                 <Icon className="text-[22px] text-error" name="delete_forever" />
               </div>
-              <h3 className="text-base font-bold text-on-surface">
-                Delete Draft Survey?
-              </h3>
+              <h3 className="text-base font-bold text-on-surface">Delete Draft Survey?</h3>
             </div>
 
             <p className="text-xs text-on-surface-variant leading-relaxed">
               Are you sure you want to permanently delete{" "}
-              <strong className="text-on-surface">"{draftToDelete.title || "Untitled Survey"}"</strong>?
-              This will remove it from both the Recent list and your Dashboard Work-in-Progress tab.
+              <strong className="text-on-surface">
+                "{draftToDelete.title || "Untitled Survey"}"
+              </strong>
+              ? This will remove it from both the Recent list and your Dashboard Work-in-Progress
+              tab.
             </p>
 
             <div className="pt-2 flex justify-end gap-2.5">

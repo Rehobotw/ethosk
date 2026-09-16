@@ -75,9 +75,9 @@ describe("Survey Builder Flow Audit (§4.3.1–4.3.5)", () => {
     renderLanding({ role: "researcher", subscription_tier: "subscribed" });
 
     // 3 Cards exist
-    expect(screen.getByRole("heading", { name: "Manual Builder" })).toBeDefined();
-    expect(screen.getByRole("heading", { name: "Import Survey" })).toBeDefined();
-    expect(screen.getByRole("heading", { name: "AI Survey Generator" })).toBeDefined();
+    expect(screen.getByText("Manual builder")).toBeDefined();
+    expect(screen.getByText("Import a questionnaire")).toBeDefined();
+    expect(screen.getByText("Generate with AI")).toBeDefined();
 
     // Check link destinations
     const links = screen.getAllByRole("link");
@@ -92,7 +92,7 @@ describe("Survey Builder Flow Audit (§4.3.1–4.3.5)", () => {
     renderLanding({ role: "researcher", subscription_tier: "free" });
 
     // AI Card should have PRO indicator
-    expect(screen.getByText(/PRO/)).toBeDefined();
+    expect(screen.getByText(/Pro researcher plan/i)).toBeDefined();
 
     // Click on AI generator card CTA
     const aiCardBtn = screen.getByRole("button", { name: /Generate with AI/i });

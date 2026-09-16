@@ -178,9 +178,6 @@ export function AdminReviewQueuePage() {
     compliance: 3,
   };
 
-  const isLoading = isDocLoading || isSurveyLoading;
-  const error = docError || surveyError;
-
   return (
     <div className="space-y-6 font-['Inter',sans-serif] text-[#0F172A] pb-16 max-w-7xl mx-auto">
       {/* ── Header Section (Stitch Screen 6f7ea3340bdd4c5789181436816d783e) ── */}
@@ -303,8 +300,12 @@ export function AdminReviewQueuePage() {
         </button>
       </div>
 
-      {isLoading ? <LoadingBlock label={isAm ? "ወረፋ በመጫን ላይ..." : "Loading approval queue…"} /> : null}
-      {error ? <Notice tone="error">{isAm ? "ወረፋውን መጫን አልተሳካም።" : "Could not load approval queue."}</Notice> : null}
+      {isSurveyLoading || isDocLoading ? (
+        <LoadingBlock label={isAm ? "ወረፋ በመጫን ላይ..." : "Loading approval queue…"} />
+      ) : null}
+      {(activeTab === "surveys" || activeTab === "compliance" ? surveyError : docError) ? (
+        <Notice tone="error">{isAm ? "ወረፋውን መጫን አልተሳካም።" : "Could not load approval queue."}</Notice>
+      ) : null}
 
       {/* ── Data Table Card ── */}
       <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-xs overflow-hidden flex flex-col">
