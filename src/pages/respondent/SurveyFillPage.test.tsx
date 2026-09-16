@@ -132,7 +132,7 @@ describe("SurveyFillPage Inline Validation Errors", () => {
           ],
         });
       }
-      if (url.includes("/submit")) {
+      if (url.includes("/responses")) {
         return Promise.resolve({ reward_etb: 25 });
       }
       return Promise.resolve({});

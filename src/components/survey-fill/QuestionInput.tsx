@@ -48,7 +48,7 @@ export function QuestionInput({
             }
           }}
           onPaste={() => onPaste?.()}
-          placeholder={isShort ? "Type your short response…" : "Type your detailed response here…"}
+          placeholder={isShort ? "Type your answer…" : "Type your answer in detail…"}
           rows={isShort ? 2 : 4}
           value={value}
         />
@@ -231,4 +231,3 @@ function VoiceInputWidget({
     </div>
   );
 }
-

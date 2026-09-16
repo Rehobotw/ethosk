@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { TIER_RANK, type Question, type TargetLanguage, type VerificationTier } from "@shared/types";
+import {
+  TIER_RANK,
+  isSectionHeader,
+  type Question,
+  type TargetLanguage,
+  type VerificationTier,
+} from "@shared/types";
 import type { SubmitResponseInput } from "@shared/validation/schemas";
 import { QuestionInput } from "@/components/survey-fill/QuestionInput";
 import { useQuestionTimer } from "@/components/survey-fill/useQuestionTimer";
@@ -39,6 +45,7 @@ export function SurveyFillPage() {
   const [language, setLanguage] = useState<Language>("en");
   const [activeMode, setActiveMode] = useState<"standard" | "chat" | "voice">("standard");
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [invalidQuestionIds, setInvalidQuestionIds] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [isDraftRestored, setIsDraftRestored] = useState(false);
 
@@ -69,6 +76,7 @@ export function SurveyFillPage() {
   // Save answers to draft storage whenever answers change
   const updateAnswer = (questionId: string, value: string) => {
     textMetrics.recordValue(questionId, value);
+    setInvalidQuestionIds((current) => current.filter((id) => id !== questionId));
     setAnswers((current) => {
       const next = { ...current, [questionId]: value };
       try {
@@ -160,13 +168,17 @@ export function SurveyFillPage() {
         <Card className="p-stack-lg text-center">
           <Icon className="text-[40px] text-status-passed" filled name="task_alt" />
           <h1 className="mt-stack-sm font-headline-md text-headline-md text-on-surface">
-            Response submitted
+            Survey Completed Successfully
           </h1>
           <p className="mt-stack-sm font-body-md text-body-md text-on-surface-variant">
-            Thank you. Your answers have been recorded
-            {submit.data?.reward_etb
-              ? ` and ${submit.data.reward_etb} ETB has been credited to your wallet`
-              : ""}
+            Thank you. Your answers for <strong>{data.title}</strong> have been recorded
+            {submit.data?.reward_etb ? (
+              <>
+                {" and "}
+                <strong>{submit.data.reward_etb} ETB</strong>
+                {" has been credited to your wallet"}
+              </>
+            ) : null}
             .
           </p>
           <Link className="mt-stack-lg inline-block" to="/inbox">
@@ -185,16 +197,21 @@ export function SurveyFillPage() {
 
   const handleSubmit = () => {
     const missing = data.questions.filter(
-      (question) => question.required !== false && !answers[question.id]?.trim(),
+      (question) =>
+        question.required !== false &&
+        !isSectionHeader(question.text) &&
+        !answers[question.id]?.trim(),
     );
 
     if (missing.length > 0) {
+      setInvalidQuestionIds(missing.map((question) => question.id));
       setValidationError(
-        `Please answer all ${data.questions.length} questions before submitting. ${missing.length} remaining.`,
+        `Please answer all required questions before submitting. ${missing.length} remaining.`,
       );
       return;
     }
 
+    setInvalidQuestionIds([]);
     setValidationError(null);
     const { timePerQuestion, totalTimeSeconds } = timer.finalize();
     submit.mutate({
@@ -392,11 +409,13 @@ export function SurveyFillPage() {
       >
         {data.questions.map((question, index) => {
           const isAnswered = Boolean(answers[question.id]?.trim());
-          const isSection = ((question.type as string) === "section");
+          const isSection = (question.type as string) === "section" || isSectionHeader(question.text);
+          const showInlineRequiredError = invalidQuestionIds.includes(question.id);
 
           if (isSection) {
             return (
               <div key={question.id} className="pt-4 pb-2 border-b border-slate-200">
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-primary/80">Section</p>
                 <h3 className="text-lg font-headline-md font-bold text-primary">
                   {questionText(question, index)}
                 </h3>
@@ -444,6 +463,11 @@ export function SurveyFillPage() {
                 question={question}
                 value={answers[question.id] || ""}
               />
+              {showInlineRequiredError && (
+                <p className="mt-3 text-xs font-semibold text-rose-700">
+                  This question requires an answer before submitting.
+                </p>
+              )}
             </div>
           );
         })}
