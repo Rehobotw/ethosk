@@ -35,8 +35,8 @@ export function parseSurveyText(rawText: string): { title: string; questions: Qu
     required: boolean;
   } | null = null;
 
-  const questionHeaderRegex = /^(?:(?:Q|Question)\s*\d+[:.]?|\d+[\).:-]|\d+\s+)\s*(.+)/i;
-  const optionHeaderRegex = /^(?:[a-zA-Z][\).:-]|[•\-\*○●]|\(\s*[a-zA-Z0-9]?\s*\)|\[\s*[a-zA-Z0-9]?\s*\])\s*(.+)/;
+  const questionHeaderRegex = /^(?:(?:Q|Question)\s*\d+[:.]?|\d+[).:-]|\d+\s+)\s*(.+)/i;
+  const optionHeaderRegex = /^(?:[a-zA-Z][).:-]|[•\-*○●]|\(\s*[a-zA-Z0-9]?\s*\)|\[\s*[a-zA-Z0-9]?\s*\])\s*(.+)/;
 
   let firstLine = true;
 
@@ -200,7 +200,7 @@ export async function extractTextFromFile(file: File): Promise<string> {
     const textMatches = content.match(/\(([^)]+)\)\s*Tj/g) || content.match(/\[([^\]]+)\]\s*TJ/g);
     if (textMatches && textMatches.length > 0) {
       const extracted = textMatches
-        .map((m) => m.replace(/^[\(\[]/, "").replace(/[\]\)]\s*T[jJ]$/, ""))
+        .map((m) => m.replace(/^[(\[]/, "").replace(/[\])]\s*T[jJ]$/, ""))
         .join(" ")
         .replace(/\\([()\\])/g, "$1");
       return extracted.replace(/([?.!])\s+(?=[0-9A-Z])/g, "$1\n").trim();

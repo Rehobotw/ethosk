@@ -78,8 +78,9 @@ export function sanitizeTransactionReference(reference: string): string {
     try {
       const url = new URL(trimmed);
       const parts = url.pathname.split("/").filter(Boolean);
-      if (parts.length > 0) {
-        return parts[parts.length - 1];
+      const last = parts[parts.length - 1];
+      if (last) {
+        return last;
       }
     } catch {
       // Fallback to raw string

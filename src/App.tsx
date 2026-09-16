@@ -12,7 +12,7 @@ import { LoginPage } from "./pages/auth/LoginPage";
 import { SignupPage } from "./pages/auth/SignupPage";
 import { VerifyEmailPage } from "./pages/auth/VerifyEmailPage";
 import { HomePage } from "./pages/HomePage";
-import { NotFoundPage } from "./pages/NotFoundPage";
+import { NotFoundPage } from "./pages/error/NotFoundPage";
 import { DocumentsPage } from "./pages/respondent/DocumentsPage";
 import { HistoryPage } from "./pages/respondent/HistoryPage";
 import { InboxPage } from "./pages/respondent/InboxPage";
@@ -85,7 +85,7 @@ const ResearcherNotificationCenterPage = lazy(() =>
   })),
 );
 const ResearcherProfilePage = lazy(() =>
-  import("./pages/researcher/ProfilePage").then((m) => ({ default: m.ProfilePage })),
+  import("./pages/researcher/ResearcherProfilePage").then((m) => ({ default: m.ResearcherProfilePage })),
 );
 const SubscriptionPage = lazy(() =>
   import("./pages/researcher/SubscriptionPage").then((m) => ({ default: m.SubscriptionPage })),

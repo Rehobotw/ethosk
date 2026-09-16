@@ -15,6 +15,7 @@ import path from "node:path";
 import { Client } from "pg";
 
 const MIGRATIONS_DIR = path.join(process.cwd(), "supabase", "migrations");
+const SCHEMA_FILE = path.join(process.cwd(), "supabase", "schema.sql");
 
 const connectionString = process.env.SUPABASE_DB_URL;
 
@@ -44,10 +45,18 @@ async function main(): Promise<void> {
   const { rows } = await client.query<{ filename: string }>("select filename from schema_migrations");
   const applied = new Set(rows.map((row) => row.filename));
 
-  const files = (await readdir(MIGRATIONS_DIR)).filter((name) => name.endsWith(".sql")).sort();
+  let files: string[] = [];
+  try {
+    files = (await readdir(MIGRATIONS_DIR)).filter((name) => name.endsWith(".sql")).sort();
+  } catch {
+    // migrations directory removed; fall back to applying schema.sql
+  }
 
   if (files.length === 0) {
-    console.log("No migration files found.");
+    console.log("Applying consolidated database schema from supabase/schema.sql...");
+    const sql = await readFile(SCHEMA_FILE, "utf8");
+    await client.query(sql);
+    console.log("Database schema successfully applied from schema.sql.");
     return;
   }
 

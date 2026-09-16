@@ -87,7 +87,23 @@ export type DeleteAccountRequestInput = z.infer<typeof deleteAccountRequestSchem
 export const respondentProfileSchema = z.object({
   full_name: z.string().trim().min(2).max(160).nullable().optional(),
   phone: z.string().trim().nullable().optional(),
-  dob: z.string().nullable().optional(), // YYYY-MM-DD
+  dob: z
+    .string()
+    .nullable()
+    .optional()
+    .refine(
+      (val) => {
+        if (!val || !val.trim()) return true;
+        const d = new Date(val);
+        if (isNaN(d.getTime())) return false;
+        const now = new Date();
+        let age = now.getFullYear() - d.getFullYear();
+        const m = now.getMonth() - d.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+        return age >= 15 && age <= 100;
+      },
+      { message: "Age must be between 15 and 100" },
+    ),
   university: z.string().trim().min(2).max(160).nullable().optional(),
   department: z.string().trim().min(2).max(160).nullable().optional(),
   year: z
@@ -358,8 +374,14 @@ export const faydaVerifySchema = z
 export type FaydaVerifyInput = z.infer<typeof faydaVerifySchema>;
 
 export const documentUploadSchema = z.object({
-  doc_type: z.enum(DOC_TYPES),
+  doc_type: z.enum(DOC_TYPES).or(z.string()).optional(),
+  document_type: z.string().optional(),
+  file_name: z.string().optional(),
+  file_size: z.number().optional(),
+  mime_type: z.string().optional(),
+  file_base64: z.string().optional(),
 });
+export type DocumentUploadInput = z.infer<typeof documentUploadSchema>;
 
 export const institutionalDetailsSchema = z.object({
   institution_type: z.enum(["university", "corporate"]),

@@ -170,4 +170,21 @@ describe("Ethosk - Respondent Onboarding Step 2 (Stitch Screen f808a06145cc432cb
     expect(screen.getByText("You're all set")).toBeDefined();
     expect(screen.getByRole("button", { name: /Browse surveys/i })).toBeDefined();
   });
+
+  it("shows inline validation error on Step 2 when DOB results in age < 15 and prevents step advance", async () => {
+    renderWithProviders(<RespondentOnboardingPage />);
+
+    fireEvent.change(screen.getByLabelText(/Full Legal Name/i), { target: { value: "Abebe Kebede" } });
+    const recentYear = new Date().getFullYear() - 5;
+    fireEvent.change(screen.getByLabelText(/Date of Birth/i), { target: { value: `01/01/${recentYear}` } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Continue/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Age must be between 15 and 100.")).toBeDefined();
+    });
+
+    expect(screen.getByText("Step 2 of 4")).toBeDefined();
+    expect(apiMock).not.toHaveBeenCalled();
+  });
 });

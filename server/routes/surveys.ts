@@ -25,6 +25,7 @@ const complianceUpload = multer({
 });
 
 import type { Question, SurveyRecord, TargetLanguage } from "@shared/types.js";
+import { isSectionHeader } from "@shared/types.js";
 import { aggregateResponses, shouldGenerateSummary } from "@shared/analytics/aggregate.js";
 import {
   buildConsistencyQuestion,
@@ -935,11 +936,20 @@ surveysRouter.post(
       const parsed = extractJson(raw) as any;
       if (parsed && typeof parsed.reply === "string") {
         turnData.reply = parsed.reply;
-        turnData.question_index = typeof parsed.question_index === "number" ? parsed.question_index : null;
-        turnData.question_type = parsed.question_type ?? null;
-        turnData.options = Array.isArray(parsed.options) ? parsed.options : null;
+        let qIdx = typeof parsed.question_index === "number" ? parsed.question_index : null;
+        // If parsed.question_index points to a section header, advance to next actual question
+        if (qIdx !== null && isSectionHeader(survey.questions[qIdx]?.text)) {
+          while (qIdx !== null && qIdx < survey.questions.length && isSectionHeader(survey.questions[qIdx]?.text)) {
+            qIdx++;
+          }
+          if (qIdx >= survey.questions.length) qIdx = null;
+        }
+        turnData.question_index = qIdx;
+        const targetQ = qIdx !== null ? survey.questions[qIdx] : null;
+        turnData.question_type = (targetQ?.type ?? parsed.question_type) ?? null;
+        turnData.options = targetQ?.options ?? (Array.isArray(parsed.options) ? parsed.options : null);
         turnData.is_followup = Boolean(parsed.is_followup);
-        turnData.is_complete = Boolean(parsed.is_complete);
+        turnData.is_complete = Boolean(parsed.is_complete) || (qIdx === null && parsed.is_complete);
       } else {
         turnData.reply = raw;
       }
@@ -949,32 +959,56 @@ surveysRouter.post(
       const userMessageCount = userMessages.length;
       const lastUserMsg = userMessages[userMessages.length - 1]?.content.trim().toLowerCase() || "";
 
+      // Partition actual questions vs section headers
+      const actualQuestionsWithIdx = survey.questions
+        .map((q, idx) => ({ q, idx }))
+        .filter((item) => !isSectionHeader(item.q.text));
+
       // Check if last user answer was too short (< 4 characters or 1 word) on a text question for follow-up simulation
-      const prevQuestion = userMessageCount > 0 ? survey.questions[userMessageCount - 1] : null;
+      const prevQuestion = userMessageCount > 0 ? actualQuestionsWithIdx[userMessageCount - 1]?.q : null;
       const isShortText = prevQuestion?.type === "text" && lastUserMsg.split(/\s+/).length < 2 && lastUserMsg.length < 5;
       const isAlreadyFollowedUp = messages.slice(-2)[0]?.content?.includes("elaborate") || false;
 
       if (isShortText && !isAlreadyFollowedUp && userMessageCount > 0) {
         turnData.reply = `Could you elaborate a bit more on that? Please share a few more details.`;
-        turnData.question_index = userMessageCount - 1;
+        turnData.question_index = actualQuestionsWithIdx[userMessageCount - 1]?.idx ?? (userMessageCount - 1);
         turnData.question_type = "text";
         turnData.options = null;
         turnData.is_followup = true;
         turnData.is_complete = false;
-      } else if (userMessageCount === 0 && survey.questions[0]) {
-        const firstQ = survey.questions[0];
-        turnData.reply = `Welcome! Let's begin the survey. Question 1 of ${survey.questions.length}: ${firstQ.text}`;
-        turnData.question_index = 0;
-        turnData.question_type = firstQ.type as any;
-        turnData.options = firstQ.options ?? null;
+      } else if (userMessageCount === 0 && actualQuestionsWithIdx.length > 0) {
+        const firstActual = actualQuestionsWithIdx[0]!;
+        // Check if there are leading section header(s) before this first actual question
+        const leadingHeaders = survey.questions
+          .slice(0, firstActual.idx)
+          .filter((q) => isSectionHeader(q.text))
+          .map((q) => q.text.trim())
+          .join("\n\n");
+
+        const prefix = leadingHeaders ? `Welcome! Let's begin the survey.\n\n**${leadingHeaders}**\n\n` : "Welcome! Let's begin the survey.\n\n";
+        turnData.reply = `${prefix}Question 1 of ${actualQuestionsWithIdx.length}: ${firstActual.q.text}`;
+        turnData.question_index = firstActual.idx;
+        turnData.question_type = firstActual.q.type as any;
+        turnData.options = firstActual.q.options ?? null;
         turnData.is_followup = false;
         turnData.is_complete = false;
-      } else if (userMessageCount < survey.questions.length && survey.questions[userMessageCount]) {
-        const currentQuestion = survey.questions[userMessageCount];
-        turnData.reply = `Got it! Next question (${userMessageCount + 1} of ${survey.questions.length}): ${currentQuestion.text}`;
-        turnData.question_index = userMessageCount;
-        turnData.question_type = currentQuestion.type as any;
-        turnData.options = currentQuestion.options ?? null;
+      } else if (userMessageCount < actualQuestionsWithIdx.length) {
+        const currentItem = actualQuestionsWithIdx[userMessageCount]!;
+        const prevItem = actualQuestionsWithIdx[userMessageCount - 1];
+        // Check if any section headers lie between prevItem and currentItem
+        const interveningHeaders = prevItem
+          ? survey.questions
+              .slice(prevItem.idx + 1, currentItem.idx)
+              .filter((q) => isSectionHeader(q.text))
+              .map((q) => q.text.trim())
+              .join("\n\n")
+          : "";
+
+        const prefix = interveningHeaders ? `Got it! Moving on to **${interveningHeaders}**.\n\n` : "Got it! ";
+        turnData.reply = `${prefix}Next question (${userMessageCount + 1} of ${actualQuestionsWithIdx.length}): ${currentItem.q.text}`;
+        turnData.question_index = currentItem.idx;
+        turnData.question_type = currentItem.q.type as any;
+        turnData.options = currentItem.q.options ?? null;
         turnData.is_followup = false;
         turnData.is_complete = false;
       } else {

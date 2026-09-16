@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { TIER_RANK, type Question, type TargetLanguage, type VerificationTier } from "@shared/types";
+import { TIER_RANK, isSectionHeader, type Question, type TargetLanguage, type VerificationTier } from "@shared/types";
 import type { SubmitResponseInput } from "@shared/validation/schemas";
 import { QuestionInput } from "@/components/survey-fill/QuestionInput";
 import { useQuestionTimer } from "@/components/survey-fill/useQuestionTimer";
@@ -10,6 +10,7 @@ import { Button, Card, Icon, LoadingBlock, Notice, Select } from "@/components/u
 import { ApiRequestError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { ChatMode } from "./ChatMode";
+import { SurveyCompletionSuccessDesktopPage } from "./SurveyCompletionSuccessDesktopPage";
 
 interface FillPayload {
   id: string;
@@ -39,6 +40,7 @@ export function SurveyFillPage() {
   const [language, setLanguage] = useState<Language>("en");
   const [activeMode, setActiveMode] = useState<"standard" | "chat" | "voice">("standard");
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [questionErrors, setQuestionErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [isDraftRestored, setIsDraftRestored] = useState(false);
 
@@ -89,7 +91,9 @@ export function SurveyFillPage() {
       setSubmitted(true);
       try {
         localStorage.removeItem(`ethosk_survey_draft_${id}`);
-      } catch {}
+      } catch {
+        // Ignore localStorage access failures
+      }
     },
   });
 
@@ -155,25 +159,17 @@ export function SurveyFillPage() {
   }
 
   if (submitted) {
+    const formattedDate = new Date().toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
     return (
-      <FillFrame>
-        <Card className="p-stack-lg text-center">
-          <Icon className="text-[40px] text-status-passed" filled name="task_alt" />
-          <h1 className="mt-stack-sm font-headline-md text-headline-md text-on-surface">
-            Response submitted
-          </h1>
-          <p className="mt-stack-sm font-body-md text-body-md text-on-surface-variant">
-            Thank you. Your answers have been recorded
-            {submit.data?.reward_etb
-              ? ` and ${submit.data.reward_etb} ETB has been credited to your wallet`
-              : ""}
-            .
-          </p>
-          <Link className="mt-stack-lg inline-block" to="/inbox">
-            <Button>Back to inbox</Button>
-          </Link>
-        </Card>
-      </FillFrame>
+      <SurveyCompletionSuccessDesktopPage
+        surveyTitle={data?.title}
+        rewardEtb={submit.data?.reward_etb ?? data?.reward_etb ?? 25}
+        completionDate={formattedDate}
+      />
     );
   }
 
@@ -185,20 +181,40 @@ export function SurveyFillPage() {
 
   const handleSubmit = () => {
     const missing = data.questions.filter(
-      (question) => question.required !== false && !answers[question.id]?.trim(),
+      (question) => !isSectionHeader(question.text) && question.required !== false && !answers[question.id]?.trim(),
     );
 
     if (missing.length > 0) {
+      const errors: Record<string, string> = {};
+      for (const q of missing) {
+        errors[q.id] = "This question requires an answer before submitting.";
+      }
+      setQuestionErrors(errors);
       setValidationError(
-        `Please answer all ${data.questions.length} questions before submitting. ${missing.length} remaining.`,
+        `Please answer all required questions before submitting. ${missing.length} remaining.`,
       );
+      // Scroll to the first unanswered question
+      const firstId = missing[0]?.id;
+      if (firstId) {
+        const el = document.getElementById(`question-card-${firstId}`);
+        if (el && typeof el.scrollIntoView === "function") {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }
       return;
     }
 
     setValidationError(null);
+    setQuestionErrors({});
     const { timePerQuestion, totalTimeSeconds } = timer.finalize();
+    const finalAnswers = { ...answers };
+    for (const q of data.questions) {
+      if (isSectionHeader(q.text) && !finalAnswers[q.id]) {
+        finalAnswers[q.id] = "[section_header]";
+      }
+    }
     submit.mutate({
-      answers,
+      answers: finalAnswers,
       time_per_question: timePerQuestion,
       total_time_seconds: totalTimeSeconds,
       text_metrics: textMetrics.finalize(),
@@ -217,7 +233,9 @@ export function SurveyFillPage() {
             setAnswers(mergedAnswers);
             try {
               localStorage.removeItem(`ethosk_survey_draft_${id}`);
-            } catch {}
+            } catch {
+              // Ignore localStorage access failures
+            }
             submit.mutate({
               answers: mergedAnswers,
               time_per_question: timings.time_per_question,
@@ -261,8 +279,10 @@ export function SurveyFillPage() {
     );
   }
 
-  const answeredCount = data.questions.filter((q) => Boolean(answers[q.id]?.trim())).length;
-  const progressPercent = Math.min(100, Math.round((answeredCount / data.questions.length) * 100));
+  const nonSectionQuestions = data.questions.filter((q) => !isSectionHeader(q.text));
+  const totalQuestionCount = nonSectionQuestions.length > 0 ? nonSectionQuestions.length : data.questions.length;
+  const answeredCount = nonSectionQuestions.filter((q) => Boolean(answers[q.id]?.trim())).length;
+  const progressPercent = Math.min(100, Math.round((answeredCount / totalQuestionCount) * 100));
 
   return (
     <FillFrame>
@@ -274,7 +294,7 @@ export function SurveyFillPage() {
               {data.title}
             </h1>
             <p className="font-body-sm text-xs text-on-surface-variant">
-              {data.questions.length} questions{data.reward_etb ? ` · ${data.reward_etb} ETB reward` : ""}
+              {totalQuestionCount} questions{data.reward_etb ? ` · ${data.reward_etb} ETB reward` : ""}
             </p>
           </div>
 
@@ -325,9 +345,9 @@ export function SurveyFillPage() {
         <div className="space-y-1">
           <div className="flex items-center justify-between text-[11px] font-medium text-on-surface-variant">
             <span>
-              {answeredCount === data.questions.length
+              {answeredCount === totalQuestionCount
                 ? "All questions answered"
-                : `${answeredCount} of ${data.questions.length} answered`}
+                : `${answeredCount} of ${totalQuestionCount} answered`}
             </span>
             <span>{progressPercent}%</span>
           </div>
@@ -359,20 +379,62 @@ export function SurveyFillPage() {
           handleSubmit();
         }}
       >
-        {data.questions.map((question, index) => (
-          <Card key={question.id}>
-            <p className="font-semibold text-sm mb-3 text-slate-800">{questionText(question, index)}</p>
-            <QuestionInput
-              onBlur={() => timer.blurQuestion(question.id)}
-              onChange={(val) => updateAnswer(question.id, val)}
-              onFocus={() => timer.focusQuestion(question.id)}
-              onKeystroke={() => textMetrics.recordKeystroke(question.id)}
-              onPaste={() => textMetrics.recordPaste(question.id)}
-              question={question}
-              value={answers[question.id] || ""}
-            />
-          </Card>
-        ))}
+        {data.questions.map((question, index) => {
+          if (isSectionHeader(question.text)) {
+            return (
+              <div
+                key={question.id}
+                id={`question-card-${question.id}`}
+                className="pt-6 pb-2 border-b border-primary/20 flex items-center gap-2"
+              >
+                <div className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[18px]">bookmark</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-primary tracking-widest uppercase block">
+                    Section
+                  </span>
+                  <h3 className="text-base font-bold text-on-surface">
+                    {questionText(question, index)}
+                  </h3>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <Card
+              key={question.id}
+              id={`question-card-${question.id}`}
+              className={questionErrors[question.id] ? "border border-error/60 ring-1 ring-error/20" : undefined}
+            >
+              <p className="font-semibold text-sm mb-3 text-slate-800">{questionText(question, index)}</p>
+              <QuestionInput
+                onBlur={() => timer.blurQuestion(question.id)}
+                onChange={(val) => {
+                  updateAnswer(question.id, val);
+                  if (questionErrors[question.id]) {
+                    setQuestionErrors((prev) => {
+                      const next = { ...prev };
+                      delete next[question.id];
+                      return next;
+                    });
+                  }
+                }}
+                onFocus={() => timer.focusQuestion(question.id)}
+                onKeystroke={() => textMetrics.recordKeystroke(question.id)}
+                onPaste={() => textMetrics.recordPaste(question.id)}
+                question={question}
+                value={answers[question.id] || ""}
+              />
+              {questionErrors[question.id] && (
+                <p className="mt-2 text-xs text-error font-medium flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  {questionErrors[question.id]}
+                </p>
+              )}
+            </Card>
+          );
+        })}
 
         {validationError && <Notice tone="error">{validationError}</Notice>}
 
@@ -382,7 +444,7 @@ export function SurveyFillPage() {
             loading={submit.isPending}
             type="submit"
           >
-            Submit Response ({answeredCount}/{data.questions.length})
+            Submit Response ({answeredCount}/{totalQuestionCount})
           </Button>
         </div>
       </form>

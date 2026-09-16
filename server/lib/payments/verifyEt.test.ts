@@ -8,7 +8,7 @@ import {
 
 describe("verify.et Transaction Reconciliation Service (v4 §4.6.1, §3.5, §7.4 item 12)", () => {
   beforeEach(() => {
-    env.allowVerifyEtStub = true;
+    (env as any).allowVerifyEtStub = true;
   });
   it("supports all required Ethiopian payment rails and banks", () => {
     expect(VERIFY_ET_SUPPORTED_PROVIDERS).toContain("telebirr");

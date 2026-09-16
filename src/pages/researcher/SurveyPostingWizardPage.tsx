@@ -109,7 +109,7 @@ export function SurveyPostingWizardPage() {
     queryFn: () => api<{ surveys: SurveyRecord[] }>("/surveys"),
   });
 
-  const surveys = surveysData?.surveys || [];
+  const surveys = useMemo(() => surveysData?.surveys || [], [surveysData?.surveys]);
 
   // Filter available drafts (favor final_draft or editable drafts)
   const availableDrafts = useMemo(() => {

@@ -159,6 +159,35 @@ ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS subscription_tier text 
 ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS subscription_expires_at timestamptz;
 ALTER TABLE researcher_profiles ADD COLUMN IF NOT EXISTS social_links jsonb NOT NULL DEFAULT '{}'::jsonb;
 
+-- Compliance Category Rules Table (§7.4 item 1, §5, §7.1)
+CREATE TABLE IF NOT EXISTS compliance_category_rules (
+  id text PRIMARY KEY,
+  name text NOT NULL,
+  requires_document boolean NOT NULL DEFAULT false,
+  description text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Seed starter compliance categories
+INSERT INTO compliance_category_rules (id, name, requires_document, description)
+VALUES
+  ('human_subjects', 'Human-subjects research', true, 'Studies involving interaction with human participants or identifiable private data require IRB / ethical clearance.'),
+  ('health_medical', 'Health/medical studies', true, 'Health and medical studies require formal medical or health research ethics committee clearance.'),
+  ('minors', 'Studies involving minors', true, 'Studies involving minors (<18) require institutional and ethical compliance clearance and guardian protocol.'),
+  ('financial_data', 'Financial-data collection', true, 'Financial data collection studies require institutional regulatory and data privacy clearance.'),
+  ('market_consumer', 'Market & Consumer Research', false, 'General consumer preference, brand perception, and market trends research.'),
+  ('social_science', 'Social Science & Public Opinion', false, 'General public sentiment, sociological inquiries, and non-sensitive social research.'),
+  ('education_academic', 'General Education & Academic Feedback', false, 'Course evaluations, academic feedback, and pedagogical methodology surveys.'),
+  ('product_usability', 'Product Usability & UI/UX Testing', false, 'Software usability, user interface feedback, and product experience studies.'),
+  ('agriculture_rural', 'Agriculture & Rural Development', false, 'Agricultural practices, rural development surveys, and farming technique feedback.'),
+  ('other', 'General / Other Research', false, 'Other non-sensitive research topics.')
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  requires_document = EXCLUDED.requires_document,
+  description = EXCLUDED.description,
+  updated_at = now();
+
 -- Surveys Table
 CREATE TABLE IF NOT EXISTS surveys (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -169,20 +198,30 @@ CREATE TABLE IF NOT EXISTS surveys (
   translations jsonb NOT NULL DEFAULT '{}'::jsonb,
   target_filters jsonb,
   status survey_status NOT NULL DEFAULT 'draft',
+  builder_type text CHECK (builder_type IN ('manual', 'import', 'ai')) DEFAULT 'manual',
   reward_etb numeric(10,2),
   escrow_etb numeric(12,2) NOT NULL DEFAULT 0 CHECK (escrow_etb >= 0),
+  research_category text,
+  compliance_required boolean DEFAULT false,
+  compliance_rule_triggered text,
   compliance_answer boolean,
   compliance_document_path text,
   review_notes text,
   reviewed_by uuid REFERENCES users(id),
   reviewed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
   sent_at timestamptz
 );
 
 -- Ensure surveys columns exist if table was already created in earlier migration
 ALTER TABLE surveys ADD COLUMN IF NOT EXISTS description text;
 ALTER TABLE surveys ADD COLUMN IF NOT EXISTS escrow_etb numeric(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS builder_type text CHECK (builder_type IN ('manual', 'import', 'ai')) DEFAULT 'manual';
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS research_category text;
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS compliance_required boolean DEFAULT false;
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS compliance_rule_triggered text;
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS idx_surveys_researcher ON surveys (researcher_id);
 CREATE INDEX IF NOT EXISTS idx_surveys_status ON surveys (status);
@@ -220,25 +259,48 @@ CREATE INDEX IF NOT EXISTS idx_responses_respondent ON survey_responses (respond
 -- 4. Financial Ledgers & Transactions
 -- ----------------------------------------------------------------------------
 
--- Researcher Deposits Table (Telebirr, CBE Birr, Bank Transfer)
+-- Researcher Deposits Table (Telebirr, CBE, CBE Birr, BOA, Dashen, Awash, Siinqee, Kaafi, Bank Transfer)
 CREATE TABLE IF NOT EXISTS researcher_deposits (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   researcher_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   amount_etb numeric(12,2) NOT NULL CHECK (amount_etb > 0),
-  method text NOT NULL CHECK (method IN ('telebirr', 'cbe_birr', 'bank_transfer')),
+  method text NOT NULL CHECK (method IN (
+    'telebirr', 'cbe', 'cbe_birr', 'boa', 'dashen', 'awash', 'siinqee', 'kaafi_ebirr', 'bank_transfer'
+  )),
   reference text NOT NULL,
   provider_ref text,
-  status text NOT NULL DEFAULT 'completed' CHECK (status IN ('pending', 'completed', 'failed')),
+  sender_detail text,
+  idempotency_key text,
+  verification_status text DEFAULT 'pending',
+  verification_response jsonb,
+  status text NOT NULL DEFAULT 'completed' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'needs_review')),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz,
   UNIQUE (researcher_id, reference)
 );
 
--- Ensure researcher_deposits columns exist if table was already created in earlier migration
+-- Ensure researcher_deposits columns and constraints exist if table was already created in earlier migration
+ALTER TABLE researcher_deposits DROP CONSTRAINT IF EXISTS researcher_deposits_method_check;
+ALTER TABLE researcher_deposits
+  ADD CONSTRAINT researcher_deposits_method_check
+  CHECK (method IN (
+    'telebirr', 'cbe', 'cbe_birr', 'boa', 'dashen', 'awash', 'siinqee', 'kaafi_ebirr', 'bank_transfer'
+  ));
+
+ALTER TABLE researcher_deposits DROP CONSTRAINT IF EXISTS researcher_deposits_status_check;
+ALTER TABLE researcher_deposits
+  ADD CONSTRAINT researcher_deposits_status_check
+  CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'needs_review'));
+
 ALTER TABLE researcher_deposits ADD COLUMN IF NOT EXISTS provider_ref text;
+ALTER TABLE researcher_deposits ADD COLUMN IF NOT EXISTS sender_detail text;
+ALTER TABLE researcher_deposits ADD COLUMN IF NOT EXISTS idempotency_key text;
+ALTER TABLE researcher_deposits ADD COLUMN IF NOT EXISTS verification_status text DEFAULT 'pending';
+ALTER TABLE researcher_deposits ADD COLUMN IF NOT EXISTS verification_response jsonb;
 ALTER TABLE researcher_deposits ADD COLUMN IF NOT EXISTS updated_at timestamptz;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_deposits_reference ON researcher_deposits (reference);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deposits_idempotency ON researcher_deposits (idempotency_key) WHERE idempotency_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_deposits_researcher ON researcher_deposits (researcher_id);
 
 -- Respondent Payouts Table
@@ -264,11 +326,30 @@ CREATE TABLE IF NOT EXISTS respondent_withdrawals (
   amount_etb numeric(12,2) NOT NULL CHECK (amount_etb >= 100),
   method text NOT NULL CHECK (method IN ('telebirr', 'cbe_birr')),
   account_number text NOT NULL,
-  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed')),
-  created_at timestamptz NOT NULL DEFAULT now()
+  reference text,
+  provider_ref text,
+  verification_status text DEFAULT 'pending',
+  verification_notes text,
+  verification_response jsonb,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'paid', 'failed', 'needs_review')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
 );
 
+ALTER TABLE respondent_withdrawals DROP CONSTRAINT IF EXISTS respondent_withdrawals_status_check;
+ALTER TABLE respondent_withdrawals
+  ADD CONSTRAINT respondent_withdrawals_status_check
+  CHECK (status IN ('pending', 'processing', 'completed', 'paid', 'failed', 'needs_review'));
+
+ALTER TABLE respondent_withdrawals ADD COLUMN IF NOT EXISTS reference text;
+ALTER TABLE respondent_withdrawals ADD COLUMN IF NOT EXISTS provider_ref text;
+ALTER TABLE respondent_withdrawals ADD COLUMN IF NOT EXISTS verification_status text DEFAULT 'pending';
+ALTER TABLE respondent_withdrawals ADD COLUMN IF NOT EXISTS verification_notes text;
+ALTER TABLE respondent_withdrawals ADD COLUMN IF NOT EXISTS verification_response jsonb;
+ALTER TABLE respondent_withdrawals ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+
 CREATE INDEX IF NOT EXISTS idx_withdrawals_respondent ON respondent_withdrawals (respondent_id);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_reference ON respondent_withdrawals (reference) WHERE reference IS NOT NULL;
 
 -- Researcher Charges (Platform Subscriptions, Add-ons)
 CREATE TABLE IF NOT EXISTS researcher_charges (
@@ -302,6 +383,27 @@ CREATE TABLE IF NOT EXISTS translation_cache (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Notifications Table (Respondents, Researchers, Admins)
+CREATE TABLE IF NOT EXISTS notifications (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title text NOT NULL,
+  title_am text,
+  body text NOT NULL,
+  body_am text,
+  type text NOT NULL CHECK (type IN ('survey', 'earnings', 'withdrawal', 'verification', 'announcement', 'security')),
+  action_label text NOT NULL,
+  action_label_am text,
+  action_url text NOT NULL,
+  is_read boolean NOT NULL DEFAULT false,
+  event_key text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  read_at timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_user_event ON notifications(user_id, event_key) WHERE event_key IS NOT NULL;
+
 -- ----------------------------------------------------------------------------
 -- 5. Triggers & Helper Functions
 -- ----------------------------------------------------------------------------
@@ -319,6 +421,10 @@ CREATE TRIGGER trg_users_updated_at BEFORE UPDATE ON users
 
 DROP TRIGGER IF EXISTS trg_profiles_updated_at ON respondent_profiles;
 CREATE TRIGGER trg_profiles_updated_at BEFORE UPDATE ON respondent_profiles
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_surveys_updated_at ON surveys;
+CREATE TRIGGER trg_surveys_updated_at BEFORE UPDATE ON surveys
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ----------------------------------------------------------------------------
@@ -417,6 +523,8 @@ ALTER TABLE respondent_withdrawals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE researcher_charges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE consent_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE translation_cache ENABLE ROW LEVEL SECURITY;
+ALTER TABLE compliance_category_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
 -- Users RLS
 DROP POLICY IF EXISTS "users read self" ON users;
@@ -559,3 +667,28 @@ CREATE POLICY "user reads own consent events" ON consent_events FOR SELECT USING
 
 DROP POLICY IF EXISTS "user inserts own consent events" ON consent_events;
 CREATE POLICY "user inserts own consent events" ON consent_events FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Compliance Category Rules RLS
+DROP POLICY IF EXISTS "anyone can read compliance category rules" ON compliance_category_rules;
+CREATE POLICY "anyone can read compliance category rules" ON compliance_category_rules FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "admin manages compliance category rules" ON compliance_category_rules;
+CREATE POLICY "admin manages compliance category rules" ON compliance_category_rules
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
+  );
+
+-- Notifications RLS
+DROP POLICY IF EXISTS "user reads own notifications" ON notifications;
+CREATE POLICY "user reads own notifications" ON notifications
+  FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "user updates own notifications" ON notifications;
+CREATE POLICY "user updates own notifications" ON notifications
+  FOR UPDATE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "admin manages all notifications" ON notifications;
+CREATE POLICY "admin manages all notifications" ON notifications
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
+  );
