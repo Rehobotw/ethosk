@@ -96,13 +96,36 @@ export function RespondentOnboardingPage() {
   const [region, setRegion] = useState("");
   const [educationLevel, setEducationLevel] = useState("");
   const [employmentStatus, setEmploymentStatus] = useState("");
+  const [step2FieldErrors, setStep2FieldErrors] = useState<Record<string, string>>({});
 
   const handleStep2Submit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    const fieldErrors: Record<string, string> = {};
+
     if (!fullName.trim()) {
-      setErrorMsg(isAm ? "እባክዎ ሙሉ የህግ ስምዎን ያስገቡ።" : "Please enter your full legal name.");
+      fieldErrors.full_name = isAm ? "እባክዎ ሙሉ የህግ ስምዎን ያስገቡ።" : "Please enter your full legal name.";
+    }
+
+    // Client-side DOB age check
+    if (dob.trim()) {
+      const d = new Date(dob.trim());
+      if (!isNaN(d.getTime())) {
+        const now = new Date();
+        let age = now.getFullYear() - d.getFullYear();
+        const m = now.getMonth() - d.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+        if (age < 15 || age > 100) {
+          fieldErrors.dob = isAm ? "ዕድሜ ከ15 እስከ 100 መሆን አለበት" : "Age must be between 15 and 100.";
+        }
+      }
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setStep2FieldErrors(fieldErrors);
       return;
     }
+
+    setStep2FieldErrors({});
     setErrorMsg(null);
     try {
       await api("/respondents/profile", {
@@ -117,10 +140,21 @@ export function RespondentOnboardingPage() {
         },
       });
       await refresh();
-    } catch {
-      // Allow progression in client/mock mode
+      setStep(3);
+    } catch (err: any) {
+      // Map server-side field errors back to inline messages
+      if (err?.fields && Array.isArray(err.fields) && err.fields.length > 0) {
+        const mapped: Record<string, string> = {};
+        for (const field of err.fields) {
+          mapped[field] = err.message || (isAm ? "ትክክለኛ ያልሆነ ዋጋ" : "Invalid value.");
+        }
+        setStep2FieldErrors(mapped);
+        // Keep user on Step 2 if there are real field errors
+        return;
+      }
+      // Non-field errors (network, etc.): allow progression in client/mock mode
+      setStep(3);
     }
-    setStep(3);
   };
 
   return (
@@ -185,12 +219,20 @@ export function RespondentOnboardingPage() {
                 <input
                   id="fullName"
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  onChange={(e) => {
+                    setFullName(e.target.value);
+                    if (step2FieldErrors.full_name) setStep2FieldErrors((p) => { const n = {...p}; delete n.full_name; return n; });
+                  }}
                   placeholder={isAm ? "ሙሉ ስም" : "Full Legal Name"}
                   type="text"
                   required
-                  className="w-full px-4 py-2.5 sm:py-3 rounded-lg border border-[#c1c7cc] bg-white focus:outline-none focus:border-[#003345] focus:ring-2 focus:ring-[#003345]/10 transition-all text-xs sm:text-sm text-[#0b1c30] placeholder:text-[#71787c]/70 outline-none"
+                  className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border bg-white focus:outline-none transition-all text-xs sm:text-sm text-[#0b1c30] placeholder:text-[#71787c]/70 outline-none ${
+                    step2FieldErrors.full_name ? "border-red-500 focus:border-red-500" : "border-[#c1c7cc] focus:border-[#003345] focus:ring-2 focus:ring-[#003345]/10"
+                  }`}
                 />
+                {step2FieldErrors.full_name && (
+                  <p className="mt-1 text-xs font-medium text-red-600">{step2FieldErrors.full_name}</p>
+                )}
               </div>
 
               {/* Field 2: Phone Number */}
@@ -217,11 +259,19 @@ export function RespondentOnboardingPage() {
                   <input
                     id="dob"
                     value={dob}
-                    onChange={(e) => setDob(e.target.value)}
+                    onChange={(e) => {
+                      setDob(e.target.value);
+                      if (step2FieldErrors.dob) setStep2FieldErrors((p) => { const n = {...p}; delete n.dob; return n; });
+                    }}
                     placeholder="MM/DD/YYYY"
                     type="text"
-                    className="w-full px-4 py-2.5 sm:py-3 rounded-lg border border-[#c1c7cc] bg-white focus:outline-none focus:border-[#003345] focus:ring-2 focus:ring-[#003345]/10 transition-all text-xs sm:text-sm text-[#0b1c30] placeholder:text-[#71787c]/70 outline-none"
+                    className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border bg-white focus:outline-none transition-all text-xs sm:text-sm text-[#0b1c30] placeholder:text-[#71787c]/70 outline-none ${
+                      step2FieldErrors.dob ? "border-red-500 focus:border-red-500" : "border-[#c1c7cc] focus:border-[#003345] focus:ring-2 focus:ring-[#003345]/10"
+                    }`}
                   />
+                  {step2FieldErrors.dob && (
+                    <p className="mt-1 text-xs font-medium text-red-600">{step2FieldErrors.dob}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[#41484E] text-[11px] font-semibold tracking-wider mb-1.5 uppercase" htmlFor="gender">

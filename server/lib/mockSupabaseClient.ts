@@ -9,7 +9,7 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import crypto from "node:crypto";
-import { mockStore, type UserRecord, type RespondentProfileRecord, type ResearcherProfileRecord, type SurveyRecord, type DocumentRecord, type ResearcherDepositRecord, type RespondentPayoutRecord, type RespondentWithdrawalRecord } from "./mockStore.js";
+import { mockStore, type UserRecord, type RespondentProfileRecord, type ResearcherProfileRecord, type SurveyRecord, type DocumentRecord, type ResearcherDepositRecord, type RespondentPayoutRecord, type RespondentWithdrawalRecord, type NotificationRecord } from "./mockStore.js";
 
 function getTierRank(tier?: string): number {
   switch (tier) {
@@ -78,6 +78,8 @@ class QueryBuilder {
           ...d,
           user: mockStore.users.get(d.user_id) || null,
         }));
+      case "notifications":
+        return mockStore.notifications.map((n) => ({ ...n }));
       case "consent_events":
         return mockStore.consentEvents.map((c: any) => ({
           ...c,
@@ -352,6 +354,18 @@ class QueryBuilder {
           case "documents":
             mockStore.documents.push(newItem as DocumentRecord);
             break;
+          case "notifications": {
+            const notifItem = { is_read: false, ...newItem };
+            const existing = mockStore.notifications.findIndex(
+              (n) => (item.id && n.id === item.id) || (item.event_key && n.user_id === item.user_id && n.event_key === item.event_key)
+            );
+            if (existing >= 0) {
+              mockStore.notifications[existing] = { ...mockStore.notifications[existing], ...notifItem } as NotificationRecord;
+            } else {
+              mockStore.notifications.push(notifItem as NotificationRecord);
+            }
+            break;
+          }
           case "consent_events":
             mockStore.consentEvents.push(newItem);
             break;
@@ -408,6 +422,11 @@ class QueryBuilder {
           case "consent_events": {
             const idx = mockStore.consentEvents.findIndex((c: any) => c.id === row.id);
             if (idx >= 0) mockStore.consentEvents[idx] = updated as any;
+            break;
+          }
+          case "notifications": {
+            const idx = mockStore.notifications.findIndex((n) => n.id === row.id);
+            if (idx >= 0) mockStore.notifications[idx] = updated as NotificationRecord;
             break;
           }
         }

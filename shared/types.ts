@@ -247,6 +247,22 @@ export interface Question {
   };
 }
 
+/**
+ * Detects whether a question prompt is a section divider or informational header
+ * rather than a question that expects a respondent answer (e.g. "SECTION A — CURRENT RESEARCH EXPERIENCE").
+ */
+export function isSectionHeader(text?: string | null): boolean {
+  if (!text) return false;
+  const t = text.trim();
+  if (/^(?:SECTION|PART|MODULE)\s+[A-Z0-9]+(?:\s*[-—–:]\s*.*)?$/i.test(t)) {
+    return true;
+  }
+  if (/^(?:SECTION|PART|MODULE)\b/i.test(t) && !t.includes("?") && t.length < 120) {
+    return true;
+  }
+  return false;
+}
+
 export const BUILDER_TYPES = ["manual", "import", "ai"] as const;
 export type BuilderType = (typeof BUILDER_TYPES)[number];
 

@@ -84,7 +84,14 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 export function useLanguage() {
   const context = useContext(LanguageContext);
   if (!context) {
-    throw new Error("useLanguage must be used within a LanguageProvider");
+    const saved = typeof window !== "undefined" ? (localStorage.getItem(STORAGE_KEY) as Language) : "en";
+    const language: Language = saved === "en" || saved === "am" ? saved : "en";
+    return {
+      language,
+      setLanguage: () => {},
+      toggleLanguage: () => {},
+      t: (path: string) => path,
+    };
   }
   return context;
 }

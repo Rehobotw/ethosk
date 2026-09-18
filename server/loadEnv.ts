@@ -1,8 +1,8 @@
 import dotenv from "dotenv";
 
 /**
- * Side-effect module: loads environment files for every Node entry point (the API
- * server and the scripts under `scripts/`).
+ * Side-effect module: loads environment files for Node entry points (such as the API
+ * server).
  *
  * `.env.local` is read first because dotenv keeps the first value it sees for a
  * given key, so local overrides win over `.env`. Vite does this automatically for

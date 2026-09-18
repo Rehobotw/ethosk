@@ -37,17 +37,21 @@ export function RespondentAvatar({
   compact = false,
   customNavigateTo = "/respondent/profile",
 }: RespondentAvatarProps = {}) {
-  let user: any = null;
+  let user: ReturnType<typeof useAuth>["user"] = null;
   try {
     const auth = useAuth();
     user = auth?.user ?? null;
-  } catch {}
+  } catch {
+    // Rendered outside AuthProvider context
+  }
 
   let language = "en";
   try {
     const lang = useLanguage();
     language = lang?.language ?? "en";
-  } catch {}
+  } catch {
+    // Rendered outside LanguageProvider context
+  }
 
   const isAm = language === "am";
   const name = fullName || user?.full_name || user?.email || "Respondent";

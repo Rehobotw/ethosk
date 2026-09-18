@@ -93,13 +93,16 @@ export function DocumentsPage() {
   // Document upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const [docType, setDocType] = useState<DocType>("student_id");
+  const [docType, setDocType] = useState<DocType>(institutionType === "corporate" ? "employer_id" : "student_id");
   const [clientError, setClientError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
 
   const currentRank = user ? TIER_RANK[user.verification_tier] : 0;
   const isTier1Completed = currentRank >= TIER_RANK["1_id_verified"];
   const isTier2Verified = currentRank >= TIER_RANK["2_attribute_verified"];
+  useEffect(() => {
+    setDocType(institutionType === "corporate" ? "employer_id" : "student_id");
+  }, [institutionType]);
 
   const { data: profile } = useQuery({
     queryKey: ["respondent-profile"],
@@ -173,13 +176,15 @@ export function DocumentsPage() {
 
   const upload = useMutation({
     mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("doc_type", docType);
+      formData.append("document_type", docType);
+      formData.append("file_name", file.name);
+      formData.append("file_size", file.size.toString());
+      formData.append("mime_type", file.type);
       return api("/respondents/verify-document", {
-        body: {
-          document_type: docType,
-          file_name: file.name,
-          file_size: file.size,
-          mime_type: file.type,
-        },
+        formData,
       });
     },
     onSuccess: () => {
