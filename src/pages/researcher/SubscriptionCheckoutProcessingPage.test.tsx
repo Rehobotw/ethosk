@@ -1,36 +1,46 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SubscriptionCheckoutProcessingPage } from "./SubscriptionCheckoutProcessingPage";
 import { LanguageProvider } from "@/lib/language";
+import * as apiModule from "@/lib/api";
 
-function renderSubscriptionCheckoutProcessingPage() {
+function renderSubscriptionCheckoutProcessingPage(queryClient: QueryClient) {
   return render(
-    <LanguageProvider>
-      <MemoryRouter initialEntries={["/subscription/checkout/processing?plan=pro&billing=annual"]}>
-        <Routes>
-          <Route
-            path="/subscription/checkout/processing"
-            element={<SubscriptionCheckoutProcessingPage />}
-          />
-          <Route
-            path="/subscription/checkout/success"
-            element={<div>Checkout Success Screen</div>}
-          />
-        </Routes>
-      </MemoryRouter>
-    </LanguageProvider>,
+    <QueryClientProvider client={queryClient}>
+      <LanguageProvider>
+        <MemoryRouter initialEntries={["/subscription/checkout/processing?plan=pro&billing=annual"]}>
+          <Routes>
+            <Route
+              path="/subscription/checkout/processing"
+              element={<SubscriptionCheckoutProcessingPage />}
+            />
+            <Route
+              path="/subscription/checkout/success"
+              element={<div>Checkout Success Screen</div>}
+            />
+          </Routes>
+        </MemoryRouter>
+      </LanguageProvider>
+    </QueryClientProvider>,
   );
 }
 
 describe("Ethosk - Subscription Checkout: Processing (Stitch Screen 2adc77615764481cbf7c3199b440fdc8)", () => {
+  let queryClient: QueryClient;
+
   beforeEach(() => {
     localStorage.setItem("ethosk-language", "en");
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     vi.clearAllMocks();
   });
 
   it("renders processing modal, lock icon, and order preview summary", () => {
-    renderSubscriptionCheckoutProcessingPage();
+    vi.spyOn(apiModule, "api").mockReturnValue(new Promise(() => {}));
+    renderSubscriptionCheckoutProcessingPage(queryClient);
 
     expect(screen.getByRole("heading", { name: "Processing Payment" })).toBeDefined();
     expect(
@@ -42,19 +52,44 @@ describe("Ethosk - Subscription Checkout: Processing (Stitch Screen 2adc77615764
     expect(screen.getByText("Tax (VAT 15%)")).toBeDefined();
   });
 
-  it("allows skipping to success screen via demo button", () => {
-    renderSubscriptionCheckoutProcessingPage();
+  it("calls /wallet/researcher/subscription API and navigates to success on successful charge", async () => {
+    vi.spyOn(apiModule, "api").mockResolvedValue({
+      profile: { subscription_tier: "subscribed" },
+      wallet: { available_etb: 4500 },
+    });
 
-    const skipBtn = screen.getByRole("button", { name: /Skip to Success/i });
-    fireEvent.click(skipBtn);
+    renderSubscriptionCheckoutProcessingPage(queryClient);
 
-    expect(screen.getByText("Checkout Success Screen")).toBeDefined();
+    await waitFor(() => {
+      expect(screen.getByText("Checkout Success Screen")).toBeDefined();
+    });
   });
 
-  it("handles Amharic translations", () => {
-    localStorage.setItem("ethosk-language", "am");
+  it("displays payment failure state and wallet deposit action when balance is insufficient", async () => {
+    vi.spyOn(apiModule, "api").mockRejectedValue(
+      new apiModule.ApiRequestError(
+        402,
+        "INSUFFICIENT_FUNDS",
+        "You do not have enough available balance to purchase a subscription.",
+      ),
+    );
 
-    renderSubscriptionCheckoutProcessingPage();
+    renderSubscriptionCheckoutProcessingPage(queryClient);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Payment Failed" })).toBeDefined();
+      expect(
+        screen.getByText(/You do not have enough available balance to purchase a subscription/i),
+      ).toBeDefined();
+      expect(screen.getByRole("button", { name: /Add Funds to Wallet/i })).toBeDefined();
+    });
+  });
+
+  it("handles Amharic translations during processing", () => {
+    localStorage.setItem("ethosk-language", "am");
+    vi.spyOn(apiModule, "api").mockReturnValue(new Promise(() => {}));
+
+    renderSubscriptionCheckoutProcessingPage(queryClient);
 
     expect(screen.getByRole("heading", { name: "ክፍያ በመከናወን ላይ ነው" })).toBeDefined();
     expect(

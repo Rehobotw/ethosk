@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/lib/language";
+import { api, ApiRequestError } from "@/lib/api";
 
 type IssueCategory = "general" | "account" | "billing" | "survey" | "verification" | "other";
 
@@ -14,6 +15,8 @@ export function ContactSupportPage() {
   const [category, setCategory] = useState<IssueCategory>("general");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSelectCardCategory = (cat: IssueCategory) => {
     setCategory(cat);
@@ -23,10 +26,27 @@ export function ContactSupportPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ticketId = `ETH-${Math.floor(1000 + Math.random() * 9000)}`;
-    navigate(`/contact/success?ticket=${ticketId}&category=${category}`);
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const res = await api<{ success: boolean; ticket: { id: string; ticket_number: string } }>("/support/tickets", {
+        body: { name, email, category, subject, message },
+      });
+      const ticketId = res.ticket.ticket_number;
+      navigate(`/contact/success?ticket=${encodeURIComponent(ticketId)}&category=${encodeURIComponent(category)}`);
+    } catch (err: unknown) {
+      let msg = "Failed to submit support ticket. Please try again.";
+      if (err instanceof ApiRequestError) {
+        msg = err.message;
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
+      setErrorMessage(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -161,6 +181,15 @@ export function ContactSupportPage() {
             className="lg:col-span-8 bg-white border border-[#c0c7d0]/60 rounded-xl p-6 md:p-8 shadow-xs"
           >
             <form onSubmit={handleSubmit} className="space-y-5">
+              {errorMessage && (
+                <div
+                  data-testid="support-form-error"
+                  className="p-3.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-medium"
+                >
+                  {errorMessage}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label htmlFor="name" className="block text-xs font-semibold text-[#131b2e] mb-1.5">
@@ -261,9 +290,12 @@ export function ContactSupportPage() {
 
                 <button
                   type="submit"
-                  className="w-full sm:w-auto bg-gradient-to-br from-[#005985] to-[#2872a1] text-white text-xs font-bold px-6 py-3 rounded-lg hover:opacity-95 transition-opacity shadow-xs cursor-pointer"
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto bg-gradient-to-br from-[#005985] to-[#2872a1] text-white text-xs font-bold px-6 py-3 rounded-lg hover:opacity-95 transition-opacity shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isAm ? "የድጋፍ ጥያቄ ላክ" : "Send Support Request"}
+                  {isSubmitting
+                    ? isAm ? "በመላክ ላይ..." : "Submitting..."
+                    : isAm ? "የድጋፍ ጥያቄ ላክ" : "Send Support Request"}
                 </button>
               </div>
             </form>

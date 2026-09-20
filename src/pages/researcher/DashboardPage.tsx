@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ResearcherWallet, SurveyRecord } from "@shared/types";
 import { Icon, LoadingBlock, Notice } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useLanguage } from "@/lib/language";
 
 interface SurveyWithStats extends SurveyRecord {
   response_count?: number;
@@ -15,6 +16,8 @@ interface SurveyWithStats extends SurveyRecord {
 type TabKey = "ongoing" | "wip" | "final_draft" | "completed";
 
 export function DashboardPage() {
+  const { language, t } = useLanguage();
+  const isAm = language === "am";
   const [activeTab, setActiveTab] = useState<TabKey>("ongoing");
 
   const { data: surveysData, isLoading: surveysLoading, error: surveysError } = useQuery({
@@ -66,10 +69,12 @@ export function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-headline-lg font-bold text-[#0D253A] tracking-tight">
-            Research Operations Monitor
+            {isAm ? t("researcher.operations_monitor") : "Research Operations Monitor"}
           </h1>
           <p className="text-base text-on-surface-variant max-w-2xl mt-1">
-            Real-time oversight of active studies, respondent acquisition, and operational metrics.
+            {isAm
+              ? t("researcher.operations_subtitle")
+              : "Real-time oversight of active studies, respondent acquisition, and operational metrics."}
           </p>
         </div>
 
@@ -79,7 +84,7 @@ export function DashboardPage() {
             type="button"
           >
             <Icon className="text-[18px]" name="add" />
-            <span>New Research</span>
+            <span>{isAm ? t("researcher.new_research") : "New Research"}</span>
           </button>
         </Link>
       </div>
@@ -90,7 +95,7 @@ export function DashboardPage() {
         <div className="bg-white rounded-xl border border-outline-variant/40 p-6 hover:border-primary transition-all shadow-[0_4px_20px_rgba(0,89,133,0.04)] group">
           <div className="flex justify-between items-start mb-4">
             <p className="font-label-md text-xs font-semibold text-[#5A6E7F] uppercase tracking-wider">
-              Active Studies
+              {isAm ? t("researcher.live_studies") : "Active Studies"}
             </p>
             <span className="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg text-lg">
               assignment
@@ -103,7 +108,15 @@ export function DashboardPage() {
             <span className="material-symbols-outlined text-[14px] text-emerald-600 font-bold">
               trending_up
             </span>
-            <span>{ongoingSurveys.length > 0 ? `${ongoingSurveys.length} currently live` : "No active studies"}</span>
+            <span>
+              {ongoingSurveys.length > 0
+                ? isAm
+                  ? `${ongoingSurveys.length} በአሁኑ ጊዜ ንቁ`
+                  : `${ongoingSurveys.length} currently live`
+                : isAm
+                ? "ምንም ንቁ ጥናቶች የሉም"
+                : "No active studies"}
+            </span>
           </div>
         </div>
 
@@ -111,7 +124,7 @@ export function DashboardPage() {
         <div className="bg-white rounded-xl border border-outline-variant/40 p-6 hover:border-primary transition-all shadow-[0_4px_20px_rgba(0,89,133,0.04)] group">
           <div className="flex justify-between items-start mb-4">
             <p className="font-label-md text-xs font-semibold text-[#5A6E7F] uppercase tracking-wider">
-              Respondents Reached
+              {isAm ? t("researcher.respondents_reached") : "Respondents Reached"}
             </p>
             <span className="material-symbols-outlined text-secondary bg-secondary/10 p-1.5 rounded-lg text-lg">
               groups
@@ -124,7 +137,15 @@ export function DashboardPage() {
             <span className="material-symbols-outlined text-[14px] text-emerald-600 font-bold">
               trending_up
             </span>
-            <span>{totalResponses > 0 ? `+${totalResponses} collected` : "0 in last 24h"}</span>
+            <span>
+              {totalResponses > 0
+                ? isAm
+                  ? `+${totalResponses} ምላሾች ተሰብስበዋል`
+                  : `+${totalResponses} collected`
+                : isAm
+                ? "ባለፉት 24 ሰዓት ውስጥ 0"
+                : "0 in last 24h"}
+            </span>
           </div>
         </div>
 
@@ -132,7 +153,7 @@ export function DashboardPage() {
         <div className="bg-white rounded-xl border border-outline-variant/40 p-6 hover:border-primary transition-all shadow-[0_4px_20px_rgba(0,89,133,0.04)] group">
           <div className="flex justify-between items-start mb-4">
             <p className="font-label-md text-xs font-semibold text-[#5A6E7F] uppercase tracking-wider">
-              Wallet Balance
+              {isAm ? t("researcher.wallet_balance") : "Wallet Balance"}
             </p>
             <span className="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg text-lg">
               account_balance_wallet
@@ -144,7 +165,7 @@ export function DashboardPage() {
           </p>
           <div className="mt-2 flex items-center gap-1 text-on-surface-variant text-xs">
             <span className="material-symbols-outlined text-[14px]">history</span>
-            <span>Automated escrow holds enabled</span>
+            <span>{isAm ? "አውቶማቲክ የተያዘ የሂሳብ አሰራር በርቷል" : "Automated escrow holds enabled"}</span>
           </div>
         </div>
 
@@ -152,7 +173,7 @@ export function DashboardPage() {
         <div className="bg-white rounded-xl border border-outline-variant/40 p-6 hover:border-primary transition-all shadow-[0_4px_20px_rgba(0,89,133,0.04)] group">
           <div className="flex justify-between items-start mb-4">
             <p className="font-label-md text-xs font-semibold text-[#5A6E7F] uppercase tracking-wider">
-              Active Drafts
+              {isAm ? t("researcher.active_drafts") : "Active Drafts"}
             </p>
             <span className="material-symbols-outlined text-secondary bg-secondary/10 p-1.5 rounded-lg text-lg">
               draft
@@ -164,7 +185,11 @@ export function DashboardPage() {
           <div className="mt-2 flex items-center gap-1 text-on-surface-variant text-xs">
             <span>
               {wipSurveys.length + finalDraftSurveys.length > 0
-                ? `${wipSurveys.length} in progress, ${finalDraftSurveys.length} final drafts`
+                ? isAm
+                  ? `${wipSurveys.length} በመስራት ላይ፣ ${finalDraftSurveys.length} የመጨረሻ ረቂቆች`
+                  : `${wipSurveys.length} in progress, ${finalDraftSurveys.length} final drafts`
+                : isAm
+                ? "በመስራት ላይ ያሉ ረቂቆች የሉም"
                 : "No drafts in progress"}
             </span>
           </div>
@@ -184,7 +209,7 @@ export function DashboardPage() {
             onClick={() => setActiveTab("ongoing")}
             type="button"
           >
-            Ongoing Studies ({ongoingSurveys.length})
+            {isAm ? t("researcher.ongoing_studies") : "Ongoing Studies"} ({ongoingSurveys.length})
           </button>
           <button
             className={`text-xs font-bold pb-3 px-2 transition-colors cursor-pointer ${
@@ -195,7 +220,7 @@ export function DashboardPage() {
             onClick={() => setActiveTab("wip")}
             type="button"
           >
-            Work-in-Progress ({wipSurveys.length})
+            {isAm ? t("researcher.wip_drafts") : "Work-in-Progress"} ({wipSurveys.length})
           </button>
           <button
             className={`text-xs font-bold pb-3 px-2 transition-colors cursor-pointer ${
@@ -206,7 +231,7 @@ export function DashboardPage() {
             onClick={() => setActiveTab("final_draft")}
             type="button"
           >
-            Final Drafts ({finalDraftSurveys.length})
+            {isAm ? t("researcher.final_drafts") : "Final Drafts"} ({finalDraftSurveys.length})
           </button>
           <button
             className={`text-xs font-bold pb-3 px-2 transition-colors cursor-pointer ${
@@ -217,7 +242,7 @@ export function DashboardPage() {
             onClick={() => setActiveTab("completed")}
             type="button"
           >
-            Completed ({completedSurveys.length})
+            {isAm ? t("researcher.completed") : "Completed"} ({completedSurveys.length})
           </button>
         </div>
 
@@ -228,15 +253,23 @@ export function DashboardPage() {
               <span className="material-symbols-outlined text-[24px]">assignment</span>
             </div>
             <h3 className="text-base font-headline-md font-bold text-[#0D253A] mb-1">
-              No studies in this view
+              {isAm ? t("researcher.no_studies_view") : "No studies in this view"}
             </h3>
             <p className="text-xs text-on-surface-variant max-w-sm mb-5">
               {activeTab === "ongoing"
-                ? "Create a new study or check ongoing operations."
+                ? isAm
+                  ? "አዲስ ጥናት ይፍጠሩ ወይም ቀጣይ ስራዎችን ያረጋግጡ::"
+                  : "Create a new study or check ongoing operations."
                 : activeTab === "wip"
-                ? "No work-in-progress drafts currently being edited."
+                ? isAm
+                  ? "በአሁኑ ጊዜ በመስራት ላይ ያለ ረቂቅ የለም።"
+                  : "No work-in-progress drafts currently being edited."
                 : activeTab === "final_draft"
-                ? "No final drafts ready for posting."
+                ? isAm
+                  ? "ለመለጠፍ ዝግጁ የሆነ የመጨረሻ ረቂቅ የለም።"
+                  : "No final drafts ready for posting."
+                : isAm
+                ? "የተጠናቀቁ የምርምር ጥናቶች እዚህ ይታያሉ።"
                 : "Completed research studies will appear here."}
             </p>
             {activeTab !== "completed" && (
@@ -246,7 +279,7 @@ export function DashboardPage() {
                   type="button"
                 >
                   <span className="material-symbols-outlined text-[16px]">add</span>
-                  <span>Create New Study</span>
+                  <span>{isAm ? t("researcher.create_study") : "Create New Study"}</span>
                 </button>
               </Link>
             )}
@@ -275,7 +308,23 @@ export function DashboardPage() {
                             : "bg-slate-100 text-slate-700"
                         }`}
                       >
-                        {survey.status === "active" ? "Live" : survey.status.toUpperCase()}
+                        {survey.status === "active"
+                          ? isAm
+                            ? "ንቁ"
+                            : "Live"
+                          : survey.status === "wip"
+                          ? isAm
+                            ? "ረቂቅ"
+                            : "WIP"
+                          : survey.status === "final_draft"
+                          ? isAm
+                            ? "የመጨረሻ ረቂቅ"
+                            : "FINAL DRAFT"
+                          : survey.status === "completed"
+                          ? isAm
+                            ? "የተጠናቀቀ"
+                            : "COMPLETED"
+                          : survey.status.toUpperCase()}
                       </span>
                     </div>
 
@@ -283,12 +332,12 @@ export function DashboardPage() {
                       <div className="flex items-center gap-1">
                         <Icon className="text-[16px] text-primary" name="groups" />
                         <span>
-                          {completed}/{target} Respondents
+                          {completed}/{target} {isAm ? "ምላሽ ሰጪዎች" : "Respondents"}
                         </span>
                       </div>
                       <div className="flex items-center gap-1">
                         <Icon className="text-[16px] text-primary" name="speed" />
-                        <span>+{survey.velocity_per_hr ?? 0}/hr velocity</span>
+                        <span>+{survey.velocity_per_hr ?? 0}{isAm ? "/በሰዓት ፍጥነት" : "/hr velocity"}</span>
                       </div>
                       <div
                         className={`flex items-center gap-1 font-medium ${
@@ -298,7 +347,11 @@ export function DashboardPage() {
                         <Icon className="text-[16px]" name="flag" />
                         <span>
                           {(survey.flagged_count ?? 0) > 0
-                            ? `${survey.flagged_count} flagged for review`
+                            ? isAm
+                              ? `${survey.flagged_count} ለግምገማ ተለይተዋል`
+                              : `${survey.flagged_count} flagged for review`
+                            : isAm
+                            ? "0 የተለዩ"
                             : "0 flagged"}
                         </span>
                       </div>
@@ -308,7 +361,7 @@ export function DashboardPage() {
                   {/* Progress bar */}
                   <div className="w-full lg:w-48 flex flex-col gap-1.5 shrink-0">
                     <div className="flex justify-between text-[11px] font-semibold text-[#5A6E7F]">
-                      <span>Progress</span>
+                      <span>{isAm ? t("researcher.progress") : "Progress"}</span>
                       <span>{percent}%</span>
                     </div>
                     <div className="w-full bg-surface-container-highest rounded-full h-1.5 overflow-hidden">
@@ -325,9 +378,9 @@ export function DashboardPage() {
                       <Link
                         to={`/survey-posting/${survey.id}`}
                         className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 transition-colors flex items-center gap-1 cursor-pointer"
-                        title="Proceed to Posting"
+                        title={isAm ? "ወደ መለጠፍ ሂድ" : "Proceed to Posting"}
                       >
-                        <span>Launch</span>
+                        <span>{isAm ? t("researcher.launch") : "Launch"}</span>
                         <Icon className="text-[16px]" name="arrow_forward" />
                       </Link>
                     ) : null}

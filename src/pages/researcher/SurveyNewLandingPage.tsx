@@ -5,6 +5,7 @@ import type { SurveyRecord } from "@shared/types";
 import { Button, Card, EmptyState, Icon, LoadingBlock } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useLanguage } from "@/lib/language";
 
 interface SurveyWithStats extends SurveyRecord {
   response_count: number;
@@ -137,6 +138,8 @@ export function SurveyNewLandingPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { language, t } = useLanguage();
+  const isAm = language === "am";
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [draftToDelete, setDraftToDelete] = useState<SurveyWithStats | null>(null);
 
@@ -192,23 +195,27 @@ export function SurveyNewLandingPage() {
           to="/researcher"
         >
           <Icon className="text-[16px]" name="arrow_back" />
-          Researcher dashboard
+          {isAm ? "የተመራማሪ ዳሽቦርድ" : "Researcher dashboard"}
         </Link>
         <h1 className="font-headline text-2xl font-bold tracking-tight text-[#004162] md:text-3xl">
-          Create a survey
+          {isAm ? "አዲስ ጥናት ፍጠር" : "Create a survey"}
         </h1>
         <p className="mt-1.5 max-w-2xl text-sm text-[#4b6078]">
-          Start a new working draft using the method that best fits your research workflow.
+          {isAm
+            ? "ለእርስዎ ምርምር ተስማሚ በሆነው ዘዴ አዲስ ረቂቅ ይጀምሩ።"
+            : "Start a new working draft using the method that best fits your research workflow."}
         </p>
       </header>
 
       <section className="overflow-hidden rounded-xl border border-[#d9e2ea] bg-white shadow-sm">
         <div className="border-b border-[#e7edf2] px-5 py-4 md:px-6">
           <h2 className="font-headline text-lg font-bold text-[#004162]">
-            Choose a creation method
+            {isAm ? t("researcher.choose_creation_method") : "Choose a creation method"}
           </h2>
           <p className="mt-1 text-sm text-[#5a6e7f]">
-            You can edit every draft before it is sent for review.
+            {isAm
+              ? t("researcher.creation_method_sub")
+              : "You can edit every draft before it is sent for review."}
           </p>
         </div>
 
@@ -221,16 +228,20 @@ export function SurveyNewLandingPage() {
               <Icon className="text-[23px]" name="edit_document" />
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-[#102f44]">Manual builder</h3>
+              <h3 className="font-semibold text-[#102f44]">
+                {isAm ? t("researcher.manual_builder") : "Manual builder"}
+              </h3>
               <p className="mt-1 text-sm leading-5 text-[#5a6e7f]">
-                Create questions, response options, and skip logic from scratch.
+                {isAm
+                  ? t("researcher.manual_builder_desc")
+                  : "Create questions, response options, and skip logic from scratch."}
               </p>
               <p className="mt-2 text-xs font-medium text-[#176f9f]">
-                Question types · Logic branching · Free
+                {isAm ? "የጥያቄ አይነቶች · የሎጂክ ቅርንጫፎች · ነጻ" : "Question types · Logic branching · Free"}
               </p>
             </div>
             <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#176f9f] group-hover:text-[#00456d]">
-              Start building <Icon className="text-[18px]" name="arrow_forward" />
+              {isAm ? "መገንባት ጀምር" : "Start building"} <Icon className="text-[18px]" name="arrow_forward" />
             </span>
           </Link>
 
@@ -242,16 +253,20 @@ export function SurveyNewLandingPage() {
               <Icon className="text-[23px]" name="upload_file" />
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-[#102f44]">Import a questionnaire</h3>
+              <h3 className="font-semibold text-[#102f44]">
+                {isAm ? t("researcher.import_questionnaire") : "Import a questionnaire"}
+              </h3>
               <p className="mt-1 text-sm leading-5 text-[#5a6e7f]">
-                Upload an existing document and convert its questions into editable survey blocks.
+                {isAm
+                  ? t("researcher.import_questionnaire_desc")
+                  : "Upload an existing document and convert its questions into editable survey blocks."}
               </p>
               <p className="mt-2 text-xs font-medium text-[#176f9f]">
                 DOCX · PDF · CSV · Google Forms export
               </p>
             </div>
             <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#176f9f] group-hover:text-[#00456d]">
-              Import file <Icon className="text-[18px]" name="arrow_forward" />
+              {isAm ? "ፋይል አስመጣ" : "Import file"} <Icon className="text-[18px]" name="arrow_forward" />
             </span>
           </Link>
 
@@ -264,14 +279,20 @@ export function SurveyNewLandingPage() {
                 <Icon className="text-[23px]" name="auto_awesome" />
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-[#102f44]">Generate with AI</h3>
+                <h3 className="font-semibold text-[#102f44]">
+                  {isAm ? t("researcher.generate_ai") : "Generate with AI"}
+                </h3>
                 <p className="mt-1 text-sm leading-5 text-[#5a6e7f]">
-                  Create a structured first draft from your research objective and target audience.
+                  {isAm
+                    ? t("researcher.generate_ai_desc")
+                    : "Create a structured first draft from your research objective and target audience."}
                 </p>
-                <p className="mt-2 text-xs font-medium text-[#6a1b9a]">Available on your plan</p>
+                <p className="mt-2 text-xs font-medium text-[#6a1b9a]">
+                  {isAm ? "በእርስዎ እቅድ ላይ ይገኛል" : "Available on your plan"}
+                </p>
               </div>
               <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#6a1b9a] group-hover:text-[#4f1373]">
-                Create draft <Icon className="text-[18px]" name="arrow_forward" />
+                {isAm ? "ረቂቅ ፍጠር" : "Create draft"} <Icon className="text-[18px]" name="arrow_forward" />
               </span>
             </Link>
           ) : (
@@ -284,16 +305,20 @@ export function SurveyNewLandingPage() {
                 <Icon className="text-[23px]" name="auto_awesome" />
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-[#102f44]">Generate with AI</h3>
+                <h3 className="font-semibold text-[#102f44]">
+                  {isAm ? t("researcher.generate_ai") : "Generate with AI"}
+                </h3>
                 <p className="mt-1 text-sm leading-5 text-[#5a6e7f]">
-                  Create a structured first draft from your research objective and target audience.
+                  {isAm
+                    ? t("researcher.generate_ai_desc")
+                    : "Create a structured first draft from your research objective and target audience."}
                 </p>
                 <p className="mt-2 text-xs font-medium text-[#6a1b9a]">
-                  Available with a Pro researcher plan
+                  {isAm ? "ከ Pro የተመራማሪ እቅድ ጋር ይገኛል" : "Available with a Pro researcher plan"}
                 </p>
               </div>
               <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#6a1b9a] group-hover:text-[#4f1373]">
-                View plan options <Icon className="text-[18px]" name="arrow_forward" />
+                {isAm ? "የእቅድ አማራጮችን ይመልከቱ" : "View plan options"} <Icon className="text-[18px]" name="arrow_forward" />
               </span>
             </button>
           )}
@@ -303,7 +328,7 @@ export function SurveyNewLandingPage() {
       {/* ── Validated Research Templates Section (Stitch Design) ── */}
       <div className="pt-6 border-t border-[#E2E8F0]">
         <p className="text-xs md:text-sm text-[#41484E] mb-3.5 font-bold">
-          Or start from a validated research template:
+          {isAm ? "ወይም ከተረጋገጠ የምርምር አብነት ይጀምሩ፡" : "Or start from a validated research template:"}
         </p>
 
         <div className="flex flex-wrap gap-3">
@@ -372,20 +397,25 @@ export function SurveyNewLandingPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-[#004162] flex items-center gap-2 font-headline">
             <Icon className="text-[20px] text-[#2872A1]" name="history" />
-            Recent Work-in-Progress
+            {isAm ? "የቅርብ ጊዜ በመስራት ላይ ያሉ ረቂቆች" : "Recent Work-in-Progress"}
           </h2>
           {recentDrafts.length > 0 && (
             <span className="text-xs font-medium text-on-surface-variant">
-              Same dataset as Dashboard WIP tab
+              {isAm ? "እንደ ዳሽቦርድ ረቂቅ ዝርዝር" : "Same dataset as Dashboard WIP tab"}
             </span>
           )}
         </div>
 
-        {isLoading ? <LoadingBlock label="Loading recent drafts…" /> : null}
+        {isLoading ? <LoadingBlock label={isAm ? "የቅርብ ጊዜ ረቂቆችን በመጫን ላይ…" : "Loading recent drafts…"} /> : null}
 
         {!isLoading && recentDrafts.length === 0 ? (
-          <EmptyState icon="draft" title="No drafts yet — start one above.">
-            Work-in-progress surveys saved as draft will surface here for quick resuming.
+          <EmptyState
+            icon="draft"
+            title={isAm ? "እስካሁን ምንም ረቂቆች የሉም - ከላይ አንዱን ይጀምሩ።" : "No drafts yet — start one above."}
+          >
+            {isAm
+              ? "እንደ ረቂቅ የተቀመጡ ጥናቶች በፍጥነት ለመቀጠል እዚህ ይታያሉ።"
+              : "Work-in-progress surveys saved as draft will surface here for quick resuming."}
           </EmptyState>
         ) : null}
 
@@ -394,7 +424,7 @@ export function SurveyNewLandingPage() {
             {recentDrafts.map((survey) => {
               const builderType = getBuilderType(survey);
               const badgeStyle = getBuilderBadgeStyle(builderType);
-              const titleDisplay = survey.title?.trim() ? survey.title : "Untitled Survey";
+              const titleDisplay = survey.title?.trim() ? survey.title : (isAm ? "ርዕስ የሌለው ጥናት" : "Untitled Survey");
               const lastEdited = new Date(survey.created_at).toLocaleDateString(undefined, {
                 month: "short",
                 day: "numeric",
@@ -419,13 +449,13 @@ export function SurveyNewLandingPage() {
 
                         {/* Status tag */}
                         <span className="rounded-md px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800">
-                          Work in Progress
+                          {isAm ? "በመስራት ላይ ያለ" : "Work in Progress"}
                         </span>
 
                         {/* Last edited timestamp */}
                         <span className="text-[11px] text-on-surface-variant flex items-center gap-1">
                           <Icon className="text-[14px]" name="schedule" />
-                          Edited {lastEdited}
+                          {isAm ? `የተስተካከለው ${lastEdited}` : `Edited ${lastEdited}`}
                         </span>
                       </div>
 
@@ -434,8 +464,8 @@ export function SurveyNewLandingPage() {
                       </h3>
 
                       <p className="text-xs text-on-surface-variant mt-0.5">
-                        {survey.questions.length} question{survey.questions.length === 1 ? "" : "s"}
-                        {survey.reward_etb ? ` · ${survey.reward_etb} ETB reward` : ""}
+                        {survey.questions.length} {isAm ? "ጥያቄዎች" : survey.questions.length === 1 ? "question" : "questions"}
+                        {survey.reward_etb ? ` · ${survey.reward_etb} ETB ${isAm ? "ክፍያ" : "reward"}` : ""}
                       </p>
                     </div>
 
@@ -447,7 +477,7 @@ export function SurveyNewLandingPage() {
                         className="px-4 py-2 bg-[#2872A1] hover:bg-[#001d29] text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
                       >
                         <Icon className="text-[16px]" name="edit" />
-                        <span>Resume Editing</span>
+                        <span>{isAm ? t("researcher.resume_editing") : "Resume Editing"}</span>
                       </button>
 
                       <button
