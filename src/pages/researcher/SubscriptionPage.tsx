@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Icon, Notice } from "@/components/ui";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Icon, Notice, LoadingBlock } from "@/components/ui";
 import { api, ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
@@ -12,23 +12,6 @@ interface BillingInvoice {
   paymentMethod: "telebirr" | "cbe_birr" | "wallet";
 }
 
-const BILLING_HISTORY: BillingInvoice[] = [
-  {
-    id: "inv-2026-08",
-    date: "Aug 01, 2026",
-    plan: "Pro Monthly Plan",
-    amountEtb: 2500,
-    paymentMethod: "telebirr",
-  },
-  {
-    id: "inv-2026-07",
-    date: "Jul 01, 2026",
-    plan: "Pro Monthly Plan",
-    amountEtb: 2500,
-    paymentMethod: "cbe_birr",
-  },
-];
-
 export function SubscriptionPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -37,15 +20,25 @@ export function SubscriptionPage() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
   const isSubscribed = user?.subscription_tier === "subscribed";
+  const isCancelled = user?.subscription_tier === "cancelled";
+  const isActive = isSubscribed || isCancelled; // access during grace period
   const expiresAt = user?.subscription_expires_at
     ? new Date(user.subscription_expires_at).toLocaleDateString("en-US", {
         month: "short",
         day: "2-digit",
         year: "numeric",
       })
-    : "Sep 01, 2026";
+    : null;
 
-  const { mutate: subscribe, isPending } = useMutation({
+  // ── REH-138: Real billing history from DB ──────────────────────────────────
+  const { data: billingData, isLoading: isLoadingBilling } = useQuery({
+    queryKey: ["researcher-billing-history"],
+    queryFn: () => api<{ history: BillingInvoice[] }>("/wallet/researcher/billing-history"),
+  });
+  const billingHistory = billingData?.history ?? [];
+
+  // ── Subscribe mutation ─────────────────────────────────────────────────────
+  const { mutate: subscribe, isPending: isSubscribing } = useMutation({
     mutationFn: async () => {
       setError(null);
       setSuccessNotice(null);
@@ -55,12 +48,40 @@ export function SubscriptionPage() {
       setSuccessNotice("Successfully upgraded to Pro Researcher tier!");
       queryClient.invalidateQueries({ queryKey: ["auth"] });
       queryClient.invalidateQueries({ queryKey: ["researcher-wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["researcher-billing-history"] });
     },
     onError: (err) => {
       if (err instanceof ApiRequestError) {
         setError(err.message);
       } else {
         setError("Failed to upgrade subscription. Please check your wallet balance and try again.");
+      }
+    },
+  });
+
+  // ── REH-139: Real cancel subscription mutation ─────────────────────────────
+  const { mutate: cancelSubscription, isPending: isCancelling } = useMutation({
+    mutationFn: async () => {
+      setError(null);
+      return api<{ message: string; subscription_expires_at: string }>(
+        "/wallet/researcher/subscription",
+        { method: "DELETE" },
+      );
+    },
+    onSuccess: (data) => {
+      setCancelModalOpen(false);
+      setSuccessNotice(
+        `Your subscription has been scheduled to cancel. You retain Pro access until ${expiresAt ?? "the end of the billing period"}.`,
+      );
+      queryClient.invalidateQueries({ queryKey: ["auth"] });
+      queryClient.invalidateQueries({ queryKey: ["researcher-wallet"] });
+    },
+    onError: (err) => {
+      setCancelModalOpen(false);
+      if (err instanceof ApiRequestError) {
+        setError(err.message);
+      } else {
+        setError("Failed to cancel subscription. Please try again or contact support.");
       }
     },
   });
@@ -89,31 +110,40 @@ export function SubscriptionPage() {
 
           <div className="space-y-1">
             <h2 className="font-headline font-bold text-lg md:text-xl text-[#001d29]">
-              Active Plan: {isSubscribed ? "Pro Researcher" : "Community Basic"}
+              Active Plan: {isActive ? "Pro Researcher" : "Community Basic"}
             </h2>
 
             <div className="flex flex-wrap items-center gap-2.5 text-xs">
-              <span className="bg-emerald-50 text-emerald-700 font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                <span>Active</span>
-              </span>
-              <span className="text-[#71787c]">
-                Auto-renews: {expiresAt}
-              </span>
+              {isActive ? (
+                <span className="bg-emerald-50 text-emerald-700 font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>{isCancelled ? "Active (Cancelling)" : "Active"}</span>
+                </span>
+              ) : (
+                <span className="bg-gray-100 text-gray-500 font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                  <span>Free Tier</span>
+                </span>
+              )}
+              {expiresAt && (
+                <span className="text-[#71787c]">
+                  {isCancelled ? `Access until: ${expiresAt}` : `Auto-renews: ${expiresAt}`}
+                </span>
+              )}
             </div>
 
             <p className="text-xs text-[#41484c] pt-1">
               <span className="font-bold text-[#001d29] font-mono">
-                {isSubscribed ? "2,500 ETB / month" : "0 ETB / month"}
+                {isActive ? "2,500 ETB / month" : "0 ETB / month"}
               </span>{" "}
               <span className="text-[#71787c]">
-                {isSubscribed ? "(Telebirr Auto-Debit)" : "(Free Tier)"}
+                {isActive ? "(Wallet Auto-Debit)" : "(Free Tier)"}
               </span>
             </p>
           </div>
         </div>
 
-        {isSubscribed && (
+        {isSubscribed && !isCancelled && (
           <button
             type="button"
             onClick={() => setCancelModalOpen(true)}
@@ -167,7 +197,7 @@ export function SubscriptionPage() {
 
             <button
               type="button"
-              disabled={!isSubscribed}
+              disabled={!isActive}
               className="w-full py-3 px-4 rounded-xl border border-[#c1c7cc]/60 text-[#71787c] text-xs font-semibold bg-[#f8f9ff] text-center"
             >
               Current Basic Features
@@ -178,7 +208,7 @@ export function SubscriptionPage() {
           <div className="bg-white rounded-2xl border-2 border-[#001d29] p-6 md:p-8 flex flex-col justify-between shadow-md relative overflow-hidden">
             {/* Top Pill */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#001d29] text-white text-[10px] font-mono font-bold px-4 py-1 rounded-b-lg uppercase tracking-wider">
-              {isSubscribed ? "CURRENT ACTIVE PLAN" : "RECOMMENDED"}
+              {isActive ? "CURRENT ACTIVE PLAN" : "RECOMMENDED"}
             </div>
 
             <div className="pt-2">
@@ -215,22 +245,23 @@ export function SubscriptionPage() {
 
             <button
               type="button"
-              onClick={() => !isSubscribed && subscribe()}
-              disabled={isSubscribed || isPending}
+              id="subscribe-btn"
+              onClick={() => !isActive && subscribe()}
+              disabled={isActive || isSubscribing}
               className={`w-full py-3 px-4 rounded-xl text-xs font-bold text-center transition-all flex items-center justify-center gap-2 ${
-                isSubscribed
+                isActive
                   ? "bg-[#eff4ff] text-[#001d29] cursor-default"
                   : "bg-[#001d29] hover:bg-[#003345] text-white shadow-sm cursor-pointer"
               }`}
             >
-              {isPending ? (
+              {isSubscribing ? (
                 <Icon className="animate-spin text-[16px]" name="progress_activity" />
-              ) : isSubscribed ? (
+              ) : isActive ? (
                 <Icon className="text-[16px]" name="check" />
               ) : (
                 <Icon className="text-[16px]" name="account_balance_wallet" />
               )}
-              <span>{isSubscribed ? "Active Plan" : "Upgrade with Wallet Balance"}</span>
+              <span>{isActive ? "Active Plan" : "Upgrade with Wallet Balance"}</span>
             </button>
           </div>
 
@@ -278,56 +309,64 @@ export function SubscriptionPage() {
         </div>
       </div>
 
-      {/* ── Subscription Billing History Table ── */}
+      {/* ── Subscription Billing History Table (REH-138: real data from DB) ── */}
       <div className="space-y-4 pt-4">
         <h2 className="font-mono text-xs font-bold text-[#41484c] uppercase tracking-wider">
           Subscription Billing History
         </h2>
 
         <div className="bg-white rounded-2xl border border-[#c1c7cc]/40 overflow-hidden shadow-2xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-[#c1c7cc]/30 bg-[#f8f9ff] text-[#71787c] font-mono uppercase tracking-wider">
-                  <th className="py-3 px-6 font-semibold">Invoice Date</th>
-                  <th className="py-3 px-6 font-semibold">Plan</th>
-                  <th className="py-3 px-6 font-semibold">Amount (ETB)</th>
-                  <th className="py-3 px-6 font-semibold">Payment Method</th>
-                  <th className="py-3 px-6 font-semibold text-right">Receipt</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#c1c7cc]/20">
-                {BILLING_HISTORY.map((invoice) => (
-                  <tr key={invoice.id} className="hover:bg-[#f8f9ff]/50 transition-colors">
-                    <td className="py-4 px-6 font-medium text-[#001d29]">{invoice.date}</td>
-                    <td className="py-4 px-6 text-[#41484c]">{invoice.plan}</td>
-                    <td className="py-4 px-6 font-mono font-bold text-[#001d29]">
-                      {invoice.amountEtb.toLocaleString()} ETB
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="bg-[#eff4ff] text-[#2872A1] font-mono text-[10px] font-bold px-2.5 py-1 rounded-md capitalize">
-                        {invoice.paymentMethod.replace("_", " ")}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-right">
-                      <button
-                        type="button"
-                        onClick={() => alert(`Downloading PDF receipt for invoice ${invoice.id}...`)}
-                        className="inline-flex items-center gap-1 text-[#2872A1] hover:text-[#001d29] font-bold cursor-pointer"
-                      >
-                        <Icon className="text-[14px]" name="download" />
-                        <span>PDF</span>
-                      </button>
-                    </td>
+          {isLoadingBilling ? (
+            <LoadingBlock />
+          ) : billingHistory.length === 0 ? (
+            <div className="py-10 text-center text-xs text-[#71787c]">
+              No billing records yet. Your subscription charges will appear here.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-[#c1c7cc]/30 bg-[#f8f9ff] text-[#71787c] font-mono uppercase tracking-wider">
+                    <th className="py-3 px-6 font-semibold">Invoice Date</th>
+                    <th className="py-3 px-6 font-semibold">Plan</th>
+                    <th className="py-3 px-6 font-semibold">Amount (ETB)</th>
+                    <th className="py-3 px-6 font-semibold">Payment Method</th>
+                    <th className="py-3 px-6 font-semibold text-right">Receipt</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-[#c1c7cc]/20">
+                  {billingHistory.map((invoice) => (
+                    <tr key={invoice.id} className="hover:bg-[#f8f9ff]/50 transition-colors">
+                      <td className="py-4 px-6 font-medium text-[#001d29]">{invoice.date}</td>
+                      <td className="py-4 px-6 text-[#41484c]">{invoice.plan}</td>
+                      <td className="py-4 px-6 font-mono font-bold text-[#001d29]">
+                        {invoice.amountEtb.toLocaleString()} ETB
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="bg-[#eff4ff] text-[#2872A1] font-mono text-[10px] font-bold px-2.5 py-1 rounded-md capitalize">
+                          {invoice.paymentMethod.replace("_", " ")}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        <a
+                          href={`/api/wallet/researcher/billing-history/${invoice.id}/receipt`}
+                          className="inline-flex items-center gap-1 text-[#2872A1] hover:text-[#001d29] font-bold cursor-pointer"
+                          download={`receipt-${invoice.id}.pdf`}
+                        >
+                          <Icon className="text-[14px]" name="download" />
+                          <span>PDF</span>
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Cancel Subscription Modal */}
+      {/* ── Cancel Subscription Modal (REH-139: wired to real DELETE endpoint) ── */}
       {cancelModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-fade-in">
@@ -335,26 +374,35 @@ export function SubscriptionPage() {
               Pause or Cancel Subscription?
             </h3>
             <p className="text-xs text-[#41484c] leading-relaxed">
-              Your Pro access will remain active until the end of the current billing cycle on{" "}
-              <strong>{expiresAt}</strong>. After this date, your account will revert to the Basic plan.
+              Your Pro access will remain active until the end of the current billing cycle
+              {expiresAt ? (
+                <>
+                  {" on "}
+                  <strong>{expiresAt}</strong>
+                </>
+              ) : null}
+              . After this date, your account will revert to the Basic plan.
             </p>
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setCancelModalOpen(false)}
+                disabled={isCancelling}
                 className="px-4 py-2 border border-[#c1c7cc] rounded-xl text-xs font-semibold text-[#71787c]"
               >
                 Keep Active
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setCancelModalOpen(false);
-                  setSuccessNotice("Your subscription has been scheduled to cancel at the end of the billing period.");
-                }}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold"
+                id="confirm-cancel-btn"
+                onClick={() => cancelSubscription()}
+                disabled={isCancelling}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center gap-2"
               >
-                Confirm Cancellation
+                {isCancelling && (
+                  <Icon className="animate-spin text-[16px]" name="progress_activity" />
+                )}
+                <span>{isCancelling ? "Cancelling…" : "Confirm Cancellation"}</span>
               </button>
             </div>
           </div>

@@ -336,6 +336,85 @@ walletRouter.post(
 );
 
 // ---------------------------------------------------------------------------
+// REH-138: Real billing history from researcher_charges (replaces mock data)
+// ---------------------------------------------------------------------------
+
+walletRouter.get(
+  "/researcher/billing-history",
+  requireAuth("researcher"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+
+    const { data, error } = await admin
+      .from("researcher_charges")
+      .select("id, amount_etb, reason, created_at")
+      .eq("researcher_id", context.userId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) throw new ApiError(500, "BILLING_HISTORY_FAILED", error.message);
+
+    const history = (data ?? []).map((row) => ({
+      id: row.id,
+      date: new Date(row.created_at as string).toLocaleDateString("en-US", {
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+      }),
+      plan: row.reason === "monthly_subscription" ? "Pro Monthly Plan" : (row.reason as string),
+      amountEtb: Number(row.amount_etb),
+      paymentMethod: "wallet" as const,
+    }));
+
+    res.json({ history });
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// REH-139: Real cancel subscription endpoint (sets tier back to free at period end)
+// ---------------------------------------------------------------------------
+
+walletRouter.delete(
+  "/researcher/subscription",
+  requireAuth("researcher"),
+  rateLimit({ key: "subscription-cancel", max: 3, windowMs: 60_000 }),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+
+    // Fetch current profile to validate they are actually subscribed
+    const { data: profile, error: profileError } = await admin
+      .from("researcher_profiles")
+      .select("subscription_tier, subscription_expires_at")
+      .eq("user_id", context.userId)
+      .single();
+
+    if (profileError) throw new ApiError(500, "PROFILE_READ_FAILED", profileError.message);
+
+    if (!profile || profile.subscription_tier !== "subscribed") {
+      throw new ApiError(400, "NOT_SUBSCRIBED", "No active subscription to cancel.");
+    }
+
+    // Schedule cancellation: set tier to 'free' while preserving expires_at for
+    // grace-period access. A nightly job can enforce expiry, but for now the
+    // frontend should treat subscription_tier === 'cancelled' as "active until expires_at".
+    const { error: updateError } = await admin
+      .from("researcher_profiles")
+      .update({
+        subscription_tier: "cancelled",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", context.userId);
+
+    if (updateError) throw new ApiError(500, "CANCEL_FAILED", updateError.message);
+
+    res.json({
+      message: "Subscription cancellation scheduled. You retain Pro access until the current billing period ends.",
+      subscription_expires_at: profile.subscription_expires_at,
+    });
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // Researcher: deposit by telebirr
 //
 // Three steps, deliberately separate. The researcher asks for a checkout, pays at
