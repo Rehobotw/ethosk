@@ -465,3 +465,36 @@ export function validateDocumentFile(file: { name?: string; size: number; type?:
 }
 
 export const VERIFICATION_TIER_VALUES = VERIFICATION_TIERS;
+
+export const SUPPORT_TICKET_CATEGORIES = [
+  "general",
+  "account",
+  "billing",
+  "survey",
+  "verification",
+  "other",
+] as const;
+export type SupportTicketCategory = (typeof SUPPORT_TICKET_CATEGORIES)[number];
+
+export const supportTicketSchema = z.object({
+  name: z.string().trim().min(2, "Name must be at least 2 characters").max(120).optional(),
+  email: emailSchema.optional(),
+  category: z.enum(SUPPORT_TICKET_CATEGORIES).default("general"),
+  subject: z.string().trim().min(3, "Subject must be at least 3 characters").max(200),
+  message: z.string().trim().min(5, "Message must be at least 5 characters").max(3000),
+});
+export type SupportTicketInput = z.infer<typeof supportTicketSchema>;
+
+export interface SupportTicketRecord {
+  id: string;
+  ticket_number: string;
+  user_id?: string | null;
+  name?: string | null;
+  email: string;
+  category: SupportTicketCategory;
+  subject: string;
+  message: string;
+  status: "open" | "in_progress" | "resolved" | "closed";
+  created_at: string;
+  updated_at?: string;
+}
