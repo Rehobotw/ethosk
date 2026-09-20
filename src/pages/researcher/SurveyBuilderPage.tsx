@@ -158,6 +158,10 @@ export function SurveyBuilderPage() {
     enabled: Boolean(effectiveId),
   });
 
+  // REH-126: Surveys that are active, in_review, approved, or completed cannot be edited
+  const EDITABLE_STATUSES = ["wip", "draft", "final_draft", "rejected"];
+  const isReadOnly = Boolean(existing && !EDITABLE_STATUSES.includes(existing.status));
+
   const { data: researcherWallet } = useQuery({
     queryKey: ["researcher-wallet"],
     queryFn: () => api<{ wallet: ResearcherWallet }>("/wallet/researcher").catch(() => null),
@@ -222,6 +226,11 @@ export function SurveyBuilderPage() {
 
   const saveSurvey = useMutation({
     mutationFn: async (targetStatus: "wip" | "final_draft" = "wip") => {
+      if (isReadOnly) {
+        throw new Error(
+          `Survey is in "${existing?.status ?? "active"}" status and locked. Changes cannot be saved to preserve response data integrity.`
+        );
+      }
       const cleanQuestions = questions.map((q) => ({
         ...q,
         options: q.options ? q.options.filter((o) => o !== "__long_text__") : undefined,
@@ -844,54 +853,125 @@ export function SurveyBuilderPage() {
 
   return (
     <div className="flex flex-col h-full font-body-md text-on-surface bg-[#f8fafc] overflow-hidden">
+      {/* ── REH-126: Prominent Read-Only Notice for Active/Locked Surveys ── */}
+      {isReadOnly && (
+        <div
+          data-testid="survey-readonly-banner"
+          className="bg-amber-50 border-b border-amber-200 px-6 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 shrink-0 z-20"
+        >
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-amber-600 text-[20px] shrink-0">lock</span>
+            <div>
+              <p className="text-xs md:text-sm font-bold flex items-center gap-2">
+                <span>Survey is {existing?.status === "active" ? "Active" : existing?.status === "in_review" ? "Under Admin Review" : existing?.status === "approved" ? "Approved" : existing?.status} (Read-Only)</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-200/80 text-amber-900">
+                  Locked
+                </span>
+              </p>
+              <p className="text-[11px] text-amber-800">
+                This survey cannot be edited because it is active or submitted. Edits are locked to preserve respondent data integrity.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {existing?.id && (
+              <Link
+                to={`/researcher/surveys/${existing.id}/dashboard`}
+                className="px-3.5 py-1.5 bg-[#005985] text-white rounded-lg text-xs font-semibold hover:bg-[#00456d] transition-colors shadow-xs flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-[16px]">insights</span>
+                <span>View Analytics</span>
+              </Link>
+            )}
+            <Link
+              to="/researcher/surveys"
+              className="px-3.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-semibold text-amber-900 hover:bg-amber-100 transition-colors"
+            >
+              Back to Surveys
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* ── Sub-Header & Action Bar (Exact Stitch Design) ── */}
       <div className="bg-[#f8f9ff] border-b border-[#c1c7cc] px-6 py-4 flex items-center justify-between shrink-0 z-10">
         <div className="flex items-center gap-3">
           <input
-            className="font-headline-md text-sm md:text-base font-bold text-on-surface tracking-tight bg-transparent border-none focus:ring-1 focus:ring-primary/20 hover:bg-slate-200/50 rounded px-1.5 py-0.5 transition-colors cursor-text w-[280px] md:w-[380px] outline-none truncate"
+            className={`font-headline-md text-sm md:text-base font-bold text-on-surface tracking-tight bg-transparent border-none rounded px-1.5 py-0.5 transition-colors w-[280px] md:w-[380px] outline-none truncate ${
+              isReadOnly
+                ? "cursor-default opacity-80"
+                : "focus:ring-1 focus:ring-primary/20 hover:bg-slate-200/50 cursor-text"
+            }`}
+            disabled={isReadOnly}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Survey Title"
             type="text"
             value={title}
           />
-          <button className="text-on-surface-variant hover:text-primary transition-colors p-1" title="Edit title" type="button">
-            <span className="material-symbols-outlined text-[18px]">edit</span>
-          </button>
+          {!isReadOnly && (
+            <button className="text-on-surface-variant hover:text-primary transition-colors p-1" title="Edit title" type="button">
+              <span className="material-symbols-outlined text-[18px]">edit</span>
+            </button>
+          )}
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 text-xs md:text-sm text-on-surface-variant">
-          <span className="w-2 h-2 rounded-full bg-[#10b981]"></span>
-          <span>Draft Auto-Saved · 2 minutes ago</span>
-        </div>
+        {isReadOnly ? (
+          <div className="hidden sm:flex items-center gap-2 text-xs md:text-sm text-amber-800 font-semibold">
+            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+            <span>Locked · Read-Only Mode</span>
+          </div>
+        ) : (
+          <div className="hidden sm:flex items-center gap-2 text-xs md:text-sm text-on-surface-variant">
+            <span className="w-2 h-2 rounded-full bg-[#10b981]"></span>
+            <span>Draft Auto-Saved · 2 minutes ago</span>
+          </div>
+        )}
 
         <div className="flex items-center gap-3">
           {/* Hidden buttons for test harness compatibility */}
-          <button onClick={() => saveSurvey.mutate("wip")} className="sr-only" type="button">Save Draft</button>
-          <button onClick={() => saveSurvey.mutate("final_draft")} className="sr-only" type="button">Save as Final Draft</button>
-          <button onClick={() => setActiveStep("wizard_filters")} className="sr-only" type="button">Configure &amp; Launch</button>
+          <button onClick={() => saveSurvey.mutate("wip")} disabled={isReadOnly} className="sr-only" type="button">Save Draft</button>
+          <button onClick={() => saveSurvey.mutate("final_draft")} disabled={isReadOnly} className="sr-only" type="button">Save as Final Draft</button>
+          <button onClick={() => setActiveStep("wizard_filters")} disabled={isReadOnly} className="sr-only" type="button">Configure &amp; Launch</button>
           <Link to="/survey-builder" className="sr-only" title="Back to Survey Builder Landing">Back</Link>
 
-          <button
-            onClick={() => saveSurvey.mutate("wip")}
-            disabled={saveSurvey.isPending}
-            className="px-4 py-2 rounded text-primary border border-primary bg-transparent hover:bg-primary/5 transition-colors font-medium text-xs md:text-sm cursor-pointer disabled:opacity-50"
-            type="button"
-          >
-            {saveSurvey.isPending ? "Saving…" : "Preview Survey"}
-          </button>
-          <button
-            onClick={() => {
-              void saveSurvey.mutateAsync("final_draft").then((res) => {
-                navigate(`/survey-posting/${res.id}`);
-              });
-            }}
-            disabled={saveSurvey.isPending}
-            className="px-4 py-2 rounded bg-primary text-white hover:bg-primary/90 transition-colors font-medium text-xs md:text-sm flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
-            type="button"
-          >
-            <span>Save &amp; Proceed to Posting</span>
-            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-          </button>
+          {isReadOnly ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 italic pr-1">Edits disabled</span>
+              {existing?.id && (
+                <Link
+                  to={`/researcher/surveys/${existing.id}/dashboard`}
+                  className="px-4 py-2 rounded bg-primary text-white hover:bg-primary/90 transition-colors font-medium text-xs md:text-sm flex items-center gap-1.5 shadow-xs"
+                >
+                  <span className="material-symbols-outlined text-[18px]">insights</span>
+                  <span>View Analytics</span>
+                </Link>
+              )}
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => saveSurvey.mutate("wip")}
+                disabled={saveSurvey.isPending}
+                className="px-4 py-2 rounded text-primary border border-primary bg-transparent hover:bg-primary/5 transition-colors font-medium text-xs md:text-sm cursor-pointer disabled:opacity-50"
+                type="button"
+              >
+                {saveSurvey.isPending ? "Saving…" : "Preview Survey"}
+              </button>
+              <button
+                onClick={() => {
+                  void saveSurvey.mutateAsync("final_draft").then((res) => {
+                    navigate(`/survey-posting/${res.id}`);
+                  });
+                }}
+                disabled={saveSurvey.isPending}
+                className="px-4 py-2 rounded bg-primary text-white hover:bg-primary/90 transition-colors font-medium text-xs md:text-sm flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                type="button"
+              >
+                <span>Save &amp; Proceed to Posting</span>
+                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -905,10 +985,26 @@ export function SurveyBuilderPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left Drawer (Question Types) */}
         <aside className="w-64 bg-[#f8f9ff] border-r border-[#c1c7cc] flex flex-col overflow-y-auto shrink-0 hidden md:flex">
-          <div className="p-4 border-b border-[#c1c7cc] sticky top-0 bg-[#f8f9ff] z-10">
+          <div className="p-4 border-b border-[#c1c7cc] sticky top-0 bg-[#f8f9ff] z-10 flex items-center justify-between">
             <h3 className="font-semibold text-xs md:text-sm text-on-surface">Add Question Block</h3>
+            {isReadOnly && (
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                Locked
+              </span>
+            )}
           </div>
           <div className="p-4 space-y-3">
+            {isReadOnly && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 mb-2">
+                <p className="font-bold flex items-center gap-1 text-[11px] mb-1">
+                  <span className="material-symbols-outlined text-[15px] text-amber-600">lock</span>
+                  Modifications Locked
+                </p>
+                <p className="text-[11px] text-amber-800 leading-tight">
+                  Adding questions is disabled for active or submitted surveys.
+                </p>
+              </div>
+            )}
             {[
               { kind: "single_choice" as const, label: "Multiple Choice", icon: "radio_button_checked" },
               { kind: "multi_choice" as const, label: "Checkbox Grid", icon: "grid_on" },
@@ -920,8 +1016,13 @@ export function SurveyBuilderPage() {
               <button
                 key={idx}
                 type="button"
+                disabled={isReadOnly}
                 onClick={() => addQuestion(qt.kind)}
-                className="w-full bg-[#f8fafc] border border-[#c1c7cc] rounded p-3 flex items-center gap-3 cursor-pointer hover:border-primary hover:bg-[#eff4ff] hover:shadow-xs transition-all group text-left"
+                className={`w-full bg-[#f8fafc] border border-[#c1c7cc] rounded p-3 flex items-center gap-3 transition-all group text-left ${
+                  isReadOnly
+                    ? "opacity-50 cursor-not-allowed"
+                    : "cursor-pointer hover:border-primary hover:bg-[#eff4ff] hover:shadow-xs"
+                }`}
               >
                 <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-[20px]">
                   {qt.icon}
@@ -934,8 +1035,13 @@ export function SurveyBuilderPage() {
 
             <button
               type="button"
+              disabled={isReadOnly}
               onClick={() => addQuestion("section")}
-              className="w-full bg-[#f8fafc] border border-[#c1c7cc] border-dashed rounded p-3 flex items-center gap-3 cursor-pointer hover:border-primary hover:bg-[#eff4ff] transition-all group text-left"
+              className={`w-full bg-[#f8fafc] border border-[#c1c7cc] border-dashed rounded p-3 flex items-center gap-3 transition-all group text-left ${
+                isReadOnly
+                  ? "opacity-50 cursor-not-allowed"
+                  : "cursor-pointer hover:border-primary hover:bg-[#eff4ff]"
+              }`}
             >
               <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-[20px]">
                 horizontal_rule
@@ -951,15 +1057,17 @@ export function SurveyBuilderPage() {
             {/* Section Header */}
             <div className="bg-white border border-[#c1c7cc] border-l-4 border-l-primary rounded p-6 shadow-xs">
               <input
-                className="w-full font-headline-md text-base md:text-lg font-bold text-on-surface border-none focus:ring-0 p-0 bg-transparent mb-1 outline-none"
+                className="w-full font-headline-md text-base md:text-lg font-bold text-on-surface border-none focus:ring-0 p-0 bg-transparent mb-1 outline-none disabled:opacity-80"
                 placeholder="Section 1: Demographics & Purchasing Patterns"
                 type="text"
+                disabled={isReadOnly}
                 defaultValue="Section 1: Demographics & Purchasing Patterns"
               />
               <input
-                className="w-full text-xs md:text-sm text-on-surface-variant border-none focus:ring-0 p-0 bg-transparent outline-none"
+                className="w-full text-xs md:text-sm text-on-surface-variant border-none focus:ring-0 p-0 bg-transparent outline-none disabled:opacity-80"
                 placeholder="Optional description..."
                 type="text"
+                disabled={isReadOnly}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
@@ -986,33 +1094,36 @@ export function SurveyBuilderPage() {
                         <span className="material-symbols-outlined text-[18px]">horizontal_rule</span>
                         <span>SECTION DIVIDER</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          className="text-on-surface-variant hover:text-primary p-1 cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            duplicateQuestion(q.id);
-                          }}
-                          title="Duplicate"
-                          type="button"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">content_copy</span>
-                        </button>
-                        <button
-                          className="text-on-surface-variant hover:text-error p-1 cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteQuestion(q.id);
-                          }}
-                          title="Delete"
-                          type="button"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">delete</span>
-                        </button>
-                      </div>
+                      {!isReadOnly && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            className="text-on-surface-variant hover:text-primary p-1 cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              duplicateQuestion(q.id);
+                            }}
+                            title="Duplicate"
+                            type="button"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">content_copy</span>
+                          </button>
+                          <button
+                            className="text-on-surface-variant hover:text-error p-1 cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteQuestion(q.id);
+                            }}
+                            title="Delete"
+                            type="button"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <input
-                      className="w-full text-base font-bold text-on-surface border-none focus:ring-0 p-0 bg-transparent outline-none"
+                      className="w-full text-base font-bold text-on-surface border-none focus:ring-0 p-0 bg-transparent outline-none disabled:opacity-80"
+                      disabled={isReadOnly}
                       onChange={(e) => updateQuestion(q.id, { text: `[Section] ${e.target.value}` })}
                       placeholder="Section Title..."
                       type="text"
@@ -1036,7 +1147,8 @@ export function SurveyBuilderPage() {
                         <span className="material-symbols-outlined text-[14px]">mic</span> Q{qIndex + 1}
                       </span>
                       <textarea
-                        className="flex-1 text-xs md:text-sm font-medium text-on-surface border-none focus:ring-0 p-0 bg-transparent resize-none leading-relaxed outline-none"
+                        className="flex-1 text-xs md:text-sm font-medium text-on-surface border-none focus:ring-0 p-0 bg-transparent resize-none leading-relaxed outline-none disabled:opacity-80"
+                        disabled={isReadOnly}
                         onChange={(e) => updateQuestion(q.id, { text: `[Voice Response] ${e.target.value}` })}
                         placeholder="Voice prompt text..."
                         rows={1}
@@ -1059,30 +1171,32 @@ export function SurveyBuilderPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="mt-4 pt-3 border-t border-[#c1c7cc] flex items-center justify-end gap-3">
-                      <button
-                        className="text-on-surface-variant hover:text-primary p-1 cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          duplicateQuestion(q.id);
-                        }}
-                        title="Duplicate"
-                        type="button"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">content_copy</span>
-                      </button>
-                      <button
-                        className="text-on-surface-variant hover:text-error p-1 cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteQuestion(q.id);
-                        }}
-                        title="Delete"
-                        type="button"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">delete</span>
-                      </button>
-                    </div>
+                    {!isReadOnly && (
+                      <div className="mt-4 pt-3 border-t border-[#c1c7cc] flex items-center justify-end gap-3">
+                        <button
+                          className="text-on-surface-variant hover:text-primary p-1 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            duplicateQuestion(q.id);
+                          }}
+                          title="Duplicate"
+                          type="button"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">content_copy</span>
+                        </button>
+                        <button
+                          className="text-on-surface-variant hover:text-error p-1 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteQuestion(q.id);
+                          }}
+                          title="Delete"
+                          type="button"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               }
@@ -1100,7 +1214,8 @@ export function SurveyBuilderPage() {
                         Q{qIndex + 1}
                       </span>
                       <textarea
-                        className="flex-1 text-xs md:text-sm font-medium text-on-surface border-none focus:ring-0 p-0 bg-transparent resize-none leading-relaxed overflow-hidden outline-none"
+                        className="flex-1 text-xs md:text-sm font-medium text-on-surface border-none focus:ring-0 p-0 bg-transparent resize-none leading-relaxed overflow-hidden outline-none disabled:opacity-80"
+                        disabled={isReadOnly}
                         onChange={(e) => {
                           e.target.style.height = "auto";
                           e.target.style.height = `${e.target.scrollHeight}px`;
@@ -1174,7 +1289,8 @@ export function SurveyBuilderPage() {
                       Q{qIndex + 1}
                     </span>
                     <textarea
-                      className="w-full text-xs md:text-sm font-medium text-on-surface border-none focus:ring-0 p-0 bg-transparent resize-none leading-relaxed overflow-hidden outline-none"
+                      className="w-full text-xs md:text-sm font-medium text-on-surface border-none focus:ring-0 p-0 bg-transparent resize-none leading-relaxed overflow-hidden outline-none disabled:opacity-80"
+                      disabled={isReadOnly}
                       onChange={(e) => {
                         e.target.style.height = "auto";
                         e.target.style.height = `${e.target.scrollHeight}px`;
@@ -1185,7 +1301,8 @@ export function SurveyBuilderPage() {
                       value={q.text}
                     />
                     <select
-                      className="bg-[#eff4ff] border border-[#c1c7cc] text-xs font-medium text-on-surface rounded px-3 py-1.5 outline-none focus:border-primary shrink-0 min-w-[130px]"
+                      className="bg-[#eff4ff] border border-[#c1c7cc] text-xs font-medium text-on-surface rounded px-3 py-1.5 outline-none focus:border-primary shrink-0 min-w-[130px] disabled:opacity-70"
+                      disabled={isReadOnly}
                       value={q.type}
                       onChange={(e) => updateQuestion(q.id, { type: e.target.value as Question["type"] })}
                     >
@@ -1216,13 +1333,14 @@ export function SurveyBuilderPage() {
                             {q.type === "multi_choice" ? "check_box_outline_blank" : "radio_button_unchecked"}
                           </span>
                           <input
-                            className="flex-1 border-b border-transparent focus:border-primary focus:ring-0 p-0.5 text-xs md:text-sm bg-transparent outline-none"
+                            className="flex-1 border-b border-transparent focus:border-primary focus:ring-0 p-0.5 text-xs md:text-sm bg-transparent outline-none disabled:opacity-80"
+                            disabled={isReadOnly}
                             onChange={(e) => updateOption(q.id, optIdx, e.target.value)}
                             placeholder={`Option ${optIdx + 1}`}
                             type="text"
                             value={opt}
                           />
-                          {(q.options || []).length > 2 && (
+                          {!isReadOnly && (q.options || []).length > 2 && (
                             <button
                               className="text-[#71787c] hover:text-error opacity-0 group-hover/option:opacity-100 transition-opacity p-1 cursor-pointer"
                               onClick={() => removeOption(q.id, optIdx)}
@@ -1234,17 +1352,19 @@ export function SurveyBuilderPage() {
                         </div>
                       ))}
 
-                      <div className="flex items-center gap-3 pt-1">
-                        <span className="material-symbols-outlined text-[#71787c] text-[18px]">
-                          {q.type === "multi_choice" ? "check_box_outline_blank" : "radio_button_unchecked"}
-                        </span>
-                        <input
-                          className="flex-1 border-b border-transparent focus:border-primary focus:ring-0 p-0.5 text-xs text-on-surface-variant bg-transparent cursor-pointer outline-none"
-                          onClick={() => addOption(q.id)}
-                          placeholder="Add option..."
-                          readOnly
-                        />
-                      </div>
+                      {!isReadOnly && (
+                        <div className="flex items-center gap-3 pt-1">
+                          <span className="material-symbols-outlined text-[#71787c] text-[18px]">
+                            {q.type === "multi_choice" ? "check_box_outline_blank" : "radio_button_unchecked"}
+                          </span>
+                          <input
+                            className="flex-1 border-b border-transparent focus:border-primary focus:ring-0 p-0.5 text-xs text-on-surface-variant bg-transparent cursor-pointer outline-none"
+                            onClick={() => addOption(q.id)}
+                            placeholder="Add option..."
+                            readOnly
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1278,7 +1398,7 @@ export function SurveyBuilderPage() {
                     {/* Hidden buttons for Vitest test assertions */}
                     <button
                       className="sr-only"
-                      disabled={qIndex === 0}
+                      disabled={isReadOnly || qIndex === 0}
                       onClick={() => moveQuestion(q.id, "up")}
                       title="Move Up"
                       type="button"
@@ -1287,7 +1407,7 @@ export function SurveyBuilderPage() {
                     </button>
                     <button
                       className="sr-only"
-                      disabled={qIndex === questions.length - 1}
+                      disabled={isReadOnly || qIndex === questions.length - 1}
                       onClick={() => moveQuestion(q.id, "down")}
                       title="Move Down"
                       type="button"
@@ -1297,6 +1417,7 @@ export function SurveyBuilderPage() {
                     {isSubscribed && (
                       <button
                         className="sr-only"
+                        disabled={isReadOnly}
                         onClick={() => void handleOptimizeQuestion(q.id, q.text)}
                         title="AI Optimize Question Phrasing"
                         type="button"
@@ -1305,39 +1426,47 @@ export function SurveyBuilderPage() {
                       </button>
                     )}
 
-                    <button
-                      className="text-on-surface-variant hover:text-primary transition-colors p-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        duplicateQuestion(q.id);
-                      }}
-                      title="Duplicate"
-                      type="button"
-                    >
-                      <span className="material-symbols-outlined text-[20px]">content_copy</span>
-                    </button>
-                    <button
-                      className="text-on-surface-variant hover:text-error transition-colors p-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteQuestion(q.id);
-                      }}
-                      title="Delete"
-                      type="button"
-                    >
-                      <span className="material-symbols-outlined text-[20px]">delete</span>
-                    </button>
-                    <div className="w-px h-6 bg-[#c1c7cc] mx-1"></div>
+                    {!isReadOnly && (
+                      <>
+                        <button
+                          className="text-on-surface-variant hover:text-primary transition-colors p-1 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            duplicateQuestion(q.id);
+                          }}
+                          title="Duplicate"
+                          type="button"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">content_copy</span>
+                        </button>
+                        <button
+                          className="text-on-surface-variant hover:text-error transition-colors p-1 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteQuestion(q.id);
+                          }}
+                          title="Delete"
+                          type="button"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">delete</span>
+                        </button>
+                        <div className="w-px h-6 bg-[#c1c7cc] mx-1"></div>
+                      </>
+                    )}
                     <label
-                      className="flex items-center gap-2 cursor-pointer select-none"
+                      className={`flex items-center gap-2 select-none ${isReadOnly ? "cursor-default opacity-70" : "cursor-pointer"}`}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <span className="text-xs text-on-surface-variant">Required</span>
                       <div
-                        className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors cursor-pointer ${
+                        className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors ${
+                          isReadOnly ? "cursor-default" : "cursor-pointer"
+                        } ${
                           q.required !== false ? "bg-[#004B63]" : "bg-slate-300"
                         }`}
-                        onClick={() => updateQuestion(q.id, { required: q.required === false })}
+                        onClick={() => {
+                          if (!isReadOnly) updateQuestion(q.id, { required: q.required === false });
+                        }}
                       >
                         <div
                           className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
@@ -1355,14 +1484,16 @@ export function SurveyBuilderPage() {
             })}
 
             {/* Add New Question Block Button */}
-            <button
-              onClick={() => addQuestion("single_choice")}
-              className="w-full py-4 border-2 border-dashed border-[#c1c7cc] rounded text-on-surface-variant hover:border-primary hover:text-primary hover:bg-[#eff4ff] transition-all flex items-center justify-center gap-2 font-medium text-xs md:text-sm cursor-pointer"
-              type="button"
-            >
-              <span className="material-symbols-outlined text-[20px]">add_circle</span>
-              <span>Add New Question Block</span>
-            </button>
+            {!isReadOnly && (
+              <button
+                onClick={() => addQuestion("single_choice")}
+                className="w-full py-4 border-2 border-dashed border-[#c1c7cc] rounded text-on-surface-variant hover:border-primary hover:text-primary hover:bg-[#eff4ff] transition-all flex items-center justify-center gap-2 font-medium text-xs md:text-sm cursor-pointer"
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[20px]">add_circle</span>
+                <span>Add New Question Block</span>
+              </button>
+            )}
           </div>
         </main>
 
@@ -1393,7 +1524,10 @@ export function SurveyBuilderPage() {
                 </label>
                 <div className="pt-2">
                   <span className="text-xs md:text-sm text-on-surface block mb-1">Logic Jump</span>
-                  <select className="w-full bg-[#f8fafc] border border-[#c1c7cc] text-xs rounded px-3 py-2 outline-none focus:border-primary text-on-surface-variant">
+                  <select
+                    disabled={isReadOnly}
+                    className="w-full bg-[#f8fafc] border border-[#c1c7cc] text-xs rounded px-3 py-2 outline-none focus:border-primary text-on-surface-variant disabled:opacity-70"
+                  >
                     <option>Go to next section</option>
                     <option>Based on answer...</option>
                   </select>
@@ -1413,14 +1547,16 @@ export function SurveyBuilderPage() {
                 <div>
                   <label className="text-[12px] text-on-surface-variant block mb-1">Amharic Translation</label>
                   <textarea
-                    className="w-full bg-[#f8fafc] border border-[#c1c7cc] rounded p-2 text-xs focus:border-primary focus:ring-0 resize-none h-16 outline-none"
+                    disabled={isReadOnly}
+                    className="w-full bg-[#f8fafc] border border-[#c1c7cc] rounded p-2 text-xs focus:border-primary focus:ring-0 resize-none h-16 outline-none disabled:opacity-70"
                     placeholder="Enter Amharic text here..."
                   />
                 </div>
                 <div>
                   <label className="text-[12px] text-on-surface-variant block mb-1">Afaan Oromo Translation</label>
                   <textarea
-                    className="w-full bg-[#f8fafc] border border-[#c1c7cc] rounded p-2 text-xs focus:border-primary focus:ring-0 resize-none h-16 outline-none"
+                    disabled={isReadOnly}
+                    className="w-full bg-[#f8fafc] border border-[#c1c7cc] rounded p-2 text-xs focus:border-primary focus:ring-0 resize-none h-16 outline-none disabled:opacity-70"
                     placeholder="Enter Afaan Oromo text here..."
                   />
                 </div>
@@ -1444,12 +1580,12 @@ export function SurveyBuilderPage() {
               {isSubscribed ? (
                 <button
                   onClick={() => {
-                    if (activeQuestion) {
+                    if (activeQuestion && !isReadOnly) {
                       void handleOptimizeQuestion(activeQuestion.id, activeQuestion.text);
                     }
                   }}
-                  disabled={optimizingQuestionId !== null}
-                  className="w-full py-2 bg-primary text-white text-xs font-bold rounded hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  disabled={isReadOnly || optimizingQuestionId !== null}
+                  className="w-full py-2 bg-primary text-white text-xs font-bold rounded hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   type="button"
                 >
                   <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
