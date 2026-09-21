@@ -145,6 +145,7 @@ export const withdrawSchema = z.object({
 });
 
 export const researcherProfileSchema = z.object({
+  full_name: z.string().trim().min(2, "Full name must be at least 2 characters").max(120).optional(),
   bio: z
     .string()
     .trim()
@@ -154,11 +155,18 @@ export const researcherProfileSchema = z.object({
   institution: z.string().trim().max(160).nullable().optional(),
   dob: z.string().nullable().optional(), // YYYY-MM-DD
   phone: z.string().trim().nullable().optional(),
-  institutional_email: z.string().trim().email().nullable().optional(),
+  institutional_email: z.string().trim().email("Please enter a valid email address").nullable().optional().or(z.literal("")),
   researcher_type: z.string().trim().nullable().optional(),
   years_experience: z.number().int().min(0).max(100).nullable().optional(),
   onboarding_completed: z.boolean().optional(),
   social_links: z.record(z.string()).default({}),
+  notification_preferences: z
+    .object({
+      email_on_response: z.boolean().default(true),
+      email_on_flagged: z.boolean().default(true),
+      email_on_low_balance: z.boolean().default(true),
+    })
+    .optional(),
 });
 export type ResearcherProfileInput = z.infer<typeof researcherProfileSchema>;
 
@@ -246,17 +254,24 @@ export const matchFiltersSchema = z.object({
   ageRange: z
     .tuple([z.number().int().min(15).max(100), z.number().int().min(15).max(100)])
     .optional(),
+  age_min: z.number().int().min(15).max(100).optional(),
+  age_max: z.number().int().min(15).max(100).optional(),
   gender: z.enum(GENDERS).optional(),
   primaryLanguage: z.enum(PRIMARY_LANGUAGES).optional(),
+  primary_language: z.enum(PRIMARY_LANGUAGES).optional(),
 
   // Where they are
   region: z.string().trim().min(1).max(80).optional(),
+  regions: z.array(z.string().trim().min(1).max(80)).optional(),
   city: z.string().trim().min(1).max(80).optional(),
 
   // Work and education
   employmentStatus: z.enum(EMPLOYMENT_STATUSES).optional(),
+  employment_status: z.enum(EMPLOYMENT_STATUSES).optional(),
   occupation: z.string().trim().min(1).max(120).optional(),
   educationLevel: z.enum(EDUCATION_LEVELS).optional(),
+  education: z.string().optional(),
+  education_level: z.string().optional(),
 
   // Academic, for studies that are specifically about students
   university: z.string().trim().min(1).optional(),
@@ -264,6 +279,7 @@ export const matchFiltersSchema = z.object({
   yearRange: z.tuple([z.number().int().min(1).max(8), z.number().int().min(1).max(8)]).optional(),
 
   minVerificationTier: minVerificationTierSchema.optional(),
+  min_verification_tier: minVerificationTierSchema.optional(),
 }).passthrough();
 export type MatchFiltersInput = z.infer<typeof matchFiltersSchema>;
 
@@ -272,6 +288,7 @@ export const matchRequestSchema = z.object({ filters: matchFiltersSchema });
 export const sendRequestSchema = z.object({
   format: z.string().optional(),
   filters: z.record(z.unknown()).optional(),
+  sample_size: z.number().int().min(1).max(50_000).optional(),
   reward_etb: z.number().min(0).max(10_000).optional(),
   research_category: z.string().nullable().optional(),
   compliance_required: z.boolean().nullable().optional(),

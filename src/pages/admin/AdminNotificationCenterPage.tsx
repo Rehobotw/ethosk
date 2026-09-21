@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/lib/language";
+import { usePersistentNotifications } from "@/lib/notificationStore";
 
 export interface AdminNotification {
   id: string;
@@ -96,19 +97,9 @@ export function AdminNotificationCenterPage() {
   const { language } = useLanguage();
   const isAm = language === "am";
 
-  const [notifications, setNotifications] =
-    useState<AdminNotification[]>(initialAdminNotifications);
+  const { notifications, markAllAsRead, markAsRead } =
+    usePersistentNotifications<AdminNotification>("admin", initialAdminNotifications);
   const [settingsOpen, setSettingsOpen] = useState(false);
-
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-  };
-
-  const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
-    );
-  };
 
   const todayList = notifications.filter((n) => n.section === "today");
   const yesterdayList = notifications.filter((n) => n.section === "yesterday");

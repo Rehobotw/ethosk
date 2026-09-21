@@ -11,36 +11,6 @@ function generateQuestionId(): string {
   return `q_ai_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
-const DEFAULT_AI_QUESTIONS: Question[] = [
-  {
-    id: generateQuestionId(),
-    text: "Which financial services do you use at least once weekly for business transactions?",
-    type: "single_choice",
-    options: ["CBE Birr", "Telebirr", "Traditional Bank Transfer", "Cash Only"],
-    required: true,
-  },
-  {
-    id: generateQuestionId(),
-    text: "How easy was it to register for your current mobile money account?",
-    type: "single_choice",
-    options: ["1 - Very Difficult", "2 - Difficult", "3 - Neutral", "4 - Easy", "5 - Very Easy"],
-    required: true,
-  },
-  {
-    id: generateQuestionId(),
-    text: "What are the biggest challenges you face when withdrawing cash at local agent kiosks?",
-    type: "multi_choice",
-    options: ["Agent liquidity shortages", "Network downtime", "High commission fees", "Long queues"],
-    required: true,
-  },
-  {
-    id: generateQuestionId(),
-    text: "In your own words, what new feature would make you rely more on digital wallet payments?",
-    type: "text",
-    required: false,
-  },
-];
-
 export function SurveyAiPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -72,7 +42,7 @@ export function SurveyAiPage() {
 
   // Output Schema State
   const [title, setTitle] = useState("Mobile Banking Adoption in Regional Ethiopia");
-  const [questions, setQuestions] = useState<Question[]>(DEFAULT_AI_QUESTIONS);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [banner, setBanner] = useState<{ tone: "success" | "error" | "warning"; text: string } | null>(null);
 
   const removeDemographic = (index: number) => {
@@ -91,6 +61,9 @@ export function SurveyAiPage() {
   const generateSurvey = useMutation({
     mutationFn: async () => {
       setBanner(null);
+      if (!isSubscribed) {
+        throw new ApiRequestError(403, "PRO_TIER_REQUIRED", "AI Survey Generation is reserved for Pro tier subscribers. Please upgrade to access this feature.");
+      }
       return api<{
         title: string;
         description: string;
@@ -127,10 +100,10 @@ export function SurveyAiPage() {
             : undefined,
         required: true,
       }));
-      setQuestions(mappedQuestions.length > 0 ? mappedQuestions : DEFAULT_AI_QUESTIONS);
+      setQuestions(mappedQuestions);
       setBanner({
         tone: "success",
-        text: `Generated ${mappedQuestions.length || 8} optimized research questions with zero-bias heuristics.`,
+        text: `Generated ${mappedQuestions.length} optimized research questions with zero-bias heuristics.`,
       });
     },
     onError: (error) => {
@@ -144,6 +117,9 @@ export function SurveyAiPage() {
   // Save as WIP & open in Manual Builder
   const acceptAndEditMutation = useMutation({
     mutationFn: async () => {
+      if (!isSubscribed) {
+        throw new ApiRequestError(403, "PRO_TIER_REQUIRED", "AI Survey draft creation requires an active Pro subscription.");
+      }
       const payload = surveySchema.parse({
         title: title || "AI-Generated Survey",
         description: topic,
@@ -231,9 +207,17 @@ export function SurveyAiPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Research Parameters (5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-5 bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-xs">
-          <div className="flex items-center gap-2 pb-3 border-b border-[#E2E8F0]">
-            <Icon className="text-[20px] text-[#2872A1]" name="tune" />
-            <h2 className="font-headline text-base font-bold text-[#001d29]">Research Parameters</h2>
+          <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0]">
+            <div className="flex items-center gap-2">
+              <Icon className="text-[20px] text-[#2872A1]" name="tune" />
+              <h2 className="font-headline text-base font-bold text-[#001d29]">Research Parameters</h2>
+            </div>
+            {!isSubscribed && (
+              <span className="text-[10px] font-mono font-bold bg-[#eff4ff] text-[#001d29] px-2 py-0.5 rounded-full border border-[#c1c7cc]/40 flex items-center gap-1">
+                <Icon className="text-[12px] text-amber-500" name="lock" />
+                <span>PRO ONLY</span>
+              </span>
+            )}
           </div>
 
           {/* Topic & Core Objective */}
@@ -398,12 +382,34 @@ export function SurveyAiPage() {
           {/* Generate Button */}
           <button
             type="button"
-            onClick={() => generateSurvey.mutate()}
+            onClick={() => {
+              if (!isSubscribed) {
+                setBanner({
+                  tone: "warning",
+                  text: "AI Survey Generation requires a Pro subscription. Please upgrade below.",
+                });
+                return;
+              }
+              generateSurvey.mutate();
+            }}
             disabled={generateSurvey.isPending}
-            className="w-full bg-[#0B2B42] hover:bg-[#001d29] text-white rounded-xl py-3.5 mt-2 flex items-center justify-center gap-2 font-bold text-xs md:text-sm transition-all shadow-sm hover:shadow-md cursor-pointer disabled:opacity-50 group"
+            className={`w-full text-white rounded-xl py-3.5 mt-2 flex items-center justify-center gap-2 font-bold text-xs md:text-sm transition-all shadow-sm group ${
+              !isSubscribed
+                ? "bg-[#41484c] hover:bg-[#001d29] cursor-pointer"
+                : "bg-[#0B2B42] hover:bg-[#001d29] hover:shadow-md cursor-pointer disabled:opacity-50"
+            }`}
           >
-            <span>{generateSurvey.isPending ? "Analyzing & Generating…" : "Generate Optimized Schema"}</span>
-            <Icon className="text-amber-300 text-[18px] group-hover:rotate-12 transition-transform" name="auto_awesome" />
+            <span>
+              {generateSurvey.isPending
+                ? "Analyzing & Generating…"
+                : isSubscribed
+                ? "Generate Optimized Schema"
+                : "Generate Optimized Schema (Pro Only)"}
+            </span>
+            <Icon
+              className="text-amber-300 text-[18px] group-hover:rotate-12 transition-transform"
+              name={!isSubscribed ? "lock" : "auto_awesome"}
+            />
           </button>
         </div>
 
@@ -438,96 +444,120 @@ export function SurveyAiPage() {
               </div>
             </div>
 
-            {/* Question Cards List */}
-            <div className="p-4 flex flex-col gap-3 overflow-y-auto max-h-[500px]">
-              {questions.map((q, idx) => {
-                const isLikert = q.options && q.options.length === 5 && q.options[0]?.includes("1");
-                const isMulti = q.type === "multi_choice";
-                const isOpenEnded = q.type === "text";
-
-                return (
-                  <div
-                    key={q.id}
-                    className="border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2872A1]/40 transition-colors bg-[#f8f9ff]/50"
+            {/* Question Cards List or Empty State */}
+            {questions.length === 0 ? (
+              <div className="p-8 flex flex-col items-center justify-center text-center my-auto min-h-[360px]">
+                <div className="w-14 h-14 rounded-2xl bg-[#eff4ff] flex items-center justify-center mb-4 border border-[#c1c7cc]/30 shadow-xs">
+                  <Icon className="text-[28px] text-[#001d29]" name={!isSubscribed ? "lock" : "auto_awesome"} />
+                </div>
+                <h3 className="font-headline text-base md:text-lg font-bold text-[#001d29]">
+                  {!isSubscribed ? "Pro Subscription Required" : "No Questions Generated Yet"}
+                </h3>
+                <p className="text-xs md:text-sm text-[#71787c] max-w-md mt-2 leading-relaxed">
+                  {!isSubscribed
+                    ? "AI survey generation and multilingual question synthesis require an active Pro subscription. Upgrade to generate schemas automatically."
+                    : "Configure your research parameters and demographics on the left, then click 'Generate Optimized Schema' to create your draft questions."}
+                </p>
+                {!isSubscribed && (
+                  <Link
+                    to="/profile/settings?tab=subscription"
+                    className="mt-5 px-6 py-2.5 bg-[#001d29] hover:bg-[#003345] text-white rounded-xl text-xs md:text-sm font-bold transition-all shadow-sm"
                   >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex gap-2.5">
-                        <span className="bg-[#dde9ff] text-[#001d29] font-mono text-[11px] font-bold px-2 py-0.5 rounded h-fit mt-0.5">
-                          Q{idx + 1}
+                    Upgrade to Pro (500 ETB/mo)
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div className="p-4 flex flex-col gap-3 overflow-y-auto max-h-[500px]">
+                {questions.map((q, idx) => {
+                  const isLikert = q.options && q.options.length === 5 && q.options[0]?.includes("1");
+                  const isMulti = q.type === "multi_choice";
+                  const isOpenEnded = q.type === "text";
+
+                  return (
+                    <div
+                      key={q.id}
+                      className="border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2872A1]/40 transition-colors bg-[#f8f9ff]/50"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex gap-2.5">
+                          <span className="bg-[#dde9ff] text-[#001d29] font-mono text-[11px] font-bold px-2 py-0.5 rounded h-fit mt-0.5">
+                            Q{idx + 1}
+                          </span>
+                          <h3 className="font-semibold text-xs md:text-sm text-[#001d29] leading-snug">
+                            {q.text}
+                          </h3>
+                        </div>
+
+                        <span className="text-[#71787c] text-[11px] font-mono whitespace-nowrap bg-white px-2 py-0.5 rounded border border-[#E2E8F0] flex items-center gap-1 shrink-0 ml-2">
+                          <Icon
+                            className="text-[13px]"
+                            name={
+                              isLikert
+                                ? "linear_scale"
+                                : isMulti
+                                ? "checklist"
+                                : isOpenEnded
+                                ? "subject"
+                                : "radio_button_checked"
+                            }
+                          />
+                          <span>
+                            {isLikert
+                              ? "Likert Scale"
+                              : isMulti
+                              ? "Multi-Select"
+                              : isOpenEnded
+                              ? "Open Ended"
+                              : "Single Choice"}
+                          </span>
                         </span>
-                        <h3 className="font-semibold text-xs md:text-sm text-[#001d29] leading-snug">
-                          {q.text}
-                        </h3>
                       </div>
 
-                      <span className="text-[#71787c] text-[11px] font-mono whitespace-nowrap bg-white px-2 py-0.5 rounded border border-[#E2E8F0] flex items-center gap-1 shrink-0 ml-2">
-                        <Icon
-                          className="text-[13px]"
-                          name={
-                            isLikert
-                              ? "linear_scale"
-                              : isMulti
-                              ? "checklist"
-                              : isOpenEnded
-                              ? "subject"
-                              : "radio_button_checked"
-                          }
-                        />
-                        <span>
-                          {isLikert
-                            ? "Likert Scale"
-                            : isMulti
-                            ? "Multi-Select"
-                            : isOpenEnded
-                            ? "Open Ended"
-                            : "Single Choice"}
-                        </span>
-                      </span>
-                    </div>
+                      {/* Render Options Preview */}
+                      {isLikert && (
+                        <div className="ml-8 flex items-center justify-between mt-2.5 px-3 py-2 bg-white rounded-lg border border-[#E2E8F0] text-xs font-mono text-[#71787c]">
+                          <span>Very Difficult (1)</span>
+                          <div className="flex gap-3">
+                            {[1, 2, 3, 4, 5].map((val) => (
+                              <div key={val} className="w-3.5 h-3.5 rounded-full border-2 border-[#c1c7cc]"></div>
+                            ))}
+                          </div>
+                          <span>Very Easy (5)</span>
+                        </div>
+                      )}
 
-                    {/* Render Options Preview */}
-                    {isLikert && (
-                      <div className="ml-8 flex items-center justify-between mt-2.5 px-3 py-2 bg-white rounded-lg border border-[#E2E8F0] text-xs font-mono text-[#71787c]">
-                        <span>Very Difficult (1)</span>
-                        <div className="flex gap-3">
-                          {[1, 2, 3, 4, 5].map((val) => (
-                            <div key={val} className="w-3.5 h-3.5 rounded-full border-2 border-[#c1c7cc]"></div>
+                      {!isLikert && !isOpenEnded && q.options && (
+                        <div className="ml-8 flex flex-col gap-1.5 mt-2.5">
+                          {q.options.map((opt) => (
+                            <div key={opt} className="flex items-center gap-2 text-xs text-[#41484c]">
+                              <div
+                                className={`w-3 h-3 rounded-${isMulti ? "xs" : "full"} border border-[#c1c7cc] shrink-0`}
+                              ></div>
+                              <span>{opt}</span>
+                            </div>
                           ))}
                         </div>
-                        <span>Very Easy (5)</span>
-                      </div>
-                    )}
+                      )}
 
-                    {!isLikert && !isOpenEnded && q.options && (
-                      <div className="ml-8 flex flex-col gap-1.5 mt-2.5">
-                        {q.options.map((opt) => (
-                          <div key={opt} className="flex items-center gap-2 text-xs text-[#41484c]">
-                            <div
-                              className={`w-3 h-3 rounded-${isMulti ? "xs" : "full"} border border-[#c1c7cc] shrink-0`}
-                            ></div>
-                            <span>{opt}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {isOpenEnded && (
-                      <div className="ml-8 mt-2 text-xs text-[#71787c] italic font-mono">
-                        Freeform textual / spoken response
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                      {isOpenEnded && (
+                        <div className="ml-8 mt-2 text-xs text-[#71787c] italic font-mono">
+                          Freeform textual / spoken response
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Action Footer */}
             <div className="p-4 bg-[#f8f9ff] border-t border-[#E2E8F0] flex items-center justify-between gap-4 mt-auto">
               <button
                 type="button"
                 onClick={() => generateSurvey.mutate()}
-                disabled={generateSurvey.isPending}
-                className="px-4 py-2 rounded-xl border border-[#c1c7cc] text-[#001d29] hover:bg-white text-xs md:text-sm font-semibold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                disabled={generateSurvey.isPending || !isSubscribed || questions.length === 0}
+                className="px-4 py-2 rounded-xl border border-[#c1c7cc] text-[#001d29] hover:bg-white text-xs md:text-sm font-semibold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Icon className="text-[16px]" name="refresh" />
                 <span>Regenerate Questions</span>
@@ -536,10 +566,22 @@ export function SurveyAiPage() {
               <button
                 type="button"
                 onClick={() => acceptAndEditMutation.mutate()}
-                disabled={acceptAndEditMutation.isPending}
-                className="px-6 py-2 bg-[#2872A1] hover:bg-[#003345] text-white rounded-xl font-bold text-xs md:text-sm transition-colors shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                disabled={acceptAndEditMutation.isPending || questions.length === 0 || !isSubscribed}
+                className={`px-6 py-2 rounded-xl font-bold text-xs md:text-sm transition-colors shadow-xs flex items-center gap-2 ${
+                  acceptAndEditMutation.isPending || questions.length === 0 || !isSubscribed
+                    ? "bg-[#c1c7cc]/50 text-[#71787c] cursor-not-allowed opacity-60"
+                    : "bg-[#2872A1] hover:bg-[#003345] text-white cursor-pointer"
+                }`}
               >
-                <span>{acceptAndEditMutation.isPending ? "Creating Draft…" : "Accept & Edit in Builder"}</span>
+                <span>
+                  {acceptAndEditMutation.isPending
+                    ? "Creating Draft…"
+                    : !isSubscribed
+                    ? "Pro Subscription Required"
+                    : questions.length === 0
+                    ? "No Questions to Save"
+                    : "Accept & Edit in Builder"}
+                </span>
                 <Icon className="text-[18px]" name="arrow_forward" />
               </button>
             </div>

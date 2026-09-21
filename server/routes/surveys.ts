@@ -509,28 +509,25 @@ surveysRouter.get(
   asyncRoute(async (req, res) => {
     const context = auth(req);
 
-    let { data, error } = await admin
+    const { data, error } = await admin
       .from("surveys")
       .select("*")
       .eq("researcher_id", context.userId)
       .order("created_at", { ascending: false });
-
-    if (!data || data.length === 0) {
-      const allSurveys = await admin
-        .from("surveys")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (allSurveys.data && allSurveys.data.length > 0) {
-        data = allSurveys.data;
-      }
-    }
 
     if (error) throw new ApiError(500, "SURVEYS_READ_FAILED", error.message);
 
     const surveys = (data ?? []) as SurveyRecord[];
     const withStats = await Promise.all(
       surveys.map(async (survey) => {
-        const [{ count: responseCount }, { count: targetCount }] = await Promise.all([
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+        const [
+          { count: responseCount },
+          { count: targetCount },
+          { count: velocityCount },
+          { count: flaggedCount },
+        ] = await Promise.all([
           admin
             .from("survey_responses")
             .select("id", { count: "exact", head: true })
@@ -539,11 +536,26 @@ surveysRouter.get(
             .from("survey_targets")
             .select("survey_id", { count: "exact", head: true })
             .eq("survey_id", survey.id),
+          // REH-131: velocity = responses submitted in the last hour
+          admin
+            .from("survey_responses")
+            .select("id", { count: "exact", head: true })
+            .eq("survey_id", survey.id)
+            .gte("created_at", oneHourAgo),
+          // REH-131: flagged = fraud-flagged responses
+          admin
+            .from("survey_responses")
+            .select("id", { count: "exact", head: true })
+            .eq("survey_id", survey.id)
+            .eq("fraud_flag", "flagged"),
         ]);
+
         return {
           ...survey,
           response_count: responseCount ?? 0,
           targeted_count: targetCount ?? 0,
+          velocity_per_hr: velocityCount ?? 0,
+          flagged_count: flaggedCount ?? 0,
         };
       }),
     );
@@ -700,11 +712,11 @@ surveysRouter.get(
   requireAuth("researcher", "respondent"),
   asyncRoute(async (req, res) => {
     const context = auth(req);
-    const survey = await loadSurvey(routeParam(req, "id"));
+    const survey =
+      context.role === "researcher"
+        ? await loadOwnedSurvey(routeParam(req, "id"), context.userId)
+        : await loadSurvey(routeParam(req, "id"));
 
-    if (context.role === "researcher" && survey.researcher_id !== context.userId) {
-      throw new ApiError(404, "SURVEY_NOT_FOUND", "That survey does not exist.");
-    }
     if (context.role === "respondent") {
       await assertTargeted(survey.id, context.userId);
     }
@@ -713,12 +725,21 @@ surveysRouter.get(
   }),
 );
 
+function escapeCsvValue(val: unknown): string {
+  if (val === null || val === undefined) return "";
+  const str = typeof val === "object" ? JSON.stringify(val) : String(val);
+  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
 surveysRouter.get(
   "/:id/export",
   requireAuth("researcher"),
   asyncRoute(async (req, res) => {
     const context = auth(req);
-    await loadOwnedSurvey(routeParam(req, "id"), context.userId);
+    const survey = await loadOwnedSurvey(routeParam(req, "id"), context.userId);
 
     // Subscription gate enforcement
     if (context.subscriptionTier !== "subscribed") {
@@ -729,13 +750,50 @@ surveysRouter.get(
       );
     }
 
-    // MVP placeholder for actual CSV generation
-    res.setHeader("Content-Type", "text/csv");
+    const { data: responses, error } = await admin
+      .from("survey_responses")
+      .select("id, answers, total_time_seconds, fraud_flag, completed_at")
+      .eq("survey_id", survey.id)
+      .order("completed_at", { ascending: true });
+
+    if (error) {
+      throw new ApiError(500, "EXPORT_FAILED", error.message || "Failed to load survey responses for export.");
+    }
+
+    const questions = (survey.questions || []) as { id: string; text: string }[];
+    const questionHeaders = questions.map((q, idx) => `Q${idx + 1}_${q.id}`);
+
+    const headerColumns = [
+      "response_id",
+      "completed_at",
+      "total_time_seconds",
+      "fraud_flag",
+      ...questionHeaders,
+    ];
+
+    const csvRows = [headerColumns.map(escapeCsvValue).join(",")];
+
+    for (const r of responses || []) {
+      const answers = (r.answers || {}) as Record<string, unknown>;
+      const rowValues = [
+        escapeCsvValue(r.id),
+        escapeCsvValue(r.completed_at || ""),
+        escapeCsvValue(r.total_time_seconds ?? ""),
+        escapeCsvValue(r.fraud_flag || "clean"),
+        ...questions.map((q) => {
+          const answerVal = answers[q.id] ?? answers[q.text] ?? "";
+          return escapeCsvValue(answerVal);
+        }),
+      ];
+      csvRows.push(rowValues.join(","));
+    }
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="survey_${req.params.id}_export.csv"`,
+      `attachment; filename="survey_${survey.id}_export.csv"`,
     );
-    res.send("respondent_id,completed_at,fraud_flag\n123,2026-08-14,clean");
+    res.send(csvRows.join("\n"));
   }),
 );
 
@@ -1026,11 +1084,27 @@ surveysRouter.post(
     // trusted to decide who receives a survey.
     const respondentIds = await findMatches(normalizeMatchFilters(input.filters));
 
+    // Cap respondents and escrow to requested sample_size (§7.4, REH-119)
+    const requestedSampleSize =
+      input.sample_size ??
+      (typeof input.filters?.sample_size === "number" ? (input.filters.sample_size as number) : undefined) ??
+      (survey as any).target_sample_size;
+
+    const targetSampleSize =
+      requestedSampleSize && requestedSampleSize > 0
+        ? Math.min(requestedSampleSize, respondentIds.length)
+        : respondentIds.length;
+
+    const selectedRespondents =
+      targetSampleSize < respondentIds.length
+        ? respondentIds.slice(0, targetSampleSize)
+        : respondentIds;
+
     // Sending is the point of no return for money: respondents are about to be
     // promised a reward, so the full cost is checked against the researcher's
     // balance and reserved here rather than discovered to be missing later.
     const rewardEtb = input.reward_etb ?? survey.reward_etb ?? 0;
-    const requiredEtb = roundEtb(rewardEtb * respondentIds.length);
+    const requiredEtb = roundEtb(rewardEtb * selectedRespondents.length);
 
     if (requiredEtb > 0) {
       const wallet = await readResearcherWallet(context.userId);
@@ -1038,16 +1112,16 @@ surveysRouter.post(
         throw new ApiError(
           402,
           "INSUFFICIENT_FUNDS",
-          `This send needs ${requiredEtb.toLocaleString()} ETB to cover ${respondentIds.length} ` +
+          `This send needs ${requiredEtb.toLocaleString()} ETB to cover ${selectedRespondents.length} ` +
             `responses at ${rewardEtb} ETB. Your available balance is ` +
             `${wallet.available_etb.toLocaleString()} ETB. Add funds and try again.`,
         );
       }
     }
 
-    if (respondentIds.length > 0) {
+    if (selectedRespondents.length > 0) {
       const { error: targetError } = await admin.from("survey_targets").upsert(
-        respondentIds.map((respondentId) => ({
+        selectedRespondents.map((respondentId) => ({
           survey_id: survey.id,
           respondent_id: respondentId,
         })),
@@ -1074,6 +1148,14 @@ surveysRouter.post(
       input.compliance_document_path !== undefined
         ? input.compliance_document_path
         : survey.compliance_document_path;
+
+    if (compliance_required && (!compliance_answer || !compliance_document_path)) {
+      throw new ApiError(
+        400,
+        "COMPLIANCE_CLEARANCE_REQUIRED",
+        "Institutional clearance or ethical approval documentation is required for sensitive research categories (§7.4).",
+      );
+    }
 
     const submitPayload: Record<string, unknown> = {
       status: "pending_review",
@@ -1131,7 +1213,7 @@ surveysRouter.post(
     if (statusError) throw new ApiError(500, "SEND_FAILED", statusError.message);
 
     res.json({
-      targeted_count: respondentIds.length,
+      targeted_count: selectedRespondents.length,
       status: "pending_review",
       reserved_etb: requiredEtb,
     });
@@ -1139,15 +1221,83 @@ surveysRouter.post(
 );
 
 /**
- * `minVerificationTier` is required by `MatchFilters` (Tier 0 is deliberately
- * excluded from matching — see `minVerificationTierSchema`), but callers may
- * omit it entirely. Default to the lowest verified tier in that case.
+ * Normalizes filter inputs from both internal programmatic calls and the UI
+ * wizard. UI forms may send `age_min`/`age_max` instead of `ageRange`,
+ * `education` instead of `educationLevel`, and `regions` array.
  */
-function normalizeMatchFilters(filters: Record<string, unknown> | undefined): MatchFilters {
+export function normalizeMatchFilters(filters: Record<string, unknown> | undefined): MatchFilters {
+  if (!filters) {
+    return { minVerificationTier: "1_id_verified" };
+  }
+
   const minVerificationTier =
-    (filters?.minVerificationTier as MatchFilters["minVerificationTier"] | undefined) ??
+    (filters.minVerificationTier as MatchFilters["minVerificationTier"] | undefined) ??
+    (filters.min_verification_tier as MatchFilters["minVerificationTier"] | undefined) ??
     "1_id_verified";
-  return { ...(filters as Omit<MatchFilters, "minVerificationTier">), minVerificationTier };
+
+  const normalized: MatchFilters = { minVerificationTier };
+
+  // Age: supports ageRange tuple or age_min / age_max from UI
+  if (Array.isArray(filters.ageRange) && filters.ageRange.length === 2) {
+    normalized.ageRange = [Number(filters.ageRange[0]), Number(filters.ageRange[1])];
+  } else if (filters.age_min !== undefined || filters.age_max !== undefined) {
+    const min = filters.age_min !== undefined ? Number(filters.age_min) : 15;
+    const max = filters.age_max !== undefined ? Number(filters.age_max) : 100;
+    normalized.ageRange = [min, max];
+  }
+
+  // Gender
+  if (filters.gender && filters.gender !== "any" && filters.gender !== "__any") {
+    normalized.gender = filters.gender as MatchFilters["gender"];
+  }
+
+  // Primary Language
+  const lang = filters.primaryLanguage ?? filters.primary_language;
+  if (lang && lang !== "any" && lang !== "__any") {
+    normalized.primaryLanguage = lang as MatchFilters["primaryLanguage"];
+  }
+
+  // Region / Regions
+  if (Array.isArray(filters.regions) && filters.regions.length > 0) {
+    normalized.regions = (filters.regions as unknown[]).filter(Boolean).map(String);
+  } else if (typeof filters.region === "string" && filters.region && filters.region !== "any" && filters.region !== "__any") {
+    normalized.region = filters.region;
+  }
+
+  // City
+  if (typeof filters.city === "string" && filters.city) {
+    normalized.city = filters.city;
+  }
+
+  // Employment Status
+  const emp = filters.employmentStatus ?? filters.employment_status;
+  if (emp && emp !== "any" && emp !== "__any" && emp !== "all") {
+    normalized.employmentStatus = emp as MatchFilters["employmentStatus"];
+  }
+
+  // Occupation
+  if (typeof filters.occupation === "string" && filters.occupation) {
+    normalized.occupation = filters.occupation;
+  }
+
+  // Education Level: supports educationLevel, education_level, or education
+  const edu = filters.educationLevel ?? filters.education_level ?? filters.education;
+  if (edu && edu !== "any" && edu !== "__any") {
+    normalized.educationLevel = edu as MatchFilters["educationLevel"];
+  }
+
+  // Academic filters
+  if (typeof filters.university === "string" && filters.university) {
+    normalized.university = filters.university;
+  }
+  if (typeof filters.department === "string" && filters.department) {
+    normalized.department = filters.department;
+  }
+  if (Array.isArray(filters.yearRange) && filters.yearRange.length === 2) {
+    normalized.yearRange = [Number(filters.yearRange[0]), Number(filters.yearRange[1])];
+  }
+
+  return normalized;
 }
 
 async function countMatches(filters: MatchFilters): Promise<number> {
@@ -1183,6 +1333,8 @@ function applyFilter(query: any, filter: { column: string; op: string; value: un
       return query.gte(filter.column, filter.value);
     case "lte":
       return query.lte(filter.column, filter.value);
+    case "in":
+      return query.in(filter.column, filter.value);
     default:
       return query;
   }
