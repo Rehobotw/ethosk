@@ -37,13 +37,16 @@ export function SubscriptionPage() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
   const isSubscribed = user?.subscription_tier === "subscribed";
-  const expiresAt = user?.subscription_expires_at
-    ? new Date(user.subscription_expires_at).toLocaleDateString("en-US", {
-        month: "short",
-        day: "2-digit",
-        year: "numeric",
-      })
-    : "Sep 01, 2026";
+  const renewalDate = isSubscribed
+    ? user?.subscription_expires_at
+      ? new Date(user.subscription_expires_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "2-digit",
+          year: "numeric",
+        })
+      : "Next billing cycle"
+    : "Never expires";
+  const expiresAt = renewalDate;
 
   const { mutate: subscribe, isPending } = useMutation({
     mutationFn: async () => {
@@ -97,8 +100,8 @@ export function SubscriptionPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                 <span>Active</span>
               </span>
-              <span className="text-[#71787c]">
-                Auto-renews: {expiresAt}
+              <span className="text-[#71787c]" data-testid="subscription-renewal-date">
+                {isSubscribed ? `Auto-renews: ${renewalDate}` : "Renewal: Never expires"}
               </span>
             </div>
 
