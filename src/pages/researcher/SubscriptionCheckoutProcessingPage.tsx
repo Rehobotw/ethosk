@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLanguage } from "@/lib/language";
+import { SUBSCRIPTION_PLANS, formatCurrencyEtb } from "@shared/pricing.js";
 import { api, ApiRequestError } from "@/lib/api";
 
 export function SubscriptionCheckoutProcessingPage() {
@@ -15,7 +16,8 @@ export function SubscriptionCheckoutProcessingPage() {
   const billing = searchParams.get("billing") || "annual";
   const isAnnual = billing === "annual";
 
-  const planPrice = isAnnual ? 39 : 49;
+  const planPriceEtb = SUBSCRIPTION_PLANS.pro.priceEtb;
+  const planPrice = isAnnual ? 39 : SUBSCRIPTION_PLANS.pro.priceUsd!;
   const tax = Number((planPrice * 0.15).toFixed(2));
   const total = (planPrice + tax).toFixed(2);
 
@@ -216,7 +218,9 @@ export function SubscriptionCheckoutProcessingPage() {
                 <div className="space-y-2 mb-4 text-xs">
                   <div className="flex justify-between items-center text-[#40484f]">
                     <span>Professional Plan</span>
-                    <span className="font-semibold text-[#131b2e]">${planPrice}.00</span>
+                    <span data-testid="checkout-pro-price" className="font-semibold text-[#131b2e]">
+                      {formatCurrencyEtb(planPriceEtb)} (<span>${planPrice}.00</span>)
+                    </span>
                   </div>
                   <div className="flex justify-between items-center text-[#40484f]">
                     <span>Billed</span>
