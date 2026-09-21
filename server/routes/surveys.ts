@@ -1094,11 +1094,27 @@ surveysRouter.post(
     // trusted to decide who receives a survey.
     const respondentIds = await findMatches(normalizeMatchFilters(input.filters));
 
+    // Cap respondents and escrow to requested sample_size (§7.4, REH-119)
+    const requestedSampleSize =
+      input.sample_size ??
+      (typeof input.filters?.sample_size === "number" ? (input.filters.sample_size as number) : undefined) ??
+      (survey as any).target_sample_size;
+
+    const targetSampleSize =
+      requestedSampleSize && requestedSampleSize > 0
+        ? Math.min(requestedSampleSize, respondentIds.length)
+        : respondentIds.length;
+
+    const selectedRespondents =
+      targetSampleSize < respondentIds.length
+        ? respondentIds.slice(0, targetSampleSize)
+        : respondentIds;
+
     // Sending is the point of no return for money: respondents are about to be
     // promised a reward, so the full cost is checked against the researcher's
     // balance and reserved here rather than discovered to be missing later.
     const rewardEtb = input.reward_etb ?? survey.reward_etb ?? 0;
-    const requiredEtb = roundEtb(rewardEtb * respondentIds.length);
+    const requiredEtb = roundEtb(rewardEtb * selectedRespondents.length);
 
     if (requiredEtb > 0) {
       const wallet = await readResearcherWallet(context.userId);
@@ -1106,16 +1122,16 @@ surveysRouter.post(
         throw new ApiError(
           402,
           "INSUFFICIENT_FUNDS",
-          `This send needs ${requiredEtb.toLocaleString()} ETB to cover ${respondentIds.length} ` +
+          `This send needs ${requiredEtb.toLocaleString()} ETB to cover ${selectedRespondents.length} ` +
             `responses at ${rewardEtb} ETB. Your available balance is ` +
             `${wallet.available_etb.toLocaleString()} ETB. Add funds and try again.`,
         );
       }
     }
 
-    if (respondentIds.length > 0) {
+    if (selectedRespondents.length > 0) {
       const { error: targetError } = await admin.from("survey_targets").upsert(
-        respondentIds.map((respondentId) => ({
+        selectedRespondents.map((respondentId) => ({
           survey_id: survey.id,
           respondent_id: respondentId,
         })),
@@ -1207,7 +1223,7 @@ surveysRouter.post(
     if (statusError) throw new ApiError(500, "SEND_FAILED", statusError.message);
 
     res.json({
-      targeted_count: respondentIds.length,
+      targeted_count: selectedRespondents.length,
       status: "pending_review",
       reserved_etb: requiredEtb,
     });
