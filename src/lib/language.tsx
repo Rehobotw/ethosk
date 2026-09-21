@@ -90,7 +90,29 @@ export function useLanguage() {
       language,
       setLanguage: () => {},
       toggleLanguage: () => {},
-      t: (path: string) => path,
+      t: (path: string): string => {
+        const keys = path.split(".");
+        let fallback: unknown = language === "am" ? translations.am : translations.en;
+        for (const k of keys) {
+          if (fallback && typeof fallback === "object" && k in (fallback as Record<string, unknown>)) {
+            fallback = (fallback as Record<string, unknown>)[k];
+          } else {
+            fallback = undefined;
+            break;
+          }
+        }
+        if (typeof fallback === "string") return fallback;
+        let enFallback: unknown = translations.en;
+        for (const k of keys) {
+          if (enFallback && typeof enFallback === "object" && k in (enFallback as Record<string, unknown>)) {
+            enFallback = (enFallback as Record<string, unknown>)[k];
+          } else {
+            enFallback = undefined;
+            break;
+          }
+        }
+        return typeof enFallback === "string" ? enFallback : path;
+      },
     };
   }
   return context;
