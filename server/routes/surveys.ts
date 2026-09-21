@@ -1075,6 +1075,14 @@ surveysRouter.post(
         ? input.compliance_document_path
         : survey.compliance_document_path;
 
+    if (compliance_required && (!compliance_answer || !compliance_document_path)) {
+      throw new ApiError(
+        400,
+        "COMPLIANCE_CLEARANCE_REQUIRED",
+        "Institutional clearance or ethical approval documentation is required for sensitive research categories (§7.4).",
+      );
+    }
+
     const submitPayload: Record<string, unknown> = {
       status: "pending_review",
       sent_at: new Date().toISOString(),
