@@ -29,7 +29,7 @@ import {
   Notice,
   Toggle,
 } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 interface Analytics {
@@ -189,20 +189,28 @@ export function SurveyAnalyticsPage() {
     : "99.1";
 
   // CSV Exporter
-  const exportCsv = () => {
-    const rows = responses?.responses ?? [];
-    if (!rows.length) return;
-    const header = "id,total_time_seconds,fraud_flag,completed_at\n";
-    const body = rows
-      .map((r) => `${r.id},${r.total_time_seconds},${r.fraud_flag},"${r.completed_at}"`)
-      .join("\n");
-    const blob = new Blob([header + body], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `survey-${activeId}-analytics.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const exportCsv = async () => {
+    if (!activeId) return;
+    try {
+      const token = getToken();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await fetch(`/api/surveys/${activeId}/export`, { headers });
+      if (!res.ok) return;
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `survey-${activeId}-export.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore
+    }
   };
 
   return (
