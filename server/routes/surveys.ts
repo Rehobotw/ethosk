@@ -509,21 +509,11 @@ surveysRouter.get(
   asyncRoute(async (req, res) => {
     const context = auth(req);
 
-    let { data, error } = await admin
+    const { data, error } = await admin
       .from("surveys")
       .select("*")
       .eq("researcher_id", context.userId)
       .order("created_at", { ascending: false });
-
-    if (!data || data.length === 0) {
-      const allSurveys = await admin
-        .from("surveys")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (allSurveys.data && allSurveys.data.length > 0) {
-        data = allSurveys.data;
-      }
-    }
 
     if (error) throw new ApiError(500, "SURVEYS_READ_FAILED", error.message);
 
@@ -722,11 +712,11 @@ surveysRouter.get(
   requireAuth("researcher", "respondent"),
   asyncRoute(async (req, res) => {
     const context = auth(req);
-    const survey = await loadSurvey(routeParam(req, "id"));
+    const survey =
+      context.role === "researcher"
+        ? await loadOwnedSurvey(routeParam(req, "id"), context.userId)
+        : await loadSurvey(routeParam(req, "id"));
 
-    if (context.role === "researcher" && survey.researcher_id !== context.userId) {
-      throw new ApiError(404, "SURVEY_NOT_FOUND", "That survey does not exist.");
-    }
     if (context.role === "respondent") {
       await assertTargeted(survey.id, context.userId);
     }
