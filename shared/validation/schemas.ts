@@ -145,6 +145,7 @@ export const withdrawSchema = z.object({
 });
 
 export const researcherProfileSchema = z.object({
+  full_name: z.string().trim().min(2, "Full name must be at least 2 characters").max(120).optional(),
   bio: z
     .string()
     .trim()
@@ -154,7 +155,7 @@ export const researcherProfileSchema = z.object({
   institution: z.string().trim().max(160).nullable().optional(),
   dob: z.string().nullable().optional(), // YYYY-MM-DD
   phone: z.string().trim().nullable().optional(),
-  institutional_email: z.string().trim().email().nullable().optional(),
+  institutional_email: z.string().trim().email("Please enter a valid email address").nullable().optional().or(z.literal("")),
   researcher_type: z.string().trim().nullable().optional(),
   years_experience: z.number().int().min(0).max(100).nullable().optional(),
   onboarding_completed: z.boolean().optional(),
