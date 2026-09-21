@@ -19,6 +19,7 @@ export interface MatchFilters {
   gender?: Gender;
   primaryLanguage?: PrimaryLanguage;
   region?: string;
+  regions?: string[];
   city?: string;
   employmentStatus?: EmploymentStatus;
   occupation?: string;
@@ -82,8 +83,16 @@ export function buildMatchQuery(filters: MatchFilters): BuiltQuery {
   clauses.push(`tier_rank >= ${bind(TIER_RANK[minTier])}`);
 
   for (const { key, column } of EQUALITY_FILTERS) {
+    if (key === "region" && filters.regions && filters.regions.length > 0) {
+      continue;
+    }
     const value = filters[key];
     if (value !== undefined) clauses.push(`${column} = ${bind(value)}`);
+  }
+
+  if (filters.regions && filters.regions.length > 0) {
+    const placeholders = filters.regions.map((r) => bind(r)).join(", ");
+    clauses.push(`region in (${placeholders})`);
   }
 
   for (const { key, column } of RANGE_FILTERS) {
@@ -118,7 +127,7 @@ function normalizeRange([a, b]: [number, number]): [number, number] {
  */
 export interface SupabaseMatchFilter {
   column: string;
-  op: "eq" | "gte" | "lte";
+  op: "eq" | "gte" | "lte" | "in";
   value: unknown;
 }
 
@@ -129,8 +138,15 @@ export function buildSupabaseMatchFilters(filters: MatchFilters = {}): SupabaseM
   ];
 
   for (const { key, column } of EQUALITY_FILTERS) {
+    if (key === "region" && filters.regions && filters.regions.length > 0) {
+      continue;
+    }
     const value = filters[key];
     if (value !== undefined) out.push({ column, op: "eq", value });
+  }
+
+  if (filters.regions && filters.regions.length > 0) {
+    out.push({ column: "region", op: "in", value: filters.regions });
   }
 
   for (const { key, column } of RANGE_FILTERS) {
@@ -158,7 +174,11 @@ export function describeFilters(filters: MatchFilters): string[] {
     parts.push(low === high ? `Age ${low}` : `Age ${low}–${high}`);
   }
   if (filters.gender) parts.push(filters.gender.replace(/_/g, " "));
-  if (filters.region) parts.push(filters.region);
+  if (filters.regions && filters.regions.length > 0) {
+    parts.push(filters.regions.join(", "));
+  } else if (filters.region) {
+    parts.push(filters.region);
+  }
   if (filters.city) parts.push(filters.city);
   if (filters.employmentStatus) parts.push(filters.employmentStatus.replace(/_/g, " "));
   if (filters.occupation) parts.push(filters.occupation);
