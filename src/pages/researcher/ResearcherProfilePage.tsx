@@ -98,6 +98,12 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
       setOrcid(links.orcid ?? "");
       setWebsite(links.website ?? "");
       setTwitter(links.twitter ?? "");
+
+      if (profile.notification_preferences) {
+        setEmailOnResponse(profile.notification_preferences.email_on_response ?? true);
+        setEmailOnFlagged(profile.notification_preferences.email_on_flagged ?? true);
+        setEmailOnLowBalance(profile.notification_preferences.email_on_low_balance ?? true);
+      }
     }
   }, [profile]);
 
@@ -119,6 +125,11 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
             ...(orcid.trim() && { orcid: orcid.trim() }),
             ...(website.trim() && { website: website.trim() }),
             ...(twitter.trim() && { twitter: twitter.trim() }),
+          },
+          notification_preferences: {
+            email_on_response: emailOnResponse,
+            email_on_flagged: emailOnFlagged,
+            email_on_low_balance: emailOnLowBalance,
           },
         },
       });
@@ -162,19 +173,19 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
       if (newPassword !== confirmPassword) {
         throw new Error("Passwords do not match");
       }
-      return api<{ success: boolean }>("/auth/change-password", {
-        body: { password: newPassword },
+      return api<{ success: boolean; message: string }>("/auth/update-password", {
+        body: { new_password: newPassword },
       });
     },
-    onSuccess: () => {
-      setBanner({ tone: "success", text: "Password updated successfully." });
+    onSuccess: (data) => {
+      setBanner({ tone: "success", text: data?.message || "Password updated successfully." });
       setNewPassword("");
       setConfirmPassword("");
     },
     onError: (err) => {
       setBanner({
         tone: "error",
-        text: err instanceof ApiRequestError ? err.message : "Failed to update password.",
+        text: err instanceof ApiRequestError ? err.message : err instanceof Error ? err.message : "Failed to update password.",
       });
     },
   });
@@ -195,6 +206,36 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
       setBanner({
         tone: "error",
         text: err instanceof ApiRequestError ? err.message : "Subscription upgrade failed.",
+      });
+    },
+  });
+
+  const saveNotificationPreferencesMutation = useMutation({
+    mutationFn: async (prefs?: {
+      email_on_response?: boolean;
+      email_on_flagged?: boolean;
+      email_on_low_balance?: boolean;
+    }) => {
+      const payload = {
+        email_on_response: prefs?.email_on_response ?? emailOnResponse,
+        email_on_flagged: prefs?.email_on_flagged ?? emailOnFlagged,
+        email_on_low_balance: prefs?.email_on_low_balance ?? emailOnLowBalance,
+      };
+      return api<ResearcherProfileRecord>("/researchers/profile", {
+        method: "POST",
+        body: {
+          notification_preferences: payload,
+        },
+      });
+    },
+    onSuccess: async () => {
+      setBanner({ tone: "success", text: "Notification preferences saved successfully." });
+      await queryClient.invalidateQueries({ queryKey: ["researcher-profile"] });
+    },
+    onError: (err) => {
+      setBanner({
+        tone: "error",
+        text: err instanceof ApiRequestError ? err.message : "Failed to save notification preferences.",
       });
     },
   });
@@ -771,14 +812,28 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
 
               {/* Notification preferences */}
               <Card className="p-6 space-y-4">
-                <h4 className="font-bold text-[#001d29] text-base">Notification Preferences</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-[#001d29] text-base">Notification Preferences</h4>
+                  <Button
+                    onClick={() => saveNotificationPreferencesMutation.mutate(undefined)}
+                    loading={saveNotificationPreferencesMutation.isPending}
+                    icon="save"
+                    className="primary-gradient-btn px-4 py-2 rounded-xl text-xs font-semibold"
+                  >
+                    Save Preferences
+                  </Button>
+                </div>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
                     <div>
                       <p className="text-sm font-semibold text-on-surface">Survey Response Notifications</p>
                       <p className="text-xs text-on-surface-variant">Get notified when respondents complete your survey.</p>
                     </div>
-                    <Toggle label="Survey Response Notifications" checked={emailOnResponse} onChange={setEmailOnResponse} />
+                    <Toggle
+                      label="Survey Response Notifications"
+                      checked={emailOnResponse}
+                      onChange={setEmailOnResponse}
+                    />
                   </div>
 
                   <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
@@ -786,7 +841,11 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
                       <p className="text-sm font-semibold text-on-surface">Fraud Signal Alerts</p>
                       <p className="text-xs text-on-surface-variant">Instant alerts when responses are flagged for review.</p>
                     </div>
-                    <Toggle label="Fraud Signal Alerts" checked={emailOnFlagged} onChange={setEmailOnFlagged} />
+                    <Toggle
+                      label="Fraud Signal Alerts"
+                      checked={emailOnFlagged}
+                      onChange={setEmailOnFlagged}
+                    />
                   </div>
 
                   <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
@@ -794,7 +853,11 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
                       <p className="text-sm font-semibold text-on-surface">Low Balance Reminders</p>
                       <p className="text-xs text-on-surface-variant">Alert when wallet balance drops below 200 ETB.</p>
                     </div>
-                    <Toggle label="Low Balance Reminders" checked={emailOnLowBalance} onChange={setEmailOnLowBalance} />
+                    <Toggle
+                      label="Low Balance Reminders"
+                      checked={emailOnLowBalance}
+                      onChange={setEmailOnLowBalance}
+                    />
                   </div>
                 </div>
               </Card>
