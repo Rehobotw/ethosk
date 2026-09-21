@@ -4,6 +4,7 @@ import { MarketingLayout } from "./components/layout/MarketingLayout";
 import { RespondentLayout } from "./components/layout/RespondentLayout";
 import { RequireRole } from "./components/RequireRole";
 import { RequireOnboarding } from "./components/RequireOnboarding";
+import { DashboardRedirect } from "./components/DashboardRedirect";
 import { LoadingBlock } from "./components/ui";
 import { AuthCallbackPage } from "./pages/auth/AuthCallbackPage";
 import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage";
@@ -524,6 +525,7 @@ export default function App() {
         <Route element={<AdminSettingsPage />} path="/admin/settings" />
       </Route>
 
+      <Route element={<DashboardRedirect />} path="/dashboard" />
       <Route element={<Navigate replace to="/" />} path="/home" />
       <Route element={<NotFoundPage />} path="*" />
     </Routes>

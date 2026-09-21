@@ -27,7 +27,7 @@ export function RawDataExportPage() {
       <header className="bg-white border-b border-[#c0c7d0]/40 sticky top-0 z-30">
         <div className="flex justify-between items-center h-16 px-4 md:px-8 max-w-[1280px] mx-auto w-full">
           <div className="flex items-center gap-3">
-            <Link to="/dashboard" className="font-bold text-xl text-[#005985]">
+            <Link to="/researcher" className="font-bold text-xl text-[#005985]">
               Ethosk
             </Link>
             <span className="text-xs text-[#50616b] font-medium pl-3 border-l border-[#c0c7d0]">
@@ -37,7 +37,7 @@ export function RawDataExportPage() {
 
           <div className="flex items-center gap-3">
             <Link
-              to="/dashboard"
+              to="/researcher"
               className="text-xs font-bold text-[#005985] hover:underline"
             >
               {isAm ? "ወደ ዳሽቦርድ" : "Back to Dashboard"}
