@@ -39,17 +39,21 @@ export function ResearcherAvatar({
   subscriptionTier: propSubscriptionTier,
   customNavigateTo = "/profile/settings",
 }: ResearcherAvatarProps = {}) {
-  let user: any = null;
+  let user: ReturnType<typeof useAuth>["user"] = null;
   try {
     const auth = useAuth();
     user = auth?.user ?? null;
-  } catch {}
+  } catch {
+    // Rendered outside AuthProvider context
+  }
 
   let language = "en";
   try {
     const lang = useLanguage();
     language = lang?.language ?? "en";
-  } catch {}
+  } catch {
+    // Rendered outside LanguageProvider context
+  }
 
   const isAm = language === "am";
 

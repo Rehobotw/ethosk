@@ -31,10 +31,10 @@ export function InboxPage() {
   const tierRank = user ? TIER_RANK[user.verification_tier] : 0;
   const isVerified = tierRank >= TIER_RANK["1_id_verified"];
 
-  const availableSurveys = data?.surveys ?? [];
-  const completedCount = wallet?.wallet.paid_response_count ?? 12;
-  const totalEarned = wallet?.wallet.lifetime_etb ?? 1850;
-  const pendingEarned = wallet?.wallet.pending_etb ?? 300;
+  const availableSurveys = useMemo(() => data?.surveys ?? [], [data?.surveys]);
+  const completedCount = wallet?.wallet.paid_response_count ?? 0;
+  const totalEarned = wallet?.wallet.lifetime_etb ?? 0;
+  const pendingEarned = wallet?.wallet.pending_etb ?? 0;
 
   // Check which surveys have saved draft progress in localStorage
   const draftMap = useMemo(() => {
@@ -51,7 +51,9 @@ export function InboxPage() {
             }
           }
         }
-      } catch {}
+      } catch {
+        // Ignore corrupt or inaccessible localStorage drafts
+      }
     }
     return map;
   }, [availableSurveys]);
@@ -61,7 +63,7 @@ export function InboxPage() {
       {/* ── Header Greeting (Stitch Screen 221cbff504fc472da100f9a517e54e32) ── */}
       <header className="mb-8">
         <h1 className="font-['Newsreader',serif] text-3xl md:text-[32px] font-bold text-[#181c1e] mb-2 leading-tight tracking-tight">
-          Good morning, {user?.full_name?.split(" ")[0] || "Besufikad"}.
+          Good morning, {user?.full_name?.split(" ")[0] || "Respondent"}.
         </h1>
         <p className="text-base text-[#41474f]">
           You have new research opportunities available today.
@@ -101,7 +103,7 @@ export function InboxPage() {
           <div className="border-t border-[#c1c7d0] pt-3 flex justify-between items-center mt-3">
             <span className="text-sm text-[#41474f]">Available Studies</span>
             <span className="font-['Newsreader',serif] text-2xl font-bold text-[#181c1e]">
-              {availableSurveys.length || 5}
+              {availableSurveys.length}
             </span>
           </div>
         </div>
@@ -193,8 +195,7 @@ export function InboxPage() {
                       {survey.title}
                     </h3>
                     <p className="text-sm text-[#41474f] mb-6 flex-grow line-clamp-2 leading-relaxed">
-                      {survey.description ||
-                        "A study analyzing shifting consumer purchasing patterns in the metropolitan area focusing on digital adoption."}
+                      {survey.description || "Verified research study."}
                     </p>
 
                     <div className="flex items-center gap-2 mb-6">

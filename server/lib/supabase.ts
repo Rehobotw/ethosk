@@ -6,7 +6,9 @@ import { serverSupabaseClientOptions } from "./supabaseClientOptions.js";
 const isMock =
   !env.supabaseUrl ||
   env.supabaseUrl.includes("placeholder") ||
+  env.supabaseUrl.includes("localhost:54321") ||
   env.supabaseServiceRoleKey.includes("dummy") ||
+  env.supabaseServiceRoleKey.includes("mock") ||
   process.env.USE_MOCK_DB === "true";
 
 if (isMock) {

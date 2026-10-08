@@ -4,6 +4,7 @@ import { MarketingLayout } from "./components/layout/MarketingLayout";
 import { RespondentLayout } from "./components/layout/RespondentLayout";
 import { RequireRole } from "./components/RequireRole";
 import { RequireOnboarding } from "./components/RequireOnboarding";
+import { DashboardRedirect } from "./components/DashboardRedirect";
 import { LoadingBlock } from "./components/ui";
 import { AuthCallbackPage } from "./pages/auth/AuthCallbackPage";
 import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage";
@@ -12,7 +13,7 @@ import { LoginPage } from "./pages/auth/LoginPage";
 import { SignupPage } from "./pages/auth/SignupPage";
 import { VerifyEmailPage } from "./pages/auth/VerifyEmailPage";
 import { HomePage } from "./pages/HomePage";
-import { NotFoundPage } from "./pages/NotFoundPage";
+import { NotFoundPage } from "./pages/error/NotFoundPage";
 import { DocumentsPage } from "./pages/respondent/DocumentsPage";
 import { HistoryPage } from "./pages/respondent/HistoryPage";
 import { InboxPage } from "./pages/respondent/InboxPage";
@@ -94,7 +95,7 @@ const ResearcherNotificationCenterPage = lazy(() =>
   })),
 );
 const ResearcherProfilePage = lazy(() =>
-  import("./pages/researcher/ProfilePage").then((m) => ({ default: m.ProfilePage })),
+  import("./pages/researcher/ResearcherProfilePage").then((m) => ({ default: m.ResearcherProfilePage })),
 );
 const SubscriptionPage = lazy(() =>
   import("./pages/researcher/SubscriptionPage").then((m) => ({ default: m.SubscriptionPage })),
@@ -207,11 +208,6 @@ const SurveySubmissionErrorPage = lazy(() =>
 const SurveySubmissionSuccessPage = lazy(() =>
   import("./pages/survey/SurveyStatePages").then((m) => ({
     default: m.SurveySubmissionSuccessPage,
-  })),
-);
-const EmptyStateShowcasePage = lazy(() =>
-  import("./pages/survey/SurveyStatePages").then((m) => ({
-    default: m.EmptyStateShowcasePage,
   })),
 );
 const SurveyCompletionSuccessDesktopPage = lazy(() =>
@@ -353,7 +349,6 @@ export default function App() {
       <Route element={<SurveyCompletedPage />} path="/survey/already-completed" />
       <Route element={<SurveySubmissionErrorPage />} path="/survey/submission-error" />
       <Route element={<SurveySubmissionSuccessPage />} path="/survey/submission-success" />
-      <Route element={<EmptyStateShowcasePage />} path="/empty-states" />
       <Route element={<SurveyCompletionSuccessDesktopPage />} path="/survey/completion-success" />
       <Route element={<SurveyCompletionSuccessDesktopPage />} path="/survey/success/desktop" />
 
@@ -530,6 +525,7 @@ export default function App() {
         <Route element={<AdminSettingsPage />} path="/admin/settings" />
       </Route>
 
+      <Route element={<DashboardRedirect />} path="/dashboard" />
       <Route element={<Navigate replace to="/" />} path="/home" />
       <Route element={<NotFoundPage />} path="*" />
     </Routes>

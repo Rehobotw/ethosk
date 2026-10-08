@@ -371,47 +371,53 @@ walletRouter.get(
 );
 
 // ---------------------------------------------------------------------------
-// REH-139: Real cancel subscription endpoint (sets tier back to free at period end)
+// Researcher: cancel subscription (REH-138, REH-139)
 // ---------------------------------------------------------------------------
+
+const cancelSubscriptionHandler = asyncRoute(async (req, res) => {
+  const context = auth(req);
+
+  const { data: profile, error: profileError } = await admin
+    .from("researcher_profiles")
+    .select("subscription_tier, subscription_expires_at")
+    .eq("user_id", context.userId)
+    .single();
+
+  if (profileError) throw new ApiError(500, "PROFILE_READ_FAILED", profileError.message);
+
+  if (!profile || profile.subscription_tier !== "subscribed") {
+    throw new ApiError(400, "NOT_SUBSCRIBED", "No active subscription to cancel.");
+  }
+
+  const { error: updateError } = await admin
+    .from("researcher_profiles")
+    .update({
+      subscription_tier: "cancelled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", context.userId);
+
+  if (updateError) throw new ApiError(500, "CANCEL_FAILED", updateError.message);
+
+  res.json({
+    status: "cancelled",
+    message: "Subscription cancellation scheduled. You retain Pro access until the current billing period ends.",
+    subscription_expires_at: profile.subscription_expires_at,
+  });
+});
 
 walletRouter.delete(
   "/researcher/subscription",
   requireAuth("researcher"),
   rateLimit({ key: "subscription-cancel", max: 3, windowMs: 60_000 }),
-  asyncRoute(async (req, res) => {
-    const context = auth(req);
+  cancelSubscriptionHandler,
+);
 
-    // Fetch current profile to validate they are actually subscribed
-    const { data: profile, error: profileError } = await admin
-      .from("researcher_profiles")
-      .select("subscription_tier, subscription_expires_at")
-      .eq("user_id", context.userId)
-      .single();
-
-    if (profileError) throw new ApiError(500, "PROFILE_READ_FAILED", profileError.message);
-
-    if (!profile || profile.subscription_tier !== "subscribed") {
-      throw new ApiError(400, "NOT_SUBSCRIBED", "No active subscription to cancel.");
-    }
-
-    // Schedule cancellation: set tier to 'free' while preserving expires_at for
-    // grace-period access. A nightly job can enforce expiry, but for now the
-    // frontend should treat subscription_tier === 'cancelled' as "active until expires_at".
-    const { error: updateError } = await admin
-      .from("researcher_profiles")
-      .update({
-        subscription_tier: "cancelled",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", context.userId);
-
-    if (updateError) throw new ApiError(500, "CANCEL_FAILED", updateError.message);
-
-    res.json({
-      message: "Subscription cancellation scheduled. You retain Pro access until the current billing period ends.",
-      subscription_expires_at: profile.subscription_expires_at,
-    });
-  }),
+walletRouter.post(
+  "/researcher/subscription/cancel",
+  requireAuth("researcher"),
+  rateLimit({ key: "subscription-cancel", max: 3, windowMs: 60_000 }),
+  cancelSubscriptionHandler,
 );
 
 // ---------------------------------------------------------------------------

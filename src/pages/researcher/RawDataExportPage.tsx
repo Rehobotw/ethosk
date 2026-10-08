@@ -1,24 +1,87 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import type { SurveyRecord } from "@shared/types";
+import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/lib/language";
+
+interface SurveyWithStats extends SurveyRecord {
+  response_count?: number;
+  targeted_count?: number;
+}
 
 export function RawDataExportPage() {
   const { language } = useLanguage();
   const isAm = language === "am";
+  const { id: routeId } = useParams<{ id?: string }>();
 
   const [exportFormat, setExportFormat] = useState<"csv" | "spss" | "excel">("csv");
   const [dateRange, setDateRange] = useState("Full Study");
   const [responseQuality, setResponseQuality] = useState("All Valid Responses");
+  const [selectedSurveyId, setSelectedSurveyId] = useState<string>(routeId || "");
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleExport = () => {
+  const { data: surveysData, isLoading: isLoadingSurveys } = useQuery({
+    queryKey: ["surveys"],
+    queryFn: () => api<{ surveys: SurveyWithStats[] }>("/surveys"),
+  });
+
+  const surveys = surveysData?.surveys ?? [];
+  const activeSurveyId = selectedSurveyId || routeId || surveys[0]?.id || "";
+  const activeSurvey = surveys.find((s) => s.id === activeSurveyId);
+
+  const handleExport = async () => {
+    if (!activeSurveyId) {
+      setErrorMessage(isAm ? "እባክዎ መጀመሪያ ጥናት ይምረጡ" : "Please select a survey to export.");
+      return;
+    }
+
     setIsExporting(true);
-    setTimeout(() => {
-      setIsExporting(false);
+    setErrorMessage(null);
+    setExportSuccess(false);
+
+    try {
+      const token = getToken();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await fetch(`/api/surveys/${activeSurveyId}/export`, {
+        headers,
+      });
+
+      if (!res.ok) {
+        let errText = isAm ? "ኤክስፖርት ማድረግ አልተቻለም።" : "Failed to export survey data.";
+        try {
+          const errData = await res.json();
+          if (errData.message) errText = errData.message;
+        } catch {
+          // ignore
+        }
+        throw new Error(errText);
+      }
+
+      const blob = await res.blob();
+      const ext = exportFormat === "excel" ? "xlsx" : exportFormat === "spss" ? "sav" : "csv";
+      const filename = `survey_${activeSurveyId}_export.${ext}`;
+
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+
       setExportSuccess(true);
-      setTimeout(() => setExportSuccess(false), 4000);
-    }, 1500);
+      setTimeout(() => setExportSuccess(false), 5000);
+    } catch (err: any) {
+      setErrorMessage(err.message || (isAm ? "ኤክስፖርት ማድረግ አልተቻለም።" : "Export failed."));
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -27,7 +90,7 @@ export function RawDataExportPage() {
       <header className="bg-white border-b border-[#c0c7d0]/40 sticky top-0 z-30">
         <div className="flex justify-between items-center h-16 px-4 md:px-8 max-w-[1280px] mx-auto w-full">
           <div className="flex items-center gap-3">
-            <Link to="/dashboard" className="font-bold text-xl text-[#005985]">
+            <Link to="/researcher" className="font-bold text-xl text-[#005985]">
               Ethosk
             </Link>
             <span className="text-xs text-[#50616b] font-medium pl-3 border-l border-[#c0c7d0]">
@@ -37,7 +100,7 @@ export function RawDataExportPage() {
 
           <div className="flex items-center gap-3">
             <Link
-              to="/dashboard"
+              to="/researcher"
               className="text-xs font-bold text-[#005985] hover:underline"
             >
               {isAm ? "ወደ ዳሽቦርድ" : "Back to Dashboard"}
@@ -121,6 +184,36 @@ export function RawDataExportPage() {
               </div>
             </div>
 
+            {/* Survey Selection */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-[#131b2e]">
+                {isAm ? "የሚላከው ጥናት" : "Select Survey to Export"}
+              </label>
+              <select
+                value={activeSurveyId}
+                onChange={(e) => setSelectedSurveyId(e.target.value)}
+                className="w-full p-2.5 rounded-lg border border-[#c0c7d0] bg-white text-xs text-[#131b2e] focus:outline-none focus:border-[#005985]"
+              >
+                {surveys.length === 0 ? (
+                  <option value="">
+                    {isLoadingSurveys
+                      ? isAm
+                        ? "በመጫን ላይ..."
+                        : "Loading surveys..."
+                      : isAm
+                      ? "ምንም ጥናት አልተገኘም"
+                      : "No surveys found"}
+                  </option>
+                ) : (
+                  surveys.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.title} ({s.response_count ?? 0} responses)
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
             {/* Data Filters */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
@@ -175,12 +268,24 @@ export function RawDataExportPage() {
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-lg font-bold text-[#131b2e]">312</span>
+                <span className="text-lg font-bold text-[#131b2e]">
+                  {activeSurvey?.response_count ?? 312}
+                </span>
                 <span className="text-[11px] text-[#50616b] block">
                   {isAm ? "የተገኙ መዝገቦች" : "Records found"}
                 </span>
               </div>
             </div>
+
+            {/* Export Error Notification */}
+            {errorMessage && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs font-medium flex items-center gap-2">
+                <span className="material-symbols-outlined text-rose-600 text-sm">
+                  error
+                </span>
+                <span>{errorMessage}</span>
+              </div>
+            )}
 
             {/* Export Success Notification */}
             {exportSuccess && (

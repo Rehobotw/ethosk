@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { ZodError, type ZodSchema } from "zod";
+import { mapPostgresError } from "./dbErrors.js";
 
 /** Every route returns this shape on failure (§8). */
 export class ApiError extends Error {
@@ -62,6 +63,11 @@ export function errorHandler(
   _next: NextFunction,
 ): void {
   if (error instanceof ApiError) {
+    const mapped = mapPostgresError(error.message);
+    if (mapped) {
+      sendError(res, mapped);
+      return;
+    }
     sendError(res, error);
     return;
   }
@@ -75,6 +81,12 @@ export function errorHandler(
         error.issues.map((issue) => issue.path.join(".")),
       ),
     );
+    return;
+  }
+
+  const dbMapped = mapPostgresError(error);
+  if (dbMapped) {
+    sendError(res, dbMapped);
     return;
   }
 

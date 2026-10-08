@@ -114,26 +114,6 @@ export function parseSurveyText(rawText: string): { title: string; questions: Qu
   };
 }
 
-async function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
-  if (typeof file.arrayBuffer === "function") {
-    return await file.arrayBuffer();
-  }
-  if (typeof FileReader !== "undefined") {
-    return await new Promise<ArrayBuffer>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (reader.result instanceof ArrayBuffer) {
-          resolve(reader.result);
-        } else {
-          resolve(new ArrayBuffer(0));
-        }
-      };
-      reader.onerror = () => reject(new Error("Unable to read file contents."));
-      reader.readAsArrayBuffer(file);
-    });
-  }
-  throw new Error("Unable to read binary file.");
-}
 
 async function readFileAsText(file: File): Promise<string> {
   if (typeof file.text === "function") {
@@ -170,52 +150,39 @@ export async function extractTextFromFile(file: File): Promise<string> {
   const extension = file.name.split(".").pop()?.toLowerCase();
 
   if (extension === "txt" || extension === "csv") {
-    return await readFileAsText(file);
+    const txt = await readFileAsText(file);
+    if (!txt.trim()) {
+      throw new Error("The uploaded document is empty.");
+    }
+    return txt.trim();
   }
 
-  if (extension === "docx") {
-    const buffer = await readFileAsArrayBuffer(file);
-    const decoder = new TextDecoder("utf-8");
-    const content = decoder.decode(buffer);
+  if (extension === "docx" || extension === "pdf") {
+    const formData = new FormData();
+    formData.append("file", file);
 
-    const matches = content.match(/<w:t[^>]*>([^<]+)<\/w:t>/g);
-    if (matches && matches.length > 0) {
-      let extracted = "";
-      for (const m of matches) {
-        const textMatch = m.match(/<w:t[^>]*>([^<]+)<\/w:t>/);
-        if (textMatch && textMatch[1]) {
-          extracted += `${textMatch[1]} `;
-        }
+    const res = await fetch("/api/surveys/extract-document-text", {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      let errorMsg = `Extraction failed with status ${res.status}`;
+      try {
+        const errJson = await res.json();
+        errorMsg = errJson.error?.message || errJson.message || errorMsg;
+      } catch {
+        // ignore json error
       }
-      return extracted.replace(/([?.!])\s+(?=[0-9A-Z])/g, "$1\n").trim();
+      throw new Error(errorMsg);
     }
-    const stripped = content
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    return stripped.length > 0
-      ? stripped
-      : "1. Sample imported survey question\nA) Option A\nB) Option B";
-  }
 
-  if (extension === "pdf") {
-    const buffer = await readFileAsArrayBuffer(file);
-    const decoder = new TextDecoder("latin1");
-    const content = decoder.decode(buffer);
-
-    const textMatches = content.match(/\(([^)]+)\)\s*Tj/g) || content.match(/\[([^\]]+)\]\s*TJ/g);
-    if (textMatches && textMatches.length > 0) {
-      const extracted = textMatches
-        .map((m) => m.replace(/^[\(\[]/, "").replace(/[\]\)]\s*T[jJ]$/, ""))
-        .join(" ")
-        .replace(/\\([()\\])/g, "$1");
-      return extracted.replace(/([?.!])\s+(?=[0-9A-Z])/g, "$1\n").trim();
+    const data = await res.json();
+    if (!data.text || !data.text.trim()) {
+      throw new Error(`No readable survey text could be extracted from this ${extension.toUpperCase()} document.`);
     }
-    const clean = content
-      .replace(/[^\x20-\x7E\n\r]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    return clean.slice(0, 3000) || "1. Sample PDF imported question\nA) Yes\nB) No";
+    return data.text.trim();
   }
 
   throw new Error("Unsupported file type. Please upload a .docx, .pdf, .txt, or .csv file.");
@@ -571,6 +538,32 @@ export function SurveyImportPage() {
             </div>
           ) : null}
 
+          {/* Document Extraction Progress Indicator */}
+          {isExtracting && (
+            <div
+              data-testid="document-import-progress"
+              className="bg-[#eff4ff] border border-[#2872A1]/30 rounded-2xl p-5 shadow-xs flex flex-col gap-3"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Icon className="text-[22px] text-[#2872A1] animate-spin" name="progress_activity" />
+                  <div>
+                    <h4 className="font-bold text-[#001d29] text-sm">
+                      Extracting survey content from document...
+                    </h4>
+                    <p className="text-xs text-[#5a6e7f]">
+                      Parsing questions, multiple-choice options, and section headers
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-mono font-semibold text-[#2872A1]">Processing</span>
+              </div>
+              <div className="w-full bg-[#d9e2ea] h-2 rounded-full overflow-hidden">
+                <div className="bg-[#2872A1] h-full rounded-full animate-pulse w-3/4"></div>
+              </div>
+            </div>
+          )}
+
           {/* Parser Configuration */}
           <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-xs">
             <h4 className="font-bold text-[#001d29] text-sm md:text-base mb-4 flex items-center gap-2">
@@ -630,7 +623,7 @@ export function SurveyImportPage() {
               </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+            <div data-testid="extracted-questions-list" className="flex-1 overflow-y-auto space-y-3 pr-2">
               {questions.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-6 text-[#71787c]">
                   <div className="w-12 h-12 rounded-full bg-[#f8f9ff] border border-[#c1c7cc]/50 flex items-center justify-center mb-3 text-on-surface-variant">
@@ -657,6 +650,7 @@ export function SurveyImportPage() {
                     return (
                       <div
                         key={q.id}
+                        data-testid="question-preview-item"
                         className="bg-[#eaf3fb] border border-[#2872A1]/30 rounded-xl p-3.5 hover:border-[#2872A1]/60 transition-colors"
                       >
                         <div className="flex items-center justify-between mb-1.5">
@@ -677,6 +671,7 @@ export function SurveyImportPage() {
                     return (
                       <div
                         key={q.id}
+                        data-testid="question-preview-item"
                         className="bg-amber-50/60 border border-amber-300 rounded-xl p-4 relative overflow-hidden"
                       >
                         <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
@@ -701,6 +696,7 @@ export function SurveyImportPage() {
                     return (
                       <div
                         key={q.id}
+                        data-testid="question-preview-item"
                         className="bg-[#f8f9ff] border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2872A1]/50 transition-colors"
                       >
                         <div className="flex items-center justify-between mb-2">
@@ -720,6 +716,7 @@ export function SurveyImportPage() {
                     return (
                       <div
                         key={q.id}
+                        data-testid="question-preview-item"
                         className="bg-[#f8f9ff] border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2872A1]/50 transition-colors"
                       >
                         <div className="flex items-center justify-between mb-2">
@@ -738,6 +735,7 @@ export function SurveyImportPage() {
                   return (
                     <div
                       key={q.id}
+                      data-testid="question-preview-item"
                       className="bg-[#f8f9ff] border border-[#E2E8F0] rounded-xl p-4 hover:border-[#2872A1]/50 transition-colors"
                     >
                       <div className="flex items-center justify-between mb-2">

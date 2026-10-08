@@ -141,6 +141,23 @@ export interface DocumentRecord {
   created_at: string;
 }
 
+export interface NotificationRecord {
+  id: string;
+  user_id: string;
+  title: string;
+  title_am?: string | null;
+  body: string;
+  body_am?: string | null;
+  type: "survey" | "earnings" | "withdrawal" | "verification" | "announcement" | "security";
+  action_label: string;
+  action_label_am?: string | null;
+  action_url: string;
+  is_read: boolean;
+  event_key?: string | null;
+  created_at: string;
+  read_at?: string | null;
+}
+
 const DEMO_PASSWORD = "ethosk-demo-2024";
 
 class MockDatabaseStore {
@@ -159,6 +176,7 @@ class MockDatabaseStore {
   respondentPayouts: RespondentPayoutRecord[] = [];
   respondentWithdrawals: RespondentWithdrawalRecord[] = [];
   documents: DocumentRecord[] = [];
+  notifications: NotificationRecord[] = [];
   complianceCategoryRules = new Map<string, ComplianceCategoryRule>();
   consentEvents: Record<string, unknown>[] = [];
   translationCache = new Map<string, unknown>();
@@ -549,6 +567,119 @@ class MockDatabaseStore {
         });
       }
     }
+
+    // 8. Completed Survey for cleanId: Understanding Research Participant Recruitment in Ethiopia
+    const recruitmentSurveyId = "77777777-7777-4777-a777-777777777777";
+    const recruitmentRespId = "88888888-8888-4888-a888-888888888888";
+    this.surveys.set(recruitmentSurveyId, {
+      id: recruitmentSurveyId,
+      researcher_id: researcherId,
+      title: "Understanding Research Participant Recruitment in Ethiopia",
+      description: "A comprehensive assessment of participant motivation, compensation transparency, and digital survey workflows across Ethiopian academic and professional networks.",
+      questions: [
+        {
+          id: "rec_q1",
+          text: "How do you typically discover opportunities to participate in research studies?",
+          type: "single_choice",
+          options: [
+            "University campus boards & announcements",
+            "Telegram channels & student groups",
+            "Referral from friends or colleagues",
+            "Email invitations",
+          ],
+          required: true,
+        },
+        {
+          id: "rec_sec1",
+          text: "Section 2: Payment and Compensation Experience",
+          type: "text",
+          isSectionHeader: true,
+        },
+        {
+          id: "rec_q2",
+          text: "Which digital payment method is most reliable for receiving research rewards?",
+          type: "single_choice",
+          options: ["Telebirr", "CBE Birr", "Bank Transfer", "Airtime Top-up"],
+          required: true,
+        },
+        {
+          id: "rec_q3",
+          text: "Which factors are most important to you when deciding to complete an online survey?",
+          type: "multi_choice",
+          options: [
+            "Fair ETB compensation",
+            "Instant payout upon completion",
+            "Relevance of the research topic",
+            "Clear and concise questions",
+          ],
+          required: true,
+        },
+        {
+          id: "rec_q4",
+          text: "What recommendations do you have for researchers to improve the participant experience?",
+          type: "text",
+          required: true,
+        },
+      ],
+      translations: {},
+      target_filters: { minVerificationTier: "2_attribute_verified" },
+      status: "active",
+      reward_etb: 25,
+      escrow_etb: 500,
+      created_at: "2026-09-01T08:00:00.000Z",
+      sent_at: "2026-09-02T10:00:00.000Z",
+    });
+
+    this.surveyTargets.push({
+      survey_id: recruitmentSurveyId,
+      respondent_id: cleanId,
+      notified_at: "2026-09-02T10:00:00.000Z",
+    });
+
+    this.surveyResponses.push({
+      id: recruitmentRespId,
+      survey_id: recruitmentSurveyId,
+      respondent_id: cleanId,
+      answers: {
+        rec_q1: "Telegram channels & student groups",
+        rec_q2: "Telebirr",
+        rec_q3: ["Fair ETB compensation", "Instant payout upon completion", "Clear and concise questions"],
+        rec_q4: "Ensure questions are localized into Amharic and Afan Oromo, and maintain fast automated payouts through Telebirr.",
+      },
+      time_per_question: {
+        rec_q1: 15,
+        rec_q2: 12,
+        rec_q3: 28,
+        rec_q4: 45,
+      },
+      total_time_seconds: 100,
+      fraud_flag: "clean",
+      completed_at: "2026-09-09T14:30:00.000Z",
+    });
+
+    this.respondentPayouts.push({
+      id: crypto.randomUUID(),
+      response_id: recruitmentRespId,
+      survey_id: recruitmentSurveyId,
+      respondent_id: cleanId,
+      researcher_id: researcherId,
+      amount_etb: 25,
+      status: "available",
+      created_at: "2026-09-09T14:30:05.000Z",
+    });
+
+    this.respondentWithdrawals.push({
+      id: crypto.randomUUID(),
+      respondent_id: cleanId,
+      amount_etb: 50,
+      method: "Telebirr",
+      account_number: "0911234567",
+      reference: "WD-20260910-001",
+      provider_ref: "TB-REC-892341",
+      status: "completed",
+      created_at: "2026-09-10T11:15:00.000Z",
+      updated_at: "2026-09-10T11:20:00.000Z",
+    });
   }
 
   addUser(input: {

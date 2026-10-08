@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -107,5 +107,71 @@ C) Tigrinya
     expect(screen.getByText("Import from Google Forms")).toBeDefined();
     expect(screen.getByPlaceholderText("https://docs.google.com/forms/.../viewform")).toBeDefined();
     expect(screen.getByRole("button", { name: /Import form/i })).toBeDefined();
+  });
+
+  it("extracts DOCX survey questions via server extraction endpoint and shows preview items", async () => {
+    const docxContent = `1. Which payment method do you use most frequently?
+A) Telebirr
+B) CBE Birr
+C) Cash
+2. What feature would you like to see next?
+`;
+
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        filename: "payment_survey.docx",
+        charactersExtracted: docxContent.length,
+        text: docxContent,
+      }),
+    } as any);
+
+    renderWithProviders();
+
+    const file = new File(["fake-docx-binary"], "payment_survey.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("extracted-questions-list")).toBeDefined();
+      const previewItems = screen.getAllByTestId("question-preview-item");
+      expect(previewItems.length).toBe(2);
+      expect(screen.getByText(/Which payment method do you use most frequently\?/)).toBeDefined();
+      expect(screen.getByText(/3 choices extracted/)).toBeDefined();
+    });
+  });
+
+  it("handles PDF extraction failure with explicit error and no dummy fallback", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      json: async () => ({
+        error: {
+          code: "PDF_EXTRACTION_FAILED",
+          message: "Corrupted PDF stream or password-protected document.",
+        },
+      }),
+    } as any);
+
+    renderWithProviders();
+
+    const file = new File(["%PDF-corrupt"], "protected.pdf", {
+      type: "application/pdf",
+    });
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Corrupted PDF stream or password-protected document."),
+      ).toBeDefined();
+      expect(screen.queryByText("Sample imported survey question")).toBeNull();
+    });
   });
 });

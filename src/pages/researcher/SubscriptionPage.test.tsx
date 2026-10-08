@@ -2,6 +2,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { SubscriptionPage } from "./SubscriptionPage";
+import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 vi.mock("@/lib/auth", () => ({
@@ -17,12 +20,9 @@ vi.mock("@/lib/auth", () => ({
 
 const mockApi = vi.fn();
 vi.mock("@/lib/api", () => ({
-  api: (...args: unknown[]) => mockApi(...args),
+  api: vi.fn((...args: unknown[]) => mockApi(...args)),
   ApiRequestError: class ApiRequestError extends Error {},
 }));
-
-import { useAuth } from "@/lib/auth";
-import { SubscriptionPage } from "./SubscriptionPage";
 
 function renderSubscriptionPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -137,4 +137,50 @@ describe("SubscriptionPage – cancel subscription (REH-139)", () => {
       expect(deleteSpy).toHaveBeenCalledTimes(1);
     });
   });
+
+  it("calls DELETE /wallet/researcher/subscription when confirming cancellation", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <SubscriptionPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByText("Cancel / Pause Subscription"));
+    const confirmBtn = screen.getByTestId("confirm-cancel-subscription-btn");
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(api).toHaveBeenCalledWith("/wallet/researcher/subscription", { method: "DELETE" });
+    });
+  });
+
+  it("renders scheduled cancellation banner when subscription_tier is cancelled", async () => {
+    (useAuth as any).mockReturnValue({
+      user: {
+        id: "usr-1",
+        email: "dr.bekele@addis.edu.et",
+        role: "researcher",
+        subscription_tier: "cancelled",
+        subscription_expires_at: "2026-09-01T00:00:00Z",
+      },
+    });
+
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <SubscriptionPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByTestId("subscription-cancelled-banner")).toBeDefined();
+    expect(screen.getByText("Subscription Cancellation Scheduled")).toBeDefined();
+  });
 });
+
+

@@ -1,11 +1,31 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/lib/language";
+import { useAuth } from "@/lib/auth";
 
 export function ChooseSubscriptionPlanPage() {
   const navigate = useNavigate();
   const { language } = useLanguage();
+
+  let user: any = null;
+  try {
+    const auth = useAuth();
+    user = auth?.user;
+  } catch {
+    // rendered outside AuthProvider
+  }
   const isAm = language === "am";
+
+  const isSubscribed = user?.subscription_tier === "subscribed";
+  const renewalDate = isSubscribed
+    ? user?.subscription_expires_at
+      ? new Date(user.subscription_expires_at).toLocaleDateString(isAm ? "am-ET" : "en-US", {
+          month: "short",
+          day: "2-digit",
+          year: "numeric",
+        })
+      : isAm ? "ቀጣይ የክፍያ ዑደት" : "Next billing cycle"
+    : isAm ? "አያበቃም" : "Never expires";
 
   const [isAnnual, setIsAnnual] = useState(true);
 
@@ -26,20 +46,30 @@ export function ChooseSubscriptionPlanPage() {
             {isAm ? "የአሁኑ ንቁ እቅድ" : "Current Active Plan"}
           </p>
           <h2 className="text-xl md:text-2xl font-bold text-[#131b2e] mb-1">
-            {isAm ? "መሰረታዊ ተመራማሪ" : "Basic Researcher"}
+            {isSubscribed
+              ? (isAm ? "ፕሮ ተመራማሪ" : "Pro Researcher")
+              : (isAm ? "መሰረታዊ ተመራማሪ" : "Basic Researcher")}
           </h2>
           <p className="text-xs md:text-sm text-[#40484f]">
-            {isAm
-              ? "የአሁኑ እቅድዎ እስከ 3 ንቁ ጥናቶች እና በየጥናቱ 100 ምላሾች ይገድባል።"
-              : "Your current plan limits you to 3 active surveys and 100 responses per survey."}
+            {isSubscribed
+              ? (isAm ? "ያልተገደበ ንቁ ጥናቶች እና የተራቀቁ የትንታኔ መሣሪያዎች።" : "Unlimited active surveys, advanced exports, and priority response verification.")
+              : (isAm
+                  ? "የአሁኑ እቅድዎ እስከ 3 ንቁ ጥናቶች እና በየጥናቱ 100 ምላሾች ይገድባል።"
+                  : "Your current plan limits you to 3 active surveys and 100 responses per survey.")}
           </p>
         </div>
         <div className="flex flex-col items-start md:items-end gap-2 shrink-0">
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#f2f3ff] text-[#40484f] border border-[#c0c7d0]">
-            {isAm ? "ጥቅምት 15፣ 2024 ይታደሳል" : "Renews on Oct 15, 2024"}
+          <span
+            data-testid="plan-renewal-badge"
+            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#f2f3ff] text-[#40484f] border border-[#c0c7d0]"
+          >
+            {isSubscribed
+              ? (isAm ? `${renewalDate} ይታደሳል` : `Renews on ${renewalDate}`)
+              : (isAm ? "እድሳት፡ አያበቃም" : "Renewal: Never expires")}
           </span>
           <button
             type="button"
+            onClick={() => navigate("/researcher/subscription")}
             className="px-4 py-2 bg-white border border-[#c0c7d0] text-[#131b2e] text-xs font-semibold rounded-lg hover:bg-[#f2f3ff] transition-colors cursor-pointer"
           >
             {isAm ? "ምዝገባን ሰርዝ" : "Cancel Subscription"}

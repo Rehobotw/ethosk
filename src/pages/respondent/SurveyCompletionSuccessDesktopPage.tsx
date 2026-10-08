@@ -1,7 +1,17 @@
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/lib/language";
 
-export function SurveyCompletionSuccessDesktopPage() {
+export interface SurveyCompletionSuccessDesktopProps {
+  surveyTitle?: string;
+  rewardEtb?: number;
+  completionDate?: string;
+}
+
+export function SurveyCompletionSuccessDesktopPage({
+  surveyTitle = "Highland Crop Yield Patterns",
+  rewardEtb = 50,
+  completionDate = "Oct 24, 2023",
+}: SurveyCompletionSuccessDesktopProps = {}) {
   const { language } = useLanguage();
   const isAm = language === "am";
 
@@ -45,8 +55,8 @@ export function SurveyCompletionSuccessDesktopPage() {
           </h1>
           <p className="text-xs md:text-sm text-[#50616b] mb-8 max-w-[80%] mx-auto leading-relaxed">
             {isAm
-              ? "ለ'ከፍተኛ ቦታዎች የሰብል ምርት ስርዓት' ጥናት ላበረከቱት አስተያየት እናመሰግናለን።"
-              : "Thank you for contributing your insights to the 'Highland Crop Yield Patterns' study."}
+              ? `ለ'${surveyTitle}' ጥናት ላበረከቱት አስተያየት እናመሰግናለን።`
+              : `Thank you for contributing your insights to the '${surveyTitle}' study.`}
           </p>
 
           {/* Data Grid */}
@@ -55,14 +65,14 @@ export function SurveyCompletionSuccessDesktopPage() {
               <span className="text-[11px] font-bold text-[#50616b] uppercase tracking-wider">
                 {isAm ? "የተጠናቀቀበት ቀን" : "Completion Date"}
               </span>
-              <span className="text-xs md:text-sm font-bold text-[#131b2e]">Oct 24, 2023</span>
+              <span className="text-xs md:text-sm font-bold text-[#131b2e]">{completionDate}</span>
             </div>
 
             <div className="flex flex-col gap-1">
               <span className="text-[11px] font-bold text-[#50616b] uppercase tracking-wider">
                 {isAm ? "የተገኘ ክፍያ" : "Reward Earned"}
               </span>
-              <span className="text-sm md:text-base font-bold text-[#005985]">50 ETB</span>
+              <span className="text-sm md:text-base font-bold text-[#005985]">{rewardEtb} ETB</span>
             </div>
 
             <div className="flex flex-col gap-1 sm:col-span-2 pt-2 border-t border-[#c0c7d0]/40">

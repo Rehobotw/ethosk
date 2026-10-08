@@ -154,4 +154,18 @@ describe("Ethosk - Tier 1 Identity Verification (Stitch Screen 5501739850a0499db
       }));
     });
   });
+
+  it("shows inline validation error when DOB implies age under 15", async () => {
+    renderWithProviders(<VerificationPage />);
+
+    const recentYear = new Date().getFullYear() - 5;
+    fireEvent.change(screen.getByLabelText(/Date of Birth/i), { target: { value: `${recentYear}-01-01` } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Submit for Verification Review/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Age must be between 15 and 100.")).toBeDefined();
+    });
+    expect(apiMock).not.toHaveBeenCalledWith("/respondents/profile", expect.anything());
+  });
 });

@@ -18,6 +18,7 @@ export function VerificationPage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifySuccess, setVerifySuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -88,6 +89,31 @@ export function VerificationPage() {
 
   const handleSubmitForm = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    const errors: Record<string, string> = {};
+
+    if (!formData.fullName.trim()) {
+      errors.full_name = isAm ? "እባክዎ ሙሉ ስምዎን ያስገቡ።" : "Please enter your full name.";
+    }
+
+    if (formData.dob.trim()) {
+      const d = new Date(formData.dob.trim());
+      if (!isNaN(d.getTime())) {
+        const now = new Date();
+        let age = now.getFullYear() - d.getFullYear();
+        const m = now.getMonth() - d.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+        if (age < 15 || age > 100) {
+          errors.dob = isAm ? "ዕድሜ ከ15 እስከ 100 መሆን አለበት።" : "Age must be between 15 and 100.";
+        }
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setFieldErrors({});
     setIsSubmitting(true);
     setErrorMsg("");
 
@@ -96,13 +122,13 @@ export function VerificationPage() {
       await api("/respondents/profile", {
         body: {
           full_name: formData.fullName,
-          phone: formData.phone,
-          dob: formData.dob,
-          gender: formData.gender,
-          region: formData.region,
-          city: formData.city,
-          education_level: formData.education,
-          employment_status: formData.employment,
+          phone: formData.phone || undefined,
+          dob: formData.dob || undefined,
+          gender: formData.gender || undefined,
+          region: formData.region || undefined,
+          city: formData.city || undefined,
+          education_level: formData.education || undefined,
+          employment_status: formData.employment || undefined,
         },
       });
 
@@ -121,7 +147,15 @@ export function VerificationPage() {
       if (refresh) await refresh();
       navigate("/documents");
     } catch (err: any) {
-      setErrorMsg(err?.message || (isAm ? "መረጃውን ማስገባት አልተሳካም። እባክዎ እንደገና ይሞክሩ።" : "Failed to save verification profile. Please try again."));
+      if (err?.fields && Array.isArray(err.fields) && err.fields.length > 0) {
+        const mapped: Record<string, string> = {};
+        for (const field of err.fields) {
+          mapped[field] = err.message || (isAm ? "ትክክለኛ ያልሆነ መረጃ" : "Invalid value.");
+        }
+        setFieldErrors(mapped);
+      } else {
+        setErrorMsg(err?.message || (isAm ? "መረጃውን ማስገባት አልተሳካም። እባክዎ እንደገና ይሞክሩ።" : "Failed to save verification profile. Please try again."));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -172,9 +206,17 @@ export function VerificationPage() {
                 type="text"
                 placeholder={isAm ? "ምሳሌ፡ አበበ በቀለ" : "e.g., Abebe Bekele"}
                 value={formData.fullName}
-                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                className="w-full bg-surface-bright border border-outline-variant text-on-surface text-sm rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-container focus:border-primary-container focus:outline-none transition-shadow"
+                onChange={(e) => {
+                  setFormData({ ...formData, fullName: e.target.value });
+                  if (fieldErrors.full_name) setFieldErrors((p) => { const n = { ...p }; delete n.full_name; return n; });
+                }}
+                className={`w-full bg-surface-bright border text-on-surface text-sm rounded-lg px-4 py-3 focus:outline-none transition-shadow ${
+                  fieldErrors.full_name ? "border-red-500 focus:ring-2 focus:ring-red-500/20" : "border-outline-variant focus:ring-2 focus:ring-primary-container focus:border-primary-container"
+                }`}
               />
+              {fieldErrors.full_name && (
+                <p className="mt-1 text-xs font-medium text-red-600">{fieldErrors.full_name}</p>
+              )}
             </div>
 
             {/* Phone Number */}
@@ -209,10 +251,18 @@ export function VerificationPage() {
                   name="dob"
                   type="date"
                   value={formData.dob}
-                  onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                  className="w-full bg-surface-bright border border-outline-variant text-on-surface text-sm rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-container focus:border-primary-container focus:outline-none transition-shadow"
+                  onChange={(e) => {
+                    setFormData({ ...formData, dob: e.target.value });
+                    if (fieldErrors.dob || fieldErrors.age) setFieldErrors((p) => { const n = { ...p }; delete n.dob; delete n.age; return n; });
+                  }}
+                  className={`w-full bg-surface-bright border text-on-surface text-sm rounded-lg px-4 py-3 focus:outline-none transition-shadow ${
+                    fieldErrors.dob || fieldErrors.age ? "border-red-500 focus:ring-2 focus:ring-red-500/20" : "border-outline-variant focus:ring-2 focus:ring-primary-container focus:border-primary-container"
+                  }`}
                 />
               </div>
+              {(fieldErrors.dob || fieldErrors.age) && (
+                <p className="mt-1 text-xs font-medium text-red-600">{fieldErrors.dob || fieldErrors.age}</p>
+              )}
             </div>
 
             {/* Gender */}

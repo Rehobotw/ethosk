@@ -53,10 +53,18 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   if (token) headers.Authorization = `Bearer ${token}`;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
 
+  const serializedBody =
+    options.formData ??
+    (typeof options.body === "string"
+      ? options.body
+      : options.body !== undefined
+      ? JSON.stringify(options.body)
+      : undefined);
+
   const response = await fetch(`${API_BASE}/api${path}`, {
     method: options.method ?? (options.body || options.formData ? "POST" : "GET"),
     headers,
-    body: options.formData ?? (options.body !== undefined ? JSON.stringify(options.body) : undefined),
+    body: serializedBody,
     signal: options.signal,
   });
 

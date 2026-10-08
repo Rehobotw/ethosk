@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { EmptyState, LoadingBlock, Notice } from "@/components/ui";
 import { api } from "@/lib/api";
+import { SubmissionSummaryModal } from "@/components/SubmissionSummaryModal";
 
 interface HistoryItem {
   id: string;
@@ -28,13 +29,33 @@ function formatDuration(seconds?: number): string {
 
 export function HistoryPage() {
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedResponseId, setSelectedResponseId] = useState<string | null>(null);
+
+  const activeResponseId = selectedResponseId || searchParams.get("submission");
+
+  const handleOpenSummary = (id: string) => {
+    setSelectedResponseId(id);
+    const next = new URLSearchParams(searchParams);
+    next.set("submission", id);
+    setSearchParams(next, { replace: true });
+  };
+
+  const handleCloseSummary = () => {
+    setSelectedResponseId(null);
+    if (searchParams.has("submission")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("submission");
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["respondent-history"],
     queryFn: () => api<{ history: HistoryItem[] }>("/respondents/history"),
   });
 
-  const items = data?.history ?? [];
+  const items = useMemo(() => data?.history ?? [], [data?.history]);
 
   const counts = useMemo(() => {
     let completed = 0;
@@ -251,6 +272,7 @@ export function HistoryPage() {
                   {isPassed ? (
                     <button
                       className="bg-[#EDF3FF] text-primary hover:bg-[#DCE7FF] px-4 py-2 rounded-lg text-xs font-semibold transition-colors border border-[#CDE5FF] w-full sm:w-auto cursor-pointer"
+                      onClick={() => handleOpenSummary(item.id)}
                       type="button"
                     >
                       View Submission Summary
@@ -258,17 +280,27 @@ export function HistoryPage() {
                   ) : isPending ? (
                     <button
                       className="bg-transparent text-primary hover:bg-surface-container border border-primary px-4 py-2 rounded-lg text-xs font-semibold transition-colors w-full sm:w-auto cursor-pointer"
+                      onClick={() => handleOpenSummary(item.id)}
                       type="button"
                     >
                       View Questions
                     </button>
                   ) : (
-                    <a
-                      className="text-primary hover:text-[#004162] text-xs font-semibold underline underline-offset-4 transition-colors cursor-pointer"
-                      href="#"
-                    >
-                      Request Manual Review
-                    </a>
+                    <div className="flex flex-col items-start sm:items-center lg:items-end gap-1.5">
+                      <button
+                        className="text-primary hover:text-[#004162] text-xs font-semibold underline underline-offset-4 transition-colors cursor-pointer"
+                        onClick={() => handleOpenSummary(item.id)}
+                        type="button"
+                      >
+                        View Submission
+                      </button>
+                      <a
+                        className="text-error hover:text-red-800 text-xs font-medium underline underline-offset-4 transition-colors cursor-pointer"
+                        href={`mailto:support@ethosk.com?subject=Manual Review Request - Submission ${item.id}`}
+                      >
+                        Request Manual Review
+                      </a>
+                    </div>
                   )}
                 </div>
               </div>
@@ -288,6 +320,14 @@ export function HistoryPage() {
           inbox to match with new active research panels.
         </p>
       </div>
+
+      {/* ── Submission Summary Modal ── */}
+      {activeResponseId ? (
+        <SubmissionSummaryModal
+          onClose={handleCloseSummary}
+          responseId={activeResponseId}
+        />
+      ) : null}
     </div>
   );
 }

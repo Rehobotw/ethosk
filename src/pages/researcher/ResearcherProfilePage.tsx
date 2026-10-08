@@ -98,15 +98,105 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
       setOrcid(links.orcid ?? "");
       setWebsite(links.website ?? "");
       setTwitter(links.twitter ?? "");
+
+      if (profile.notification_preferences) {
+        setEmailOnResponse(profile.notification_preferences.email_on_response ?? true);
+        setEmailOnFlagged(profile.notification_preferences.email_on_flagged ?? true);
+        setEmailOnLowBalance(profile.notification_preferences.email_on_low_balance ?? true);
+      }
     }
   }, [profile]);
+
+  const [fullName, setFullName] = useState(user?.full_name ?? "");
+
+  useEffect(() => {
+    if (user?.full_name && !fullName) {
+      setFullName(user.full_name);
+    }
+  }, [user?.full_name]);
+
+  // REH-133: Client-side field validation state
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const validateProfileFields = (overrides?: Partial<{
+    fullName: string;
+    bio: string;
+    institution: string;
+    institutionalEmail: string;
+    phone: string;
+    dob: string;
+    yearsExperience: number | "";
+  }>): boolean => {
+    const curName = overrides?.fullName !== undefined ? overrides.fullName : fullName;
+    const curBio = overrides?.bio !== undefined ? overrides.bio : bio;
+    const curInst = overrides?.institution !== undefined ? overrides.institution : institution;
+    const curEmail = overrides?.institutionalEmail !== undefined ? overrides.institutionalEmail : institutionalEmail;
+    const curPhone = overrides?.phone !== undefined ? overrides.phone : phone;
+    const curDob = overrides?.dob !== undefined ? overrides.dob : dob;
+    const curYears = overrides?.yearsExperience !== undefined ? overrides.yearsExperience : yearsExperience;
+
+    const errors: Record<string, string> = {};
+
+    if (!curName.trim()) {
+      errors.full_name = "Full name is required";
+    } else if (curName.trim().length < 2) {
+      errors.full_name = "Full name must be at least 2 characters";
+    }
+
+    if (curBio.trim().length > 1000) {
+      errors.bio = `Bio is too long (${curBio.trim().length}/1000 characters)`;
+    }
+
+    if (curInst.trim().length > 160) {
+      errors.institution = `Institution name is too long (${curInst.trim().length}/160 characters)`;
+    }
+
+    if (curEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(curEmail.trim())) {
+      errors.institutional_email = "Please enter a valid email address";
+    }
+
+    if (curPhone.trim() && curPhone.trim().length < 7) {
+      errors.phone = "Phone number seems too short";
+    }
+
+    if (curDob) {
+      const dobDate = new Date(curDob);
+      const today = new Date();
+      const age = today.getFullYear() - dobDate.getFullYear();
+      if (isNaN(dobDate.getTime())) {
+        errors.dob = "Please enter a valid date";
+      } else if (age < 18 || age > 100) {
+        errors.dob = "You must be between 18 and 100 years old";
+      }
+    }
+
+    const yearsNum = typeof curYears === "number" ? curYears : null;
+    if (yearsNum !== null && (yearsNum < 0 || yearsNum > 100)) {
+      errors.years_experience = "Years of experience must be between 0 and 100";
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const isFormInvalid =
+    Object.keys(fieldErrors).length > 0 ||
+    !fullName.trim() ||
+    fullName.trim().length < 2 ||
+    (institutionalEmail.trim().length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(institutionalEmail.trim())) ||
+    bio.trim().length > 1000 ||
+    institution.trim().length > 160;
 
   // Mutations
   const saveProfileMutation = useMutation({
     mutationFn: async () => {
+      if (!validateProfileFields()) {
+        throw new Error("Please fix the highlighted fields before saving.");
+      }
       return api<ResearcherProfileRecord>("/researchers/profile", {
         method: "POST",
         body: {
+          full_name: fullName.trim(),
           bio: bio.trim() || null,
           institution: institution.trim() || null,
           researcher_type: researcherType,
@@ -120,18 +210,24 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
             ...(website.trim() && { website: website.trim() }),
             ...(twitter.trim() && { twitter: twitter.trim() }),
           },
+          notification_preferences: {
+            email_on_response: emailOnResponse,
+            email_on_flagged: emailOnFlagged,
+            email_on_low_balance: emailOnLowBalance,
+          },
         },
       });
     },
     onSuccess: async () => {
       setBanner({ tone: "success", text: "Profile details saved successfully." });
+      setFieldErrors({});
       await queryClient.invalidateQueries({ queryKey: ["researcher-profile"] });
       await refresh();
     },
     onError: (err) => {
       setBanner({
         tone: "error",
-        text: err instanceof ApiRequestError ? err.message : "Failed to save profile.",
+        text: err instanceof ApiRequestError ? err.message : err instanceof Error ? err.message : "Failed to save profile.",
       });
     },
   });
@@ -162,19 +258,19 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
       if (newPassword !== confirmPassword) {
         throw new Error("Passwords do not match");
       }
-      return api<{ success: boolean }>("/auth/change-password", {
-        body: { password: newPassword },
+      return api<{ success: boolean; message: string }>("/auth/update-password", {
+        body: { new_password: newPassword },
       });
     },
-    onSuccess: () => {
-      setBanner({ tone: "success", text: "Password updated successfully." });
+    onSuccess: (data) => {
+      setBanner({ tone: "success", text: data?.message || "Password updated successfully." });
       setNewPassword("");
       setConfirmPassword("");
     },
     onError: (err) => {
       setBanner({
         tone: "error",
-        text: err instanceof ApiRequestError ? err.message : "Failed to update password.",
+        text: err instanceof ApiRequestError ? err.message : err instanceof Error ? err.message : "Failed to update password.",
       });
     },
   });
@@ -195,6 +291,36 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
       setBanner({
         tone: "error",
         text: err instanceof ApiRequestError ? err.message : "Subscription upgrade failed.",
+      });
+    },
+  });
+
+  const saveNotificationPreferencesMutation = useMutation({
+    mutationFn: async (prefs?: {
+      email_on_response?: boolean;
+      email_on_flagged?: boolean;
+      email_on_low_balance?: boolean;
+    }) => {
+      const payload = {
+        email_on_response: prefs?.email_on_response ?? emailOnResponse,
+        email_on_flagged: prefs?.email_on_flagged ?? emailOnFlagged,
+        email_on_low_balance: prefs?.email_on_low_balance ?? emailOnLowBalance,
+      };
+      return api<ResearcherProfileRecord>("/researchers/profile", {
+        method: "POST",
+        body: {
+          notification_preferences: payload,
+        },
+      });
+    },
+    onSuccess: async () => {
+      setBanner({ tone: "success", text: "Notification preferences saved successfully." });
+      await queryClient.invalidateQueries({ queryKey: ["researcher-profile"] });
+    },
+    onError: (err) => {
+      setBanner({
+        tone: "error",
+        text: err instanceof ApiRequestError ? err.message : "Failed to save notification preferences.",
       });
     },
   });
@@ -628,6 +754,22 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
               </h3>
 
               <Card className="p-6 space-y-4">
+                <Field label="Full Name">
+                  <Input
+                    data-testid="profile-full-name-input"
+                    value={fullName}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFullName(val);
+                      validateProfileFields({ fullName: val });
+                    }}
+                    placeholder="e.g., Dr. Abebe Bikila"
+                  />
+                  {fieldErrors.full_name && (
+                    <p className="text-xs text-red-600 mt-1" id="full-name-error">{fieldErrors.full_name}</p>
+                  )}
+                </Field>
+
                 <Field label="Researcher Type">
                   <select
                     className="w-full rounded-lg border border-outline-variant bg-surface-container-high px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:outline-none"
@@ -645,30 +787,49 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
                 <Field label="Organization / Institution Affiliation">
                   <Input
                     value={institution}
-                    onChange={(e) => setInstitution(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setInstitution(val);
+                      validateProfileFields({ institution: val });
+                    }}
                     placeholder="e.g., Addis Ababa University / Ministry of Health"
                   />
+                  {fieldErrors.institution && (
+                    <p className="text-xs text-red-600 mt-1" id="institution-error">{fieldErrors.institution}</p>
+                  )}
                 </Field>
 
                 <div className="grid sm:grid-cols-2 gap-4">
                   <Field label="Institutional Domain Email">
                     <Input
                       value={institutionalEmail}
-                      onChange={(e) => setInstitutionalEmail(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setInstitutionalEmail(val);
+                        validateProfileFields({ institutionalEmail: val });
+                      }}
                       placeholder="e.g., researcher@aau.edu.et"
                       type="email"
                     />
+                    {fieldErrors.institutional_email && (
+                      <p className="text-xs text-red-600 mt-1" id="institutional-email-error">{fieldErrors.institutional_email}</p>
+                    )}
                   </Field>
 
                   <Field label="Years of Research Experience">
                     <Input
                       value={yearsExperience}
-                      onChange={(e) =>
-                        setYearsExperience(e.target.value === "" ? "" : Number(e.target.value))
-                      }
+                      onChange={(e) => {
+                        const val = e.target.value === "" ? "" : Number(e.target.value);
+                        setYearsExperience(val);
+                        validateProfileFields({ yearsExperience: val });
+                      }}
                       placeholder="e.g., 6"
                       type="number"
                     />
+                    {fieldErrors.years_experience && (
+                      <p className="text-xs text-red-600 mt-1" id="years-exp-error">{fieldErrors.years_experience}</p>
+                    )}
                   </Field>
                 </div>
 
@@ -680,9 +841,16 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
                     maxLength={1000}
                     rows={4}
                     value={bio}
-                    onChange={(e) => setBio(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBio(val);
+                      validateProfileFields({ bio: val });
+                    }}
                     placeholder="Describe your research domains, primary interests, and previous initiatives..."
                   />
+                  {fieldErrors.bio && (
+                    <p className="text-xs text-red-600 mt-1" id="bio-error">{fieldErrors.bio}</p>
+                  )}
                 </Field>
               </Card>
 
@@ -771,14 +939,28 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
 
               {/* Notification preferences */}
               <Card className="p-6 space-y-4">
-                <h4 className="font-bold text-[#001d29] text-base">Notification Preferences</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-[#001d29] text-base">Notification Preferences</h4>
+                  <Button
+                    onClick={() => saveNotificationPreferencesMutation.mutate(undefined)}
+                    loading={saveNotificationPreferencesMutation.isPending}
+                    icon="save"
+                    className="primary-gradient-btn px-4 py-2 rounded-xl text-xs font-semibold"
+                  >
+                    Save Preferences
+                  </Button>
+                </div>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
                     <div>
                       <p className="text-sm font-semibold text-on-surface">Survey Response Notifications</p>
                       <p className="text-xs text-on-surface-variant">Get notified when respondents complete your survey.</p>
                     </div>
-                    <Toggle label="Survey Response Notifications" checked={emailOnResponse} onChange={setEmailOnResponse} />
+                    <Toggle
+                      label="Survey Response Notifications"
+                      checked={emailOnResponse}
+                      onChange={setEmailOnResponse}
+                    />
                   </div>
 
                   <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
@@ -786,7 +968,11 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
                       <p className="text-sm font-semibold text-on-surface">Fraud Signal Alerts</p>
                       <p className="text-xs text-on-surface-variant">Instant alerts when responses are flagged for review.</p>
                     </div>
-                    <Toggle label="Fraud Signal Alerts" checked={emailOnFlagged} onChange={setEmailOnFlagged} />
+                    <Toggle
+                      label="Fraud Signal Alerts"
+                      checked={emailOnFlagged}
+                      onChange={setEmailOnFlagged}
+                    />
                   </div>
 
                   <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
@@ -794,7 +980,11 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
                       <p className="text-sm font-semibold text-on-surface">Low Balance Reminders</p>
                       <p className="text-xs text-on-surface-variant">Alert when wallet balance drops below 200 ETB.</p>
                     </div>
-                    <Toggle label="Low Balance Reminders" checked={emailOnLowBalance} onChange={setEmailOnLowBalance} />
+                    <Toggle
+                      label="Low Balance Reminders"
+                      checked={emailOnLowBalance}
+                      onChange={setEmailOnLowBalance}
+                    />
                   </div>
                 </div>
               </Card>
@@ -864,9 +1054,10 @@ export function ResearcherProfilePage({ defaultTab = "verification" }: Researche
       <div className="fixed bottom-0 right-0 left-0 md:left-[260px] bg-white/95 backdrop-blur-md border-t border-[#E2E8F0] p-4 px-6 md:px-8 flex justify-end z-40 shadow-[0_-4px_16px_rgba(0,0,0,0.05)]">
         <button
           type="button"
+          data-testid="save-profile-btn"
           onClick={() => saveProfileMutation.mutate()}
-          disabled={saveProfileMutation.isPending}
-          className="px-6 py-2.5 bg-[#001d29] hover:bg-[#003345] text-white rounded-full text-xs md:text-sm font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          disabled={saveProfileMutation.isPending || isFormInvalid}
+          className="px-6 py-2.5 bg-[#001d29] hover:bg-[#003345] text-white rounded-full text-xs md:text-sm font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Icon className="text-[18px]" name="save" />
           <span>{saveProfileMutation.isPending ? "Saving Changes…" : "Save Changes"}</span>

@@ -159,14 +159,17 @@ export const Textarea = forwardRef<
 // ---------------------------------------------------------------------------
 
 export function Card({
+  id,
   className,
   children,
 }: {
+  id?: string;
   className?: string;
   children: ReactNode;
 }) {
   return (
     <div
+      id={id}
       className={clsx(
         "rounded-xl border border-outline-variant bg-surface-container-lowest",
         className,

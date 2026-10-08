@@ -15,6 +15,7 @@ import {
 } from "@/components/ui";
 import { ApiRequestError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useLanguage } from "@/lib/language";
 import type { ResearcherProfileRecord } from "@shared/types";
 
 interface Commitment {
@@ -33,6 +34,8 @@ interface WalletPayload {
 const PRESET_AMOUNTS = [1000, 5000, 10000];
 
 export function ResearcherWalletPage() {
+  const { language, t } = useLanguage();
+  const isAm = language === "am";
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -181,7 +184,7 @@ export function ResearcherWalletPage() {
         <div className="bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)] hover:border-primary transition-all group">
           <div className="flex justify-between items-start mb-4">
             <h3 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
-              Available Wallet Balance
+              {isAm ? "ያለ የቦርሳ ቀሪ ሂሳብ" : "Available Wallet Balance"}
             </h3>
             <span className="material-symbols-outlined text-primary opacity-60 group-hover:opacity-100 transition-opacity text-2xl">
               account_balance_wallet
@@ -196,7 +199,7 @@ export function ResearcherWalletPage() {
         <div className="bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)] hover:border-primary transition-all group">
           <div className="flex justify-between items-start mb-4">
             <h3 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
-              Reserved in Active Escrow
+              {isAm ? "በንቁ ኤስክሮ የተያዘ" : "Reserved in Active Escrow"}
             </h3>
             <span className="material-symbols-outlined text-primary opacity-60 group-hover:opacity-100 transition-opacity text-2xl">
               lock
@@ -205,14 +208,16 @@ export function ResearcherWalletPage() {
           <div className="text-3xl font-headline-lg font-bold text-[#0D253A]">
             {escrowEtb.toLocaleString()} <span className="text-sm font-normal text-on-surface-variant">ETB</span>
           </div>
-          <p className="text-[11px] text-on-surface-variant mt-2">Locked for live respondent payouts</p>
+          <p className="text-[11px] text-on-surface-variant mt-2">
+            {isAm ? "ለተሳታፊዎች የቀጥታ ክፍያ የተቆለፈ" : "Locked for live respondent payouts"}
+          </p>
         </div>
 
         {/* Card 3: Total Lifetime Research Spend */}
         <div className="bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)] hover:border-primary transition-all group">
           <div className="flex justify-between items-start mb-4">
             <h3 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
-              Total Lifetime Research Spend
+              {isAm ? "ጠቅላላ የምርምር ወጪ" : "Total Lifetime Research Spend"}
             </h3>
             <span className="material-symbols-outlined text-primary opacity-60 group-hover:opacity-100 transition-opacity text-2xl">
               payments
@@ -224,26 +229,53 @@ export function ResearcherWalletPage() {
         </div>
 
         {/* Card 4: Subscription Status */}
-        <div className="bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)] hover:border-primary transition-all group flex flex-col justify-between">
-          <div>
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
-                Subscription Status
-              </h3>
-              <span className="inline-flex items-center px-2 py-0.5 rounded bg-[#0F9B8E]/10 text-[#0F9B8E] text-[10px] font-bold uppercase tracking-wider">
-                Active
-              </span>
+        {(() => {
+          const isSubscribed = user?.subscription_tier === "subscribed";
+          return (
+            <div className="bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)] hover:border-primary transition-all group flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
+                    {isAm ? "የደንበኝነት ምዝገባ ሁኔታ" : "Subscription Status"}
+                  </h3>
+                  {isSubscribed ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded bg-[#0F9B8E]/10 text-[#0F9B8E] text-[10px] font-bold uppercase tracking-wider">
+                      {isAm ? "ንቁ" : "Active"}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-wider">
+                      {isAm ? "ነፃ ደረጃ" : "Free Tier"}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xl font-headline-lg font-bold text-[#0D253A]">
+                  {isSubscribed ? "Pro Plan" : "Community Basic"}
+                </div>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  {isSubscribed ? "2,500 ETB/mo" : "0 ETB/mo"}
+                </p>
+              </div>
+              {isSubscribed ? (
+                <Link
+                  className="text-xs font-semibold text-primary hover:underline mt-4 inline-block"
+                  to="/researcher/subscription"
+                >
+                  {isAm ? "ምዝገባን ያስተዳድሩ →" : "Manage Subscription →"}
+                </Link>
+              ) : (
+                <Link
+                  data-testid="upgrade-to-pro-cta"
+                  className="text-xs font-semibold text-white bg-primary hover:bg-primary/90 mt-4 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg shadow-sm transition-all hover:shadow"
+                  to="/researcher/subscription"
+                  aria-label="Upgrade Community Basic to Pro"
+                >
+                  <span>{isAm ? "ወደ ፕሮ ያሻሽሉ" : "Upgrade to Pro"}</span>
+                  <span aria-hidden="true">→</span>
+                </Link>
+              )}
             </div>
-            <div className="text-xl font-headline-lg font-bold text-[#0D253A]">Pro Plan</div>
-            <p className="text-xs text-on-surface-variant mt-0.5">2,500 ETB/mo</p>
-          </div>
-          <Link
-            className="text-xs font-semibold text-primary hover:underline mt-4 inline-block"
-            to="/researcher/subscription"
-          >
-            Manage Subscription →
-          </Link>
-        </div>
+          );
+        })()}
       </section>
 
       {/* ── Two-Column Workspace: Quick Deposit + Invoicing Profile ── */}
@@ -251,13 +283,13 @@ export function ResearcherWalletPage() {
         {/* Left Column: Quick Deposit */}
         <div className="lg:col-span-7 bg-white border border-outline-variant/40 rounded-xl p-6 shadow-[0_4px_20px_rgba(13,37,58,0.04)]">
           <h2 className="text-xl font-headline-md font-bold text-[#0D253A] mb-6 border-b border-outline-variant/30 pb-4">
-            Quick Deposit / Add Funds
+            {isAm ? "ፈጣን ተቀማጭ / ገንዘብ ይጨምሩ" : "Quick Deposit / Add Funds"}
           </h2>
 
           {/* Amount selection */}
           <div className="mb-6">
             <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block mb-3">
-              Select Amount (ETB)
+              {isAm ? "መጠን ይምረጡ (ETB)" : "Select Amount (ETB)"}
             </label>
             <div className="flex flex-wrap gap-3">
               {PRESET_AMOUNTS.map((amt) => (
@@ -283,7 +315,7 @@ export function ResearcherWalletPage() {
                 onClick={() => setSelectedAmount("custom")}
                 type="button"
               >
-                Custom Amount
+                {isAm ? "ብጁ መጠን" : "Custom Amount"}
               </button>
             </div>
 
@@ -293,7 +325,7 @@ export function ResearcherWalletPage() {
                   className="w-full bg-[#f8f9ff] border border-outline-variant/50 rounded-lg px-4 py-2.5 text-sm font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
                   min={100}
                   onChange={(e) => setCustomAmount(e.target.value)}
-                  placeholder="Enter custom ETB amount (min 100)"
+                  placeholder={isAm ? "ብጁ የብር መጠን ያስገቡ (ዝቅተኛ 100)" : "Enter custom ETB amount (min 100)"}
                   type="number"
                   value={customAmount}
                 />

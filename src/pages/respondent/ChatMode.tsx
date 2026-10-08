@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import type { Question, TargetLanguage } from "@shared/types";
+import { isSectionHeader, type Question, type TargetLanguage } from "@shared/types";
 import { Button, Card, Icon, Input, Notice, Select, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
 
@@ -11,6 +11,40 @@ const LANGUAGE_LABELS: Record<Language, string> = {
   am: "አማርኛ (Amharic)",
   om: "Afaan Oromoo",
 };
+
+function renderMessageContent(content: string) {
+  const parts = content.split(/(\*\*.*?\*\*)/g);
+  return (
+    <div className="space-y-1">
+      {parts.map((part, i) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          const inner = part.slice(2, -2).trim();
+          if (isSectionHeader(inner)) {
+            return (
+              <div
+                key={i}
+                className="my-2 py-1 px-3 rounded-lg bg-primary/10 border border-primary/20 text-primary font-bold text-xs uppercase tracking-wider flex items-center gap-1.5"
+              >
+                <Icon name="bookmark" className="text-[16px]" />
+                <span>{inner}</span>
+              </div>
+            );
+          }
+          return (
+            <strong key={i} className="font-semibold text-primary">
+              {inner}
+            </strong>
+          );
+        }
+        return (
+          <span key={i} className="whitespace-pre-wrap">
+            {part}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -60,6 +94,9 @@ export function ChatMode({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [collectedAnswers, setCollectedAnswers] = useState<Record<string, string>>({});
+  
+  const firstRealIndex = questions.findIndex((q) => !isSectionHeader(q.text));
+  const initialQ = firstRealIndex !== -1 ? questions[firstRealIndex] : questions[0];
   const [currentTurnMeta, setCurrentTurnMeta] = useState<{
     question_index: number | null;
     question_type: "single_choice" | "multi_choice" | "text" | null;
@@ -67,9 +104,9 @@ export function ChatMode({
     is_followup: boolean;
     is_complete: boolean;
   }>({
-    question_index: 0,
-    question_type: questions[0]?.type ?? "text",
-    options: questions[0]?.options ?? null,
+    question_index: firstRealIndex !== -1 ? firstRealIndex : 0,
+    question_type: initialQ?.type ?? "text",
+    options: initialQ?.options ?? null,
     is_followup: false,
     is_complete: false,
   });
@@ -102,18 +139,27 @@ export function ChatMode({
         { role: "assistant", content: result.reply!, isFollowup: result.is_followup },
       ]);
 
+      let effectiveIdx = result.question_index;
+      if (effectiveIdx !== null && isSectionHeader(questions[effectiveIdx]?.text)) {
+        while (effectiveIdx !== null && effectiveIdx < questions.length && isSectionHeader(questions[effectiveIdx]?.text)) {
+          effectiveIdx++;
+        }
+        if (effectiveIdx >= questions.length) effectiveIdx = null;
+      }
+      const activeQ = effectiveIdx !== null ? questions[effectiveIdx] : null;
+
       setCurrentTurnMeta({
-        question_index: result.question_index,
-        question_type: result.question_type,
-        options: result.options,
+        question_index: effectiveIdx,
+        question_type: (activeQ?.type ?? result.question_type) ?? null,
+        options: activeQ?.options ?? result.options,
         is_followup: result.is_followup,
-        is_complete: result.is_complete,
+        is_complete: result.is_complete || (effectiveIdx === null && result.is_complete),
       });
 
       setSelectedMultiOptions([]);
 
-      if (typeof result.question_index === "number") {
-        currentQuestionIndexRef.current = result.question_index;
+      if (typeof effectiveIdx === "number") {
+        currentQuestionIndexRef.current = effectiveIdx;
         questionStartTime.current = Date.now();
       }
     },
@@ -129,7 +175,9 @@ export function ChatMode({
 
   // Auto scroll to bottom
   useEffect(() => {
-    scrollAnchor.current?.scrollIntoView({ behavior: "smooth" });
+    if (typeof scrollAnchor.current?.scrollIntoView === "function") {
+      scrollAnchor.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages, turn.isPending, currentTurnMeta.options]);
 
   const handleLanguageSelect = (newLang: Language) => {
@@ -187,22 +235,35 @@ export function ChatMode({
 
   const handleFinish = () => {
     const totalTimeSeconds = Math.round((Date.now() - sessionStartedAt.current) / 1000);
-    onFinish(collectedAnswers, {
+    const finalAnswers = { ...collectedAnswers };
+    for (const q of questions) {
+      if (isSectionHeader(q.text) && !finalAnswers[q.id]) {
+        finalAnswers[q.id] = "[section_header]";
+      }
+    }
+    onFinish(finalAnswers, {
       time_per_question: timingsRef.current,
       total_time_seconds: totalTimeSeconds,
     });
   };
 
-  // Calculate current progress
-  const answeredCount = Object.keys(collectedAnswers).length;
-  const totalCount = questions.length;
-  const currentDisplayIndex =
+  // Calculate current progress (ignoring section dividers)
+  const actualQuestions = questions.filter((q) => !isSectionHeader(q.text));
+  const totalCount = actualQuestions.length > 0 ? actualQuestions.length : questions.length;
+  const answeredCount = actualQuestions.filter((q) => collectedAnswers[q.id]?.trim()).length;
+  const currentActualRank =
     currentTurnMeta.question_index !== null
-      ? currentTurnMeta.question_index + 1
+      ? actualQuestions.findIndex((q) => q.id === questions[currentTurnMeta.question_index!]?.id) + 1
       : Math.min(answeredCount + 1, totalCount);
+  const currentDisplayIndex = currentActualRank > 0 ? currentActualRank : Math.min(answeredCount + 1, totalCount);
   const progressPercent = Math.min(100, Math.round((answeredCount / totalCount) * 100));
 
   const isAllAnswered = currentTurnMeta.is_complete || answeredCount >= totalCount;
+
+  const currentActiveQuestion =
+    currentTurnMeta.question_index !== null
+      ? questions[currentTurnMeta.question_index]
+      : null;
 
   return (
     <div className="flex flex-col h-[85vh] max-h-[900px]">
@@ -300,7 +361,11 @@ export function ChatMode({
                     <span>Follow-up prompt</span>
                   </div>
                 )}
-                <p className="whitespace-pre-wrap">{message.content}</p>
+                {message.role === "assistant" ? (
+                  renderMessageContent(message.content)
+                ) : (
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                )}
               </div>
             </div>
           ))}
@@ -371,6 +436,23 @@ export function ChatMode({
           <div ref={scrollAnchor} />
         </div>
 
+        {/* Active Question Prompt Indicator */}
+        {!isAllAnswered && currentActiveQuestion && !isSectionHeader(currentActiveQuestion.text) && (
+          <div className="mt-stack-sm px-stack-sm py-1.5 bg-surface-container/60 border border-outline-variant/30 rounded-xl flex items-center justify-between text-xs text-on-surface-variant gap-2">
+            <span className="font-semibold text-primary shrink-0">
+              Q{currentDisplayIndex}:
+            </span>
+            <span className="truncate flex-1 font-medium text-on-surface">
+              {currentActiveQuestion.text}
+            </span>
+            {currentActiveQuestion.type && (
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-surface-container-highest shrink-0">
+                {currentActiveQuestion.type.replace("_", " ")}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Completed State or Input Box */}
         {isAllAnswered ? (
           <div className="mt-stack-md pt-stack-md border-t border-outline-variant/30 bg-surface-container-lowest p-stack-sm rounded-xl text-center space-y-2">
@@ -386,7 +468,7 @@ export function ChatMode({
             </Button>
           </div>
         ) : (
-          <div className="mt-stack-md flex items-center gap-stack-sm border-t border-outline-variant/30 pt-stack-md">
+          <div className="mt-stack-sm flex items-center gap-stack-sm border-t border-outline-variant/30 pt-stack-sm">
             <Input
               disabled={turn.isPending || Boolean(fallbackNotice)}
               onChange={(e) => setDraft(e.target.value)}

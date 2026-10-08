@@ -57,6 +57,7 @@ export function ProfilePage() {
   const [city, setCity] = useState<string>("");
   const [employmentStatus, setEmploymentStatus] = useState<string>("");
   const [profileSaved, setProfileSaved] = useState(false);
+  const [demographicErrors, setDemographicErrors] = useState<Record<string, string>>({});
 
   // Section 4: Privacy Consent State
   const [dataConsent, setDataConsent] = useState(true);
@@ -151,10 +152,39 @@ export function ProfilePage() {
       }),
     onSuccess: () => {
       setProfileSaved(true);
+      setDemographicErrors({});
       queryClient.invalidateQueries({ queryKey: ["respondent-profile"] });
       setTimeout(() => setProfileSaved(false), 3000);
     },
+    onError: (err: any) => {
+      const errMap: Record<string, string> = {};
+      if (err instanceof ApiRequestError && err.fields && err.fields.length > 0) {
+        for (const field of err.fields) {
+          errMap[field] = err.message;
+        }
+      } else {
+        errMap._general = err?.message || "Failed to save demographic profile.";
+      }
+      setDemographicErrors(errMap);
+    },
   });
+
+  const handleDemographicsSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const errors: Record<string, string> = {};
+    if (age) {
+      const parsedAge = Number(age);
+      if (isNaN(parsedAge) || parsedAge < 15 || parsedAge > 100) {
+        errors.age = "Age must be between 15 and 100.";
+      }
+    }
+    if (Object.keys(errors).length > 0) {
+      setDemographicErrors(errors);
+      return;
+    }
+    setDemographicErrors({});
+    saveDemographics.mutate();
+  };
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -430,12 +460,16 @@ export function ProfilePage() {
           <LoadingBlock label="Loading demographic details…" />
         ) : (
           <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              saveDemographics.mutate();
-            }}
+            noValidate
+            onSubmit={handleDemographicsSubmit}
             className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2"
           >
+            {demographicErrors._general && (
+              <div className="md:col-span-2">
+                <Notice tone="error">{demographicErrors._general}</Notice>
+              </div>
+            )}
+
             {/* Age */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-bold text-on-surface uppercase tracking-wider" htmlFor="field-age">
@@ -444,13 +478,32 @@ export function ProfilePage() {
               <input
                 id="field-age"
                 type="number"
-                min={13}
-                max={120}
+                min={15}
+                max={100}
                 value={age}
-                onChange={(e) => setAge(e.target.value)}
+                onChange={(e) => {
+                  setAge(e.target.value);
+                  if (demographicErrors.age) {
+                    setDemographicErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.age;
+                      return next;
+                    });
+                  }
+                }}
                 placeholder="e.g. 25"
-                className="w-full p-3 rounded-lg border border-outline-variant/30 text-sm bg-white outline-none focus:border-primary"
+                className={`w-full p-3 rounded-lg border text-sm bg-white outline-none focus:ring-2 transition-all ${
+                  demographicErrors.age
+                    ? "border-error focus:border-error focus:ring-error/20"
+                    : "border-outline-variant/30 focus:border-primary focus:ring-primary/10"
+                }`}
               />
+              {demographicErrors.age && (
+                <p className="text-xs text-error font-medium mt-1 flex items-center gap-1">
+                  <Icon name="error" className="text-[14px]" />
+                  {demographicErrors.age}
+                </p>
+              )}
             </div>
 
             {/* Gender */}
@@ -461,8 +514,21 @@ export function ProfilePage() {
               <select
                 id="field-gender"
                 value={gender}
-                onChange={(e) => setGender(e.target.value)}
-                className="w-full p-3 rounded-lg border border-outline-variant/30 text-sm bg-white outline-none focus:border-primary"
+                onChange={(e) => {
+                  setGender(e.target.value);
+                  if (demographicErrors.gender) {
+                    setDemographicErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.gender;
+                      return next;
+                    });
+                  }
+                }}
+                className={`w-full p-3 rounded-lg border text-sm bg-white outline-none focus:ring-2 transition-all ${
+                  demographicErrors.gender
+                    ? "border-error focus:border-error focus:ring-error/20"
+                    : "border-outline-variant/30 focus:border-primary focus:ring-primary/10"
+                }`}
               >
                 <option value="">Select gender</option>
                 {GENDERS.map((g) => (
@@ -471,6 +537,12 @@ export function ProfilePage() {
                   </option>
                 ))}
               </select>
+              {demographicErrors.gender && (
+                <p className="text-xs text-error font-medium mt-1 flex items-center gap-1">
+                  <Icon name="error" className="text-[14px]" />
+                  {demographicErrors.gender}
+                </p>
+              )}
             </div>
 
             {/* Region */}
@@ -481,8 +553,21 @@ export function ProfilePage() {
               <select
                 id="field-region"
                 value={region}
-                onChange={(e) => setRegion(e.target.value)}
-                className="w-full p-3 rounded-lg border border-outline-variant/30 text-sm bg-white outline-none focus:border-primary"
+                onChange={(e) => {
+                  setRegion(e.target.value);
+                  if (demographicErrors.region) {
+                    setDemographicErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.region;
+                      return next;
+                    });
+                  }
+                }}
+                className={`w-full p-3 rounded-lg border text-sm bg-white outline-none focus:ring-2 transition-all ${
+                  demographicErrors.region
+                    ? "border-error focus:border-error focus:ring-error/20"
+                    : "border-outline-variant/30 focus:border-primary focus:ring-primary/10"
+                }`}
               >
                 <option value="">Select region</option>
                 {ETHIOPIAN_REGIONS.map((r) => (
@@ -491,6 +576,12 @@ export function ProfilePage() {
                   </option>
                 ))}
               </select>
+              {demographicErrors.region && (
+                <p className="text-xs text-error font-medium mt-1 flex items-center gap-1">
+                  <Icon name="error" className="text-[14px]" />
+                  {demographicErrors.region}
+                </p>
+              )}
             </div>
 
             {/* City */}
@@ -502,10 +593,29 @@ export function ProfilePage() {
                 id="field-city"
                 type="text"
                 value={city}
-                onChange={(e) => setCity(e.target.value)}
+                onChange={(e) => {
+                  setCity(e.target.value);
+                  if (demographicErrors.city) {
+                    setDemographicErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.city;
+                      return next;
+                    });
+                  }
+                }}
                 placeholder="e.g. Addis Ababa / Hawassa"
-                className="w-full p-3 rounded-lg border border-outline-variant/30 text-sm bg-white outline-none focus:border-primary"
+                className={`w-full p-3 rounded-lg border text-sm bg-white outline-none focus:ring-2 transition-all ${
+                  demographicErrors.city
+                    ? "border-error focus:border-error focus:ring-error/20"
+                    : "border-outline-variant/30 focus:border-primary focus:ring-primary/10"
+                }`}
               />
+              {demographicErrors.city && (
+                <p className="text-xs text-error font-medium mt-1 flex items-center gap-1">
+                  <Icon name="error" className="text-[14px]" />
+                  {demographicErrors.city}
+                </p>
+              )}
             </div>
 
             {/* Employment Status */}
@@ -516,8 +626,21 @@ export function ProfilePage() {
               <select
                 id="field-employment"
                 value={employmentStatus}
-                onChange={(e) => setEmploymentStatus(e.target.value)}
-                className="w-full p-3 rounded-lg border border-outline-variant/30 text-sm bg-white outline-none focus:border-primary"
+                onChange={(e) => {
+                  setEmploymentStatus(e.target.value);
+                  if (demographicErrors.employment_status) {
+                    setDemographicErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.employment_status;
+                      return next;
+                    });
+                  }
+                }}
+                className={`w-full p-3 rounded-lg border text-sm bg-white outline-none focus:ring-2 transition-all ${
+                  demographicErrors.employment_status
+                    ? "border-error focus:border-error focus:ring-error/20"
+                    : "border-outline-variant/30 focus:border-primary focus:ring-primary/10"
+                }`}
               >
                 <option value="">Select employment status</option>
                 {EMPLOYMENT_STATUSES.map((s) => (
@@ -526,6 +649,12 @@ export function ProfilePage() {
                   </option>
                 ))}
               </select>
+              {demographicErrors.employment_status && (
+                <p className="text-xs text-error font-medium mt-1 flex items-center gap-1">
+                  <Icon name="error" className="text-[14px]" />
+                  {demographicErrors.employment_status}
+                </p>
+              )}
             </div>
 
             <div className="md:col-span-2 flex items-center gap-3 pt-2">

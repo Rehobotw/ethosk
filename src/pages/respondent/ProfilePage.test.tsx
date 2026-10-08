@@ -1,44 +1,55 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ProfilePage } from "./ProfilePage";
 import { AuthContext } from "@/lib/auth";
 
-vi.mock("@/lib/api", () => ({
-  api: vi.fn().mockImplementation((url: string) => {
-    if (url.includes("/wallet")) {
-      return Promise.resolve({
-        wallet: { available_etb: 250, lifetime_etb: 1500 },
-        payouts: [
-          {
-            id: "p1",
-            survey_title: "National Digital Literacy Study",
-            amount_etb: 50,
-            status: "paid",
-            created_at: new Date().toISOString(),
+vi.mock("@/lib/api", () => {
+  class ApiRequestError extends Error {
+    fields?: string[];
+    constructor(_status: number, message: string, fields?: string[]) {
+      super(message);
+      this.name = "ApiRequestError";
+      this.fields = fields;
+    }
+  }
+
+  return {
+    api: vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/wallet")) {
+        return Promise.resolve({
+          wallet: { available_etb: 250, lifetime_etb: 1500 },
+          payouts: [
+            {
+              id: "p1",
+              survey_title: "National Digital Literacy Study",
+              amount_etb: 50,
+              status: "paid",
+              created_at: new Date().toISOString(),
+            },
+          ],
+        });
+      }
+      if (url.includes("/profile")) {
+        return Promise.resolve({
+          user_id: "resp-123",
+          age: 25,
+          gender: "female",
+          region: "Addis Ababa",
+          city: "Bole",
+          employment_status: "employed_full_time",
+          attributes: {
+            survey_alerts: true,
+            data_consent: true,
           },
-        ],
-      });
-    }
-    if (url.includes("/profile")) {
-      return Promise.resolve({
-        user_id: "resp-123",
-        age: 25,
-        gender: "female",
-        region: "Addis Ababa",
-        city: "Bole",
-        employment_status: "employed_full_time",
-        attributes: {
-          survey_alerts: true,
-          data_consent: true,
-        },
-      });
-    }
-    return Promise.resolve({});
-  }),
-  ApiRequestError: class ApiRequestError extends Error {},
-}));
+        });
+      }
+      return Promise.resolve({});
+    }),
+    ApiRequestError,
+  };
+});
 
 function renderProfileWithUser(userOverride?: any) {
   const queryClient = new QueryClient({
@@ -110,5 +121,25 @@ describe("ProfilePage (§3.3 Respondent Profile Page Rebuild)", () => {
       l.getAttribute("href")?.includes("/verification"),
     );
     expect(verifyLinks.length).toBeGreaterThan(0);
+  });
+
+  it("displays inline validation error when age is out of range", async () => {
+    renderProfileWithUser();
+
+    // Wait for demographics form and initial data to load
+    const ageInput = (await screen.findByLabelText(/^Age$/i)) as HTMLInputElement;
+    await waitFor(() => {
+      expect(ageInput.value).toBe("25");
+    });
+
+    fireEvent.change(ageInput, { target: { value: "10" } });
+    expect(ageInput.value).toBe("10");
+
+    const saveButton = screen.getByRole("button", { name: /Save Demographic Profile/i });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("Age must be between 15 and 100.")).toBeDefined();
+    });
   });
 });
