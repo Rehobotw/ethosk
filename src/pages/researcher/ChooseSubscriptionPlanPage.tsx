@@ -2,18 +2,21 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/lib/language";
 import { useAuth } from "@/lib/auth";
+import { SUBSCRIPTION_PLANS, formatCurrencyEtb } from "@shared/pricing.js";
+
+function useCurrentUser() {
+  try {
+    const auth = useAuth();
+    return auth?.user ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export function ChooseSubscriptionPlanPage() {
   const navigate = useNavigate();
   const { language } = useLanguage();
-
-  let user: any = null;
-  try {
-    const auth = useAuth();
-    user = auth?.user;
-  } catch {
-    // rendered outside AuthProvider
-  }
+  const user = useCurrentUser();
   const isAm = language === "am";
 
   const isSubscribed = user?.subscription_tier === "subscribed";
@@ -72,7 +75,7 @@ export function ChooseSubscriptionPlanPage() {
             onClick={() => navigate("/researcher/subscription")}
             className="px-4 py-2 bg-white border border-[#c0c7d0] text-[#131b2e] text-xs font-semibold rounded-lg hover:bg-[#f2f3ff] transition-colors cursor-pointer"
           >
-            {isAm ? "ምዝገባን ሰርዝ" : "Cancel Subscription"}
+            {isSubscribed ? (isAm ? "ምዝገባን አስተዳድር" : "Manage Subscription") : (isAm ? "ምዝገባን ሰርዝ" : "Cancel Subscription")}
           </button>
         </div>
       </section>
@@ -88,7 +91,7 @@ export function ChooseSubscriptionPlanPage() {
             : "Select the plan that best fits your data collection needs."}
         </p>
 
-        {/* Toggle (Monthly / Annually) */}
+        {/* Annual / Monthly Toggle Switch */}
         <div className="flex items-center justify-center gap-3">
           <span
             className={`text-xs font-semibold cursor-pointer ${
@@ -103,22 +106,23 @@ export function ChooseSubscriptionPlanPage() {
             <input
               type="checkbox"
               checked={isAnnual}
-              onChange={(e) => setIsAnnual(e.target.checked)}
+              onChange={() => setIsAnnual(!isAnnual)}
               className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-[#e2e7ff] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[#c0c7d0] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2872a1]"></div>
+            <div className="w-11 h-6 bg-[#c0c7d0] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2872a1]"></div>
           </label>
 
           <span
-            className={`text-xs font-semibold cursor-pointer flex items-center gap-1 ${
+            className={`text-xs font-semibold cursor-pointer ${
               isAnnual ? "text-[#131b2e]" : "text-[#40484f]"
             }`}
             onClick={() => setIsAnnual(true)}
           >
-            <span>{isAm ? "በየዓመቱ" : "Annually"}</span>
-            <span className="text-[#2872a1] font-bold text-[11px]">
-              ({isAm ? "20% ቅናሽ" : "Save 20%"})
-            </span>
+            {isAm ? "በዓመት" : "Annually"}
+          </span>
+
+          <span className="bg-[#2872a1]/10 text-[#2872a1] text-[10px] font-bold px-2 py-0.5 rounded-full ml-1">
+            {isAm ? "20% ይቆጥቡ" : "Save 20%"}
           </span>
         </div>
       </div>
@@ -134,8 +138,8 @@ export function ChooseSubscriptionPlanPage() {
             {isAm ? "ለግል ተመራማሪዎች አስፈላጊ መሣሪያዎች።" : "Essential tools for individual researchers."}
           </p>
           <div className="mb-6">
-            <span className="text-3xl font-bold text-[#131b2e]">
-              {isAnnual ? "$12" : "$15"}
+            <span data-testid="basic-plan-price" className="text-3xl font-bold text-[#131b2e]">
+              {formatCurrencyEtb(SUBSCRIPTION_PLANS.basic.priceEtb)}
             </span>
             <span className="text-xs text-[#40484f]">/mo</span>
           </div>
@@ -187,10 +191,12 @@ export function ChooseSubscriptionPlanPage() {
               : "Advanced features for comprehensive studies."}
           </p>
           <div className="mb-6">
-            <span className="text-3xl font-bold text-[#131b2e]">
-              {isAnnual ? "$39" : "$49"}
+            <span data-testid="pro-plan-price" className="text-3xl font-bold text-[#131b2e]">
+              {formatCurrencyEtb(SUBSCRIPTION_PLANS.pro.priceEtb)}
             </span>
-            <span className="text-xs text-[#40484f]">/mo</span>
+            <span className="text-xs text-[#40484f]">
+              /mo (<span>{isAnnual ? "$39" : `$${SUBSCRIPTION_PLANS.pro.priceUsd}`}</span>)
+            </span>
           </div>
 
           <button
@@ -208,23 +214,23 @@ export function ChooseSubscriptionPlanPage() {
             </li>
             <li className="flex items-start gap-2 text-[#131b2e] font-medium">
               <span className="material-symbols-outlined text-[#2872a1] text-base shrink-0">check</span>
-              <span>{isAm ? "1,000 ምላሾች በየጥናቱ" : "1,000 responses / survey"}</span>
+              <span>{isAm ? "ያልተገደበ ምላሾች" : "Unlimited responses"}</span>
             </li>
-            <li className="flex items-start gap-2 text-[#131b2e]">
+            <li className="flex items-start gap-2 text-[#131b2e] font-medium">
               <span className="material-symbols-outlined text-[#2872a1] text-base shrink-0">check</span>
-              <span>{isAm ? "የላቀ የስነ-ህዝብ ዒላማ ማድረግ" : "Advanced demographic targeting"}</span>
+              <span>{isAm ? "የተራቀቀ የስነ-ህዝብ ዒላማ ማድረግ" : "Advanced demographic targeting"}</span>
             </li>
-            <li className="flex items-start gap-2 text-[#131b2e]">
+            <li className="flex items-start gap-2 text-[#131b2e] font-medium">
               <span className="material-symbols-outlined text-[#2872a1] text-base shrink-0">check</span>
               <span>{isAm ? "በAI የታገዘ የጥናት ግንባታ" : "AI-assisted survey building"}</span>
             </li>
-            <li className="flex items-start gap-2 bg-[#f2f3ff] p-2.5 rounded-lg border border-[#dae2fd] text-[#005985] font-semibold">
-              <span className="material-symbols-outlined text-[#005985] text-base shrink-0">download</span>
+            <li className="flex items-start gap-2 text-[#131b2e] font-medium">
+              <span className="material-symbols-outlined text-[#2872a1] text-base shrink-0">check</span>
               <span>{isAm ? "ጥሬ መረጃ ወደ ውጭ መላክ (CSV/XLSX)" : "Raw Data Export (CSV/XLSX)"}</span>
             </li>
-            <li className="flex items-start gap-2 text-[#131b2e]">
+            <li className="flex items-start gap-2 text-[#131b2e] font-medium">
               <span className="material-symbols-outlined text-[#2872a1] text-base shrink-0">check</span>
-              <span>{isAm ? "የላቀ የትንተና ግንዛቤዎች" : "Advanced Insights Analytics"}</span>
+              <span>{isAm ? "ቅድሚያ የሚሰጠው ድጋፍ" : "Priority support"}</span>
             </li>
           </ul>
         </div>
@@ -236,14 +242,13 @@ export function ChooseSubscriptionPlanPage() {
           </h3>
           <p className="text-xs text-[#40484f] mb-4 h-10">
             {isAm
-              ? "ለተቋማት ከፍተኛ ልኬት እና ልዩ ድጋፍ።"
+              ? "ለድርጅቶች ከፍተኛ ልኬት እና የተለየ ድጋፍ።"
               : "Maximum scale and dedicated support for organizations."}
           </p>
           <div className="mb-6">
-            <span className="text-3xl font-bold text-[#131b2e]">
-              {isAnnual ? "$119" : "$149"}
+            <span data-testid="enterprise-plan-price" className="text-3xl font-bold text-[#131b2e]">
+              {isAm ? "ብጁ ዋጋ" : "Custom"}
             </span>
-            <span className="text-xs text-[#40484f]">/mo</span>
           </div>
 
           <button

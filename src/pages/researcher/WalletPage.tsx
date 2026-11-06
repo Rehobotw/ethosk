@@ -17,6 +17,7 @@ import { ApiRequestError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useLanguage } from "@/lib/language";
 import type { ResearcherProfileRecord } from "@shared/types";
+import { SUBSCRIPTION_PLANS, formatPricePerMonth } from "@shared/pricing.js";
 
 interface Commitment {
   survey_id: string;
@@ -249,10 +250,10 @@ export function ResearcherWalletPage() {
                   )}
                 </div>
                 <div className="text-xl font-headline-lg font-bold text-[#0D253A]">
-                  {isSubscribed ? "Pro Plan" : "Community Basic"}
+                  {isSubscribed ? SUBSCRIPTION_PLANS.pro.name : SUBSCRIPTION_PLANS.basic.name}
                 </div>
-                <p className="text-xs text-on-surface-variant mt-0.5">
-                  {isSubscribed ? "2,500 ETB/mo" : "0 ETB/mo"}
+                <p data-testid="wallet-subscription-price" className="text-xs text-on-surface-variant mt-0.5">
+                  {isSubscribed ? formatPricePerMonth("pro") : formatPricePerMonth("basic")}
                 </p>
               </div>
               {isSubscribed ? (
