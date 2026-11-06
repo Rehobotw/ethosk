@@ -144,6 +144,19 @@ describe("buildSupabaseMatchFilters", () => {
     const ops = buildSupabaseMatchFilters(filters);
     expect(ops.map((op) => op.value)).toEqual(params);
   });
+
+  it("supports multi-region matching with in operator", () => {
+    const ops = buildSupabaseMatchFilters({
+      minVerificationTier: "1_id_verified",
+      regions: ["Addis Ababa", "Oromia"],
+    });
+
+    expect(ops).toContainEqual({
+      column: "region",
+      op: "in",
+      value: ["Addis Ababa", "Oromia"],
+    });
+  });
 });
 
 describe("describeFilters", () => {
@@ -156,6 +169,15 @@ describe("describeFilters", () => {
         ageRange: [25, 45],
       }),
     ).toEqual(["Age 25–45", "Addis Ababa", "self employed"]);
+  });
+
+  it("summarizes multiple target regions", () => {
+    expect(
+      describeFilters({
+        minVerificationTier: "1_id_verified",
+        regions: ["Addis Ababa", "Oromia", "Amhara"],
+      }),
+    ).toEqual(["Addis Ababa, Oromia, Amhara"]);
   });
 
   it("collapses a single-value range", () => {

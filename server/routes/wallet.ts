@@ -336,7 +336,42 @@ walletRouter.post(
 );
 
 // ---------------------------------------------------------------------------
-// Researcher: cancel subscription (REH-138)
+// REH-138: Real billing history from researcher_charges (replaces mock data)
+// ---------------------------------------------------------------------------
+
+walletRouter.get(
+  "/researcher/billing-history",
+  requireAuth("researcher"),
+  asyncRoute(async (req, res) => {
+    const context = auth(req);
+
+    const { data, error } = await admin
+      .from("researcher_charges")
+      .select("id, amount_etb, reason, created_at")
+      .eq("researcher_id", context.userId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) throw new ApiError(500, "BILLING_HISTORY_FAILED", error.message);
+
+    const history = (data ?? []).map((row) => ({
+      id: row.id,
+      date: new Date(row.created_at as string).toLocaleDateString("en-US", {
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+      }),
+      plan: row.reason === "monthly_subscription" ? "Pro Monthly Plan" : (row.reason as string),
+      amountEtb: Number(row.amount_etb),
+      paymentMethod: "wallet" as const,
+    }));
+
+    res.json({ history });
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Researcher: cancel subscription (REH-138, REH-139)
 // ---------------------------------------------------------------------------
 
 const cancelSubscriptionHandler = asyncRoute(async (req, res) => {

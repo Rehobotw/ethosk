@@ -24,7 +24,7 @@ researchersRouter.get(
     try {
       const { data: dbData } = await admin
         .from("researcher_profiles")
-        .select("user_id, bio, institution, rating, verified, verification_level, verification_status, verification_notes, dob, phone, phone_verified, institutional_email, institutional_email_verified, researcher_type, years_experience, onboarding_completed, social_links")
+        .select("user_id, bio, institution, rating, verified, verification_level, verification_status, verification_notes, dob, phone, phone_verified, institutional_email, institutional_email_verified, researcher_type, years_experience, onboarding_completed, social_links, notification_preferences")
         .eq("user_id", context.userId)
         .maybeSingle();
       data = dbData;
@@ -51,6 +51,11 @@ researchersRouter.get(
         years_experience: null,
         onboarding_completed: false,
         social_links: {},
+        notification_preferences: {
+          email_on_response: true,
+          email_on_flagged: true,
+          email_on_low_balance: true,
+        },
       },
     );
   }),
@@ -62,6 +67,10 @@ researchersRouter.post(
   asyncRoute(async (req, res) => {
     const context = auth(req);
     const input = parseBody(researcherProfileSchema, req.body);
+
+    if (input.full_name !== undefined && input.full_name.trim().length > 0) {
+      await admin.from("users").update({ full_name: input.full_name.trim() }).eq("id", context.userId);
+    }
 
     // Upsert through the service role: the row is keyed by the authenticated
     // user's own id, and signup may have failed to create it before this build
@@ -80,10 +89,11 @@ researchersRouter.post(
           ...(input.years_experience !== undefined && { years_experience: input.years_experience }),
           ...(input.onboarding_completed !== undefined && { onboarding_completed: input.onboarding_completed }),
           ...(input.social_links !== undefined && { social_links: input.social_links }),
+          ...(input.notification_preferences !== undefined && { notification_preferences: input.notification_preferences }),
         },
         { onConflict: "user_id" },
       )
-      .select("user_id, bio, institution, rating, verified, verification_level, verification_status, verification_notes, dob, phone, phone_verified, institutional_email, institutional_email_verified, researcher_type, years_experience, onboarding_completed, social_links")
+      .select("user_id, bio, institution, rating, verified, verification_level, verification_status, verification_notes, dob, phone, phone_verified, institutional_email, institutional_email_verified, researcher_type, years_experience, onboarding_completed, social_links, notification_preferences")
       .single();
 
     if (error) throw new ApiError(500, "PROFILE_SAVE_FAILED", error.message);

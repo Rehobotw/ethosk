@@ -910,25 +910,35 @@ authRouter.post(
   }),
 );
 
+const handlePasswordUpdate = asyncRoute(async (req, res) => {
+  const context = auth(req);
+  const body = req.body as { new_password?: string; password?: string };
+  const new_password = body.new_password || body.password;
+  if (!new_password || new_password.length < 8) {
+    throw new ApiError(400, "INVALID_PASSWORD", "New password must be at least 8 characters.");
+  }
+  try {
+    if (typeof admin.auth?.admin?.updateUserById === "function") {
+      await admin.auth.admin.updateUserById(context.userId, { password: new_password });
+    }
+  } catch (e: any) {
+    throw new ApiError(500, "PASSWORD_UPDATE_FAILED", e.message || "Failed to update password.");
+  }
+  res.json({ success: true, message: "Password updated successfully." });
+});
+
 authRouter.post(
   "/update-password",
   requireAuth(),
   rateLimit({ key: "update-password", max: 5, windowMs: 60_000 }),
-  asyncRoute(async (req, res) => {
-    const context = auth(req);
-    const { new_password } = req.body as { new_password?: string };
-    if (!new_password || new_password.length < 8) {
-      throw new ApiError(400, "INVALID_PASSWORD", "New password must be at least 8 characters.");
-    }
-    try {
-      if (typeof admin.auth?.admin?.updateUserById === "function") {
-        await admin.auth.admin.updateUserById(context.userId, { password: new_password });
-      }
-    } catch (e: any) {
-      throw new ApiError(500, "PASSWORD_UPDATE_FAILED", e.message || "Failed to update password.");
-    }
-    res.json({ success: true, message: "Password updated successfully." });
-  }),
+  handlePasswordUpdate,
+);
+
+authRouter.post(
+  "/change-password",
+  requireAuth(),
+  rateLimit({ key: "update-password", max: 5, windowMs: 60_000 }),
+  handlePasswordUpdate,
 );
 
 /**

@@ -46,7 +46,11 @@ export function AudiencePanel({
 }) {
   const [debounced, setDebounced] = useState(filters);
   const [selectedRegions, setSelectedRegions] = useState<string[]>(
-    filters.region ? [filters.region] : ["Addis Ababa", "Oromia"]
+    filters.regions && filters.regions.length > 0
+      ? filters.regions
+      : filters.region
+      ? [filters.region]
+      : ["Addis Ababa", "Oromia"]
   );
   const [minAge, setMinAge] = useState<string>(
     filters.ageRange ? String(filters.ageRange[0]) : ""
@@ -72,7 +76,7 @@ export function AudiencePanel({
     staleTime: 0,
   });
 
-  const matchedCount = match?.matched_count ?? 185;
+  const matchedCount = match?.matched_count ?? 0;
 
   const set = <K extends keyof MatchFiltersInput>(key: K, value: MatchFiltersInput[K]) => {
     const next = { ...filters };
@@ -100,6 +104,7 @@ export function AudiencePanel({
       const next = prev.includes(region)
         ? prev.filter((r) => r !== region)
         : [...prev, region];
+      set("regions", next.length ? next : undefined);
       set("region", next.length ? next[0] : undefined);
       return next;
     });
