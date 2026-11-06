@@ -23,6 +23,7 @@ jobs:
 
       - name: Run Tests
         env:
+          USE_MOCK_DB: "true"
           # Secrets (from GitHub Secrets)
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
