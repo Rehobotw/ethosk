@@ -9,7 +9,9 @@ const isMock =
   env.supabaseUrl.includes("localhost:54321") ||
   env.supabaseServiceRoleKey.includes("dummy") ||
   env.supabaseServiceRoleKey.includes("mock") ||
-  process.env.USE_MOCK_DB === "true";
+  process.env.USE_MOCK_DB === "true" ||
+  process.env.NODE_ENV === "test" ||
+  process.env.VITEST === "true";
 
 if (isMock) {
   console.log("[ethosk] Running in Local Demo Mode with mock Database store.");
