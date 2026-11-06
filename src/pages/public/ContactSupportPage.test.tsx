@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ContactSupportPage } from "./ContactSupportPage";
 import { LanguageProvider } from "@/lib/language";
@@ -50,7 +50,17 @@ describe("Ethosk - Contact & Support: Ready (Stitch Screen 8de8c52b67df4957a5ff0
     expect(screen.getByText("+251 911 234 567")).toBeDefined();
   });
 
-  it("submits contact support form and navigates to success page", () => {
+  it("submits contact support form and navigates to success page with ticket ID", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      text: async () =>
+        JSON.stringify({
+          success: true,
+          ticket: { id: "test-id", ticket_number: "ETH-88231" },
+        }),
+    } as any);
+
     renderContactSupportPage();
 
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Abebe Bikila" } });
@@ -63,7 +73,9 @@ describe("Ethosk - Contact & Support: Ready (Stitch Screen 8de8c52b67df4957a5ff0
     const submitBtn = screen.getByRole("button", { name: /Send Support Request/i });
     fireEvent.click(submitBtn);
 
-    expect(screen.getByText("Support Success Page")).toBeDefined();
+    await waitFor(() => {
+      expect(screen.getByText("Support Success Page")).toBeDefined();
+    });
   });
 
   it("handles Amharic translations", () => {

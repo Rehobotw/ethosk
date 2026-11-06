@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Icon } from "@/components/ui";
+import { api, ApiRequestError } from "@/lib/api";
 
 interface FaqItem {
   id: string;
@@ -74,6 +75,50 @@ export function HelpCenterPage() {
   const [openFaqId, setOpenFaqId] = useState<string | null>("faq-1");
   const [ticketModalOpen, setTicketModalOpen] = useState(false);
   const [ticketSent, setTicketSent] = useState(false);
+  const [ticketSubject, setTicketSubject] = useState("");
+  const [ticketDetails, setTicketDetails] = useState("");
+  const [ticketEmail, setTicketEmail] = useState("");
+  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
+  const [ticketError, setTicketError] = useState<string | null>(null);
+  const [returnedTicketNumber, setReturnedTicketNumber] = useState<string | null>(null);
+
+  const resetTicketModal = () => {
+    setTicketModalOpen(false);
+    setTicketSent(false);
+    setTicketSubject("");
+    setTicketDetails("");
+    setTicketEmail("");
+    setTicketError(null);
+    setReturnedTicketNumber(null);
+  };
+
+  const handleTicketSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingTicket(true);
+    setTicketError(null);
+    try {
+      const res = await api<{ success: boolean; ticket: { id: string; ticket_number: string } }>("/support/tickets", {
+        body: {
+          subject: ticketSubject,
+          message: ticketDetails,
+          email: ticketEmail.trim() || undefined,
+          category: "general",
+        },
+      });
+      setReturnedTicketNumber(res.ticket.ticket_number);
+      setTicketSent(true);
+    } catch (err: unknown) {
+      let msg = "Failed to submit ticket. Please try again.";
+      if (err instanceof ApiRequestError) {
+        msg = err.message;
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
+      setTicketError(msg);
+    } finally {
+      setIsSubmittingTicket(false);
+    }
+  };
 
   const toggleFaq = (id: string) => {
     setOpenFaqId((prev) => (prev === id ? null : id));
@@ -252,10 +297,7 @@ export function HelpCenterPage() {
               </h3>
               <button
                 type="button"
-                onClick={() => {
-                  setTicketModalOpen(false);
-                  setTicketSent(false);
-                }}
+                onClick={resetTicketModal}
                 className="text-[#71787c] hover:text-[#001d29] cursor-pointer"
               >
                 <Icon className="text-[20px]" name="close" />
@@ -270,47 +312,75 @@ export function HelpCenterPage() {
                 <h4 className="font-headline font-bold text-base text-[#001d29]">
                   Ticket Submitted Successfully!
                 </h4>
+                {returnedTicketNumber && (
+                  <div
+                    data-testid="returned-ticket-id"
+                    className="inline-block bg-[#e2e7ff] text-[#001d29] font-mono font-bold text-xs px-3 py-1.5 rounded-lg border border-[#c1c7cc]/50"
+                  >
+                    Ticket ID: #{returnedTicketNumber}
+                  </div>
+                )}
                 <p className="text-xs text-[#41484c]">
                   Our research operations team in Addis Ababa will reply within 30 minutes.
                 </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    setTicketModalOpen(false);
-                    setTicketSent(false);
-                  }}
+                  onClick={resetTicketModal}
                   className="px-6 py-2.5 bg-[#001d29] text-white text-xs font-bold rounded-xl"
                 >
                   Close
                 </button>
               </div>
             ) : (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  setTicketSent(true);
-                }}
-                className="space-y-4 text-xs"
-              >
+              <form onSubmit={handleTicketSubmit} className="space-y-4 text-xs">
+                {ticketError && (
+                  <div
+                    data-testid="help-ticket-error"
+                    className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-medium"
+                  >
+                    {ticketError}
+                  </div>
+                )}
+
                 <div>
-                  <label className="block font-semibold text-[#001d29] mb-1">
+                  <label htmlFor="ticket-email" className="block font-semibold text-[#001d29] mb-1">
+                    Contact Email
+                  </label>
+                  <input
+                    id="ticket-email"
+                    type="email"
+                    value={ticketEmail}
+                    onChange={(e) => setTicketEmail(e.target.value)}
+                    placeholder="researcher@example.com (optional if logged in)"
+                    className="w-full px-3 py-2 border border-[#c1c7cc] rounded-lg outline-none focus:ring-1 focus:ring-[#001d29]"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="ticket-subject" className="block font-semibold text-[#001d29] mb-1">
                     Subject / Topic
                   </label>
                   <input
+                    id="ticket-subject"
                     type="text"
                     required
+                    value={ticketSubject}
+                    onChange={(e) => setTicketSubject(e.target.value)}
                     placeholder="e.g., IRB clearance letter question"
                     className="w-full px-3 py-2 border border-[#c1c7cc] rounded-lg outline-none focus:ring-1 focus:ring-[#001d29]"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#001d29] mb-1">
+                  <label htmlFor="ticket-details" className="block font-semibold text-[#001d29] mb-1">
                     Details
                   </label>
                   <textarea
+                    id="ticket-details"
                     required
                     rows={4}
+                    value={ticketDetails}
+                    onChange={(e) => setTicketDetails(e.target.value)}
                     placeholder="Describe your question or issue in detail..."
                     className="w-full p-3 border border-[#c1c7cc] rounded-lg outline-none focus:ring-1 focus:ring-[#001d29] resize-none"
                   ></textarea>
@@ -319,16 +389,17 @@ export function HelpCenterPage() {
                 <div className="flex justify-end gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => setTicketModalOpen(false)}
+                    onClick={resetTicketModal}
                     className="px-4 py-2 border border-[#c1c7cc] rounded-xl font-semibold text-[#71787c]"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2 bg-[#001d29] hover:bg-[#003345] text-white rounded-xl font-bold cursor-pointer"
+                    disabled={isSubmittingTicket}
+                    className="px-6 py-2 bg-[#001d29] hover:bg-[#003345] text-white rounded-xl font-bold cursor-pointer disabled:opacity-50"
                   >
-                    Send Ticket
+                    {isSubmittingTicket ? "Sending..." : "Send Ticket"}
                   </button>
                 </div>
               </form>
